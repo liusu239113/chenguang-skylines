@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,6 +40,7 @@ import kotlin.math.floor
 fun RGBA.toColor(): Color = Color(r / 255f, g / 255f, b / 255f, a / 255f)
 
 object UIHelper {
+
 
     /** 资金格式化：>=10000 万显示 "x.x万" */
     fun fmtMoney(v: Double): String =
