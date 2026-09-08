@@ -260,6 +260,9 @@ class MapRenderView @JvmOverloads constructor(
 
     private val cars = mutableListOf<Car>()
 
+    /** 道路流量统计（拥堵热力图用） */
+    private val roadFlow = IntArray(Config.MAP.cols * Config.MAP.rows)
+
     private val carColors = listOf(
         RGBA(242, 240, 236), RGBA(198, 92, 78), RGBA(96, 128, 182),
         RGBA(234, 194, 88), RGBA(134, 170, 134), RGBA(96, 98, 104)
@@ -349,6 +352,10 @@ class MapRenderView @JvmOverloads constructor(
         val w = World.current ?: return
         while (cars.size < CARS_TARGET) spawnCar()
         val redNow = (Growth.simTime * 1.2).toInt() % 4 < 2
+        // 流量衰减
+        for (i in roadFlow.indices) {
+            if (roadFlow[i] > 0) roadFlow[i] = (roadFlow[i] * 0.95).toInt()
+        }
         for (i in cars.indices.reversed()) {
             val c = cars[i]
             if (!isRoadCell(c.x, c.y)) {
@@ -413,6 +420,10 @@ class MapRenderView @JvmOverloads constructor(
                         c.dir = best ?: opts[Random.nextInt(opts.size)]
                     }
                 }
+            }
+            // 流量统计
+            if (c.x in 1..w.cols && c.y in 1..w.rows) {
+                roadFlow[(c.y - 1) * w.cols + (c.x - 1)]++
             }
         }
     }
@@ -961,8 +972,53 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // ---- 4.5) 覆盖热力图（电力/供水/垃圾/医疗/教育/安全） ----
-        if (overlay.isNotEmpty()) {
+        // ---- 4.5) 覆盖热力图（电力/供水/垃圾/医疗/教育/安全/交通/地价） ----
+        if (overlay == "traffic") {
+            // 拥堵热力图（道路流量红黄绿）
+            for (ty in y0..y1) {
+                for (tx in x0..x1) {
+                    val t = w.grid[ty - 1][tx - 1]
+                    if (t.road == null) continue
+                    val flow = roadFlow[(ty - 1) * w.cols + (tx - 1)]
+                    val col = when {
+                        flow > 40 -> RGBA(220, 80, 70, 150)
+                        flow > 12 -> RGBA(230, 190, 70, 150)
+                        else -> RGBA(90, 200, 120, 120)
+                    }
+                    fillRect(
+                        canvas, worldToScreenX(tx - 1f), worldToScreenY(ty - 1f),
+                        cell, cell, col
+                    )
+                }
+            }
+        } else if (overlay == "landvalue") {
+            // 地价热力图（滨水/绿地抬升，工业拉低）
+            for (ty in y0..y1) {
+                for (tx in x0..x1) {
+                    val t = w.grid[ty - 1][tx - 1]
+                    if (t.road != null || t.building != null) continue
+                    var v = 0
+                    for (dy in -2..2) for (dx in -2..2) {
+                        val nt = World.tile(tx + dx, ty + dy) ?: continue
+                        if (nt.terrain == "water") v += 3
+                        if (nt.building?.isService == true) {
+                            val cfg = World.serviceConfig(nt.building!!.service)
+                            if (cfg?.category == Config.ServiceCat.AMENITY) v += 2
+                        }
+                        if (nt.building?.zone == "industrial") v -= 2
+                    }
+                    val col = when {
+                        v > 6 -> RGBA(90, 200, 120, 100)
+                        v > 0 -> RGBA(200, 200, 120, 90)
+                        else -> RGBA(220, 90, 80, 90)
+                    }
+                    fillRect(
+                        canvas, worldToScreenX(tx - 1f), worldToScreenY(ty - 1f),
+                        cell, cell, col
+                    )
+                }
+            }
+        } else if (overlay.isNotEmpty()) {
             val green = RGBA(90, 200, 120, 95)
             val red = RGBA(220, 80, 70, 135)
             val blue = RGBA(70, 130, 220, 105)
@@ -1030,8 +1086,8 @@ class MapRenderView @JvmOverloads constructor(
                     }
                 }
             }
-            // 服务设施名
-            if (cell >= 16) {
+            // 服务设施名/符号（电水垃圾交通用符号，生活医疗教育消防用名字）
+            if (cell >= 14) {
                 for (ty in y0..y1) {
                     for (tx in x0..x1) {
                         val t = w.grid[ty - 1][tx - 1]
@@ -1040,9 +1096,15 @@ class MapRenderView @JvmOverloads constructor(
                         val sc = World.serviceConfig(bl.service) ?: continue
                         val sx = worldToScreenX(bl.ax - 1 + bl.w / 2f)
                         val sy = worldToScreenY(bl.ay - 1 + bl.h / 2f)
-                        val chars = sc.name.length
-                        val fs = min(cell * 0.5f, cell * bl.w * 0.92f / chars)
-                        drawText(canvas, sx, sy, fs, RGBA(60, 76, 58), sc.name, TAlign.CENTER, 235)
+                        val sym = serviceSymbol(bl.service ?: "")
+                        if (sym.isNotEmpty()) {
+                            val fs = min(cell * 0.6f, cell * bl.w * 0.9f)
+                            drawText(canvas, sx, sy, fs, RGBA(255, 255, 255), sym, TAlign.CENTER, 245)
+                        } else {
+                            val chars = sc.name.length
+                            val fs = min(cell * 0.5f, cell * bl.w * 0.92f / chars)
+                            drawText(canvas, sx, sy, fs, RGBA(60, 76, 58), sc.name, TAlign.CENTER, 235)
+                        }
                     }
                 }
             }
@@ -1140,6 +1202,21 @@ class MapRenderView @JvmOverloads constructor(
             fillRect(canvas, 0f, 0f, viewW, viewH, RGBA(18, 24, 52, (nightLevel * 88).toInt()))
         }
 
+        // ---- 6.6) 天气（雨/雾） ----
+        when (GameData.weather) {
+            1 -> {
+                strokeColor(RGBA(180, 200, 225, 70), 255, max(1f, cell * 0.02f))
+                for (i in 0 until 36) {
+                    val rx = ((i * 37 + 13) % 100) / 100f * viewW
+                    val ry = ((i * 53 + 7) % 100) / 100f * viewH
+                    canvas.drawLine(rx, ry, rx - cell * 0.35f, ry + cell * 0.7f, paint)
+                }
+            }
+            2 -> {
+                fillRect(canvas, 0f, 0f, viewW, viewH, RGBA(215, 222, 228, 55))
+            }
+        }
+
         // ---- 7) Toast ----
         if (toastMsg != null && typeface != null) {
             val alpha = if (toastT > 2.6f) clamp((3.2f - toastT) / 0.6f, 0f, 1f) else 1f
@@ -1235,6 +1312,21 @@ class MapRenderView @JvmOverloads constructor(
         fillRect(canvas, rx + 1, ry + rh - 1, rw - 2, max(1.5f, cell * 0.08f), RGBA(60, 70, 60, 46))
     }
 
+    /** 基础设施/交通设施的单字符号（模型标识） */
+    private fun serviceSymbol(id: String): String = when (id) {
+        "wind_farm" -> "风"
+        "solar_plant" -> "阳"
+        "coal_plant" -> "煤"
+        "water_tower" -> "水"
+        "pump_station" -> "泵"
+        "landfill" -> "垃"
+        "bus_stop" -> "公"
+        "rail_station" -> "铁"
+        "harbor" -> "港"
+        "airport" -> "机"
+        else -> ""
+    }
+
     /** 成长建筑按坐标确定性取名 */
     private fun buildingName(zone: String, x: Int, y: Int): String {
         val pre: List<String>
@@ -1261,23 +1353,23 @@ class MapRenderView @JvmOverloads constructor(
     /** 天空色：按一天内时间插值（清晨→白昼→黄昏→夜晚） */
     private fun skyColor(tod: Float): RGBA {
         val frames = listOf(
-            0.0f to RGBA(255, 205, 165),
-            0.18f to RGBA(178, 210, 235),
+            0.0f to RGBA(20, 26, 50),
+            0.08f to RGBA(255, 205, 165),
+            0.2f to RGBA(178, 210, 235),
             0.45f to RGBA(178, 210, 235),
             0.55f to RGBA(238, 170, 120),
-            0.68f to RGBA(28, 36, 66),
-            0.9f to RGBA(20, 26, 50),
-            1.0f to RGBA(255, 205, 165)
+            0.65f to RGBA(28, 36, 66),
+            1.0f to RGBA(20, 26, 50)
         )
         return lerpColor(frames, tod)
     }
 
     private fun nightFactor(tod: Float): Float = when {
-        tod < 0.05f -> (0.05f - tod) / 0.05f * 0.8f
-        tod < 0.6f -> 0f
-        tod < 0.68f -> (tod - 0.6f) / 0.08f
-        tod < 0.92f -> 1f
-        else -> (1f - tod) / 0.08f
+        tod < 0.06f -> 1f                         // 深夜（与 1.0 连续，回绕无跳变）
+        tod < 0.16f -> (0.16f - tod) / 0.10f      // 清晨 1→0
+        tod < 0.5f -> 0f                          // 白天
+        tod < 0.6f -> (tod - 0.5f) / 0.10f        // 黄昏 0→1
+        else -> 1f                                // 夜晚
     }
 
     private fun lerpColor(frames: List<Pair<Float, RGBA>>, t: Float): RGBA {

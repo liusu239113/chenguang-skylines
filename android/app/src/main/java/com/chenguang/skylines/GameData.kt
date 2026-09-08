@@ -68,6 +68,9 @@ object GameData {
     /** 一天内时间：0=清晨，0.25=正午，0.5=黄昏，0.75=夜晚 */
     var timeOfDay: Float = 0.25f
 
+    /** 天气：0=晴 1=雨 2=雾 */
+    var weather: Int = 0
+
     private var dayAcc: Double = 0.0
     private var eventCooldown: Int = 12
 
@@ -179,7 +182,22 @@ object GameData {
 
         val st = World.stats()
         s.pollution = st.pollution
-        val cov = World.coverage()
+        // 天气随机切换
+        if (kotlin.random.Random.nextInt(100) < 8) {
+            weather = kotlin.random.Random.nextInt(3)
+        }
+        var cov = World.coverage()
+        // 电力供需：电站容量 vs 建筑用电，缺电则供电比例打折
+        var powerCap = 0
+        for (e in World.allBuildings()) {
+            if (e.b.isService) {
+                val cfg = World.serviceConfig(e.b.service)
+                if (cfg?.category == Config.ServiceCat.POWER) powerCap += 20
+            }
+        }
+        val bldN = st.resCount + st.comCount + st.indCount
+        val supplyFactor = if (bldN > 0) min(1.0, powerCap.toDouble() / bldN) else 1.0
+        cov = cov.copy(power = cov.power * supplyFactor.toFloat())
         s.lastCoverage = cov
 
         // 人口 = 各住宅入住人数之和；住宅建好即迁入
@@ -366,8 +384,9 @@ object GameData {
     fun tick(dt: Float) {
         val s = current ?: return
         val simDt = dt * speed()
+        // 昼夜循环独立于游戏速度：固定 120 秒一轮（避免闪烁）
+        timeOfDay = (timeOfDay + dt / 120f) % 1f
         if (simDt <= 0) return
-        timeOfDay = (timeOfDay + (simDt / T.daySeconds).toFloat()) % 1f
         dayAcc += simDt
         while (dayAcc >= T.daySeconds) {
             dayAcc -= T.daySeconds

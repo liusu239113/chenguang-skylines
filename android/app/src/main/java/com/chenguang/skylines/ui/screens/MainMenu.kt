@@ -139,7 +139,7 @@ private fun MainMenuScreen(mapView: MapRenderView) {
                 AppState.menuScreen = "slots"
             }
 
-            MenuButton("沙盒模式（无限资金）", C.chipBg.toColor(), false) {
+            MenuButton("GM 模式（无限资源）", C.chipBg.toColor(), false) {
                 Sfx.play("sfx_click")
                 startGame(mapView, "沙盒之城", Random.nextInt(1, 100000), "normal", true)
             }

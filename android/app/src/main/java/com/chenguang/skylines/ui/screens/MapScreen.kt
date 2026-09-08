@@ -783,6 +783,8 @@ private fun overlayLabel(cat: String): String = when (cat) {
     Config.ServiceCat.HEALTH -> "医疗"
     Config.ServiceCat.EDUCATION -> "教育"
     Config.ServiceCat.SAFETY -> "消防"
+    "traffic" -> "拥堵"
+    "landvalue" -> "地价"
     else -> cat
 }
 
@@ -855,7 +857,8 @@ private fun DataPanel() {
             )
             val cats = listOf(
                 Config.ServiceCat.POWER, Config.ServiceCat.WATER, Config.ServiceCat.GARBAGE,
-                Config.ServiceCat.HEALTH, Config.ServiceCat.EDUCATION, Config.ServiceCat.SAFETY
+                Config.ServiceCat.HEALTH, Config.ServiceCat.EDUCATION, Config.ServiceCat.SAFETY,
+                "traffic", "landvalue"
             )
             cats.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
