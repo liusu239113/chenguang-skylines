@@ -826,6 +826,30 @@ private fun DataPanel() {
                 CovBar("消防", cov.safety)
             }
 
+            // 满意度根因
+            val bd = GameData.happinessBreakdown()
+            Text(
+                "满意度 ${floor(s.happiness).toInt()}（目标 ${bd.target.toInt()}）",
+                fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = if (s.happiness >= 55) C.accentGreen.toColor() else C.accentRed.toColor(),
+                fontFamily = LocalGameFont.current
+            )
+            Text(
+                "基础 ${bd.base.toInt()} · 服务 +${bd.service.toInt()} · 污染 ${bd.pollution.toInt()} · 覆盖 ${bd.coveragePenalty.toInt()} · 税 ${bd.taxPenalty.toInt()} · 事件 ${bd.event.toInt()}",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+
+            // 市政任务
+            s.quest?.let { q ->
+                val v = GameData.questValue(q.type)
+                Text(
+                    "市政任务：" + q.name + " " + v.toInt() + "/" + q.target.toInt() +
+                        "（奖励 " + q.reward + " 万）" + if (q.done) " ✓" else "",
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    color = C.accentGold.toColor(), fontFamily = LocalGameFont.current
+                )
+            }
+
             // 需求
             val d = Growth.lastDemand
             Text(

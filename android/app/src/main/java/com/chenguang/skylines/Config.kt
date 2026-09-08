@@ -74,7 +74,7 @@ object Config {
     // 实时时间
     // -----------------------------------------------------------------------
     object TIME {
-        const val daySeconds = 2.0f
+        const val daySeconds = 8.0f          // 1x 下一天的现实秒数（缓慢推进）
         val speeds = intArrayOf(0, 1, 2, 4)   // 暂停 / 1x / 2x / 4x
     }
 
@@ -307,11 +307,17 @@ object Config {
         AchievementDef("pop100", "初具规模", "人口达到 100", 300, "pop", 100.0),
         AchievementDef("pop500", "集镇兴起", "人口达到 500", 800, "pop", 500.0),
         AchievementDef("pop1000", "千人之城", "人口达到 1000", 1500, "pop", 1000.0),
+        AchievementDef("pop2000", "城区气象", "人口达到 2000", 2500, "pop", 2000.0),
         AchievementDef("pop4000", "都市气象", "人口达到 4000", 5000, "pop", 4000.0),
+        AchievementDef("pop6000", "都市崛起", "人口达到 6000", 7000, "pop", 6000.0),
         AchievementDef("pop10000", "万人大都会", "人口达到 10000", 10000, "pop", 10000.0),
         AchievementDef("bld50", "拔地而起", "建成 50 栋建筑", 500, "buildings", 50.0),
         AchievementDef("bld200", "百业兴旺", "建成 200 栋建筑", 1500, "buildings", 200.0),
+        AchievementDef("bld300", "高楼林立", "建成 300 栋建筑", 2500, "buildings", 300.0),
         AchievementDef("funds10000", "家底殷实", "资金达到 10000 万", 1000, "funds", 10000.0),
+        AchievementDef("funds30000", "富可敌国", "资金达到 30000 万", 2000, "funds", 30000.0),
+        AchievementDef("happy70", "和谐宜居", "满意度达到 70", 600, "happiness", 70.0),
+        AchievementDef("happy80", "人间乐土", "满意度达到 80", 1200, "happiness", 80.0),
         AchievementDef("happy85", "安居乐业", "满意度达到 85", 1000, "happiness", 85.0),
         AchievementDef("happy95", "人间天堂", "满意度达到 95", 2500, "happiness", 95.0)
     )
@@ -338,6 +344,21 @@ object Config {
         EventDef("strike", "工人罢工", "满意度长期低迷，工厂停工。", 4, -8.0, 0.80, "happy"),
         EventDef("boom", "投资热潮", "商业需求旺盛，消费激增。", 8, 6.0, 1.20, "boom"),
         EventDef("festival", "城市节日", "全城欢庆，消费与满意度上升。", 3, 10.0, 1.10, "random")
+    )
+
+    // -----------------------------------------------------------------------
+    // 市政任务（限时目标，完成刷新）
+    // -----------------------------------------------------------------------
+    data class QuestDef(val type: String, val name: String, val reward: Int, val target: Double)
+
+    val QUESTS: List<QuestDef> = listOf(
+        QuestDef("pop", "人口达到", 800, 300.0),
+        QuestDef("pop", "人口达到", 1500, 800.0),
+        QuestDef("buildings", "建成建筑", 600, 40.0),
+        QuestDef("buildings", "建成建筑", 1200, 100.0),
+        QuestDef("funds", "资金达到", 600, 12000.0),
+        QuestDef("happy", "满意度达到", 800, 70.0),
+        QuestDef("happy", "满意度达到", 1500, 88.0)
     )
 
     // -----------------------------------------------------------------------

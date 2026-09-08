@@ -107,6 +107,13 @@ object SaveManager {
         }
         json.put("activeEvents", evs)
 
+        s.quest?.let { q ->
+            json.put(
+                "quest", JSONObject().put("type", q.type).put("name", q.name)
+                    .put("target", q.target).put("reward", q.reward).put("done", q.done)
+            )
+        }
+
         val news = JSONArray()
         for (n in s.news) {
             news.put(
@@ -238,6 +245,15 @@ object SaveManager {
                     o.optString("id"), o.optString("name"), o.optInt("daysLeft"),
                     o.optDouble("happy", 0.0), o.optDouble("incomeMul", 1.0)
                 )
+            )
+        }
+
+        s.quest = null
+        val qj = json.optJSONObject("quest")
+        if (qj != null) {
+            s.quest = Quest(
+                qj.optString("type"), qj.optString("name"), qj.optDouble("target"),
+                qj.optInt("reward"), qj.optBoolean("done", false)
             )
         }
 

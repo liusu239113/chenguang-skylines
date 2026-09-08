@@ -18,6 +18,8 @@ data class NewsItem(val month: String, val headline: String, val body: String, v
 
 data class ActiveEvent(val id: String, val name: String, var daysLeft: Int, val happy: Double, val incomeMul: Double)
 
+data class Quest(var type: String, var name: String, var target: Double, var reward: Int, var done: Boolean = false)
+
 class CityState {
     var year: Int = 2026
     var month: Int = 4
@@ -45,6 +47,8 @@ class CityState {
     val achievements: MutableSet<String> = mutableSetOf()
     // 进行中的事件
     val activeEvents: MutableList<ActiveEvent> = mutableListOf()
+    // 当前市政任务
+    var quest: Quest? = null
     // 城市名
     var cityName: String = Config.World.city
 }
@@ -97,6 +101,7 @@ object GameData {
                 "。沿大道修路、划分区，城市将随时间自然生长。",
             "头条"
         )
+        ensureQuest()
     }
 
     fun reset(seed: Int) {
@@ -141,8 +146,17 @@ object GameData {
     // -----------------------------------------------------------------------
     // 每日结算
     // -----------------------------------------------------------------------
-    private fun computeHappinessTarget(st: com.chenguang.skylines.world.WorldStats): Double {
-        var target = 52.0
+    data class HappyBreakdown(
+        val base: Double, val service: Double, val pollution: Double,
+        val coveragePenalty: Double, val taxPenalty: Double, val event: Double, val target: Double
+    )
+
+    /** 满意度分解（数据面板根因展示） */
+    fun happinessBreakdown(): HappyBreakdown {
+        val s = current ?: return HappyBreakdown(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        val st = World.stats()
+        val base = 52.0
+        var service = 0.0
         for (e in World.allBuildings()) {
             val b = e.b
             if (!b.isService) continue
@@ -154,27 +168,29 @@ object GameData {
                     if (t?.building != null && t.building?.isService != true) covered++
                 }
             }
-            target += cfg.happy * min(1.2, covered / 14.0)
+            service += cfg.happy * min(1.2, covered / 14.0)
         }
-        target -= st.pollution * E.pollutionHappy
-
-        // 基础设施覆盖不足的惩罚（缺电/缺水/垃圾堆积）
+        val pollution = -st.pollution * E.pollutionHappy
         val cov = World.coverage()
-        target -= (1 - cov.power) * Config.COVERAGE.powerHappyPenalty
-        target -= (1 - cov.water) * Config.COVERAGE.waterHappyPenalty
-        target -= (1 - cov.garbage) * Config.COVERAGE.garbageHappyPenalty
-
-        // 税率高于基准的惩罚
-        val s = current
-        if (s != null) {
-            target -= max(0.0, (s.taxRes - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
-            target -= max(0.0, (s.taxCom - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
-            target -= max(0.0, (s.taxInd - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
-            for (ev in s.activeEvents) target += ev.happy
-        }
-
-        return max(Config.RESOURCES.happinessMin, min(Config.RESOURCES.happinessMax, target))
+        val coveragePenalty =
+            -(1 - cov.power) * Config.COVERAGE.powerHappyPenalty -
+                (1 - cov.water) * Config.COVERAGE.waterHappyPenalty -
+                (1 - cov.garbage) * Config.COVERAGE.garbageHappyPenalty
+        val taxPenalty =
+            -max(0.0, (s.taxRes - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint -
+                max(0.0, (s.taxCom - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint -
+                max(0.0, (s.taxInd - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
+        var event = 0.0
+        for (ev in s.activeEvents) event += ev.happy
+        val target = max(
+            Config.RESOURCES.happinessMin,
+            min(Config.RESOURCES.happinessMax, base + service + pollution + coveragePenalty + taxPenalty + event)
+        )
+        return HappyBreakdown(base, service, pollution, coveragePenalty, taxPenalty, event, target)
     }
+
+    private fun computeHappinessTarget(st: com.chenguang.skylines.world.WorldStats): Double =
+        happinessBreakdown().target
 
     private fun onNewDay() {
         val s = current ?: return
@@ -187,17 +203,22 @@ object GameData {
             weather = kotlin.random.Random.nextInt(3)
         }
         var cov = World.coverage()
-        // 电力供需：电站容量 vs 建筑用电，缺电则供电比例打折
+        // 电力/供水供需：容量 vs 建筑数，不足则覆盖比例打折
         var powerCap = 0
+        var waterCap = 0
         for (e in World.allBuildings()) {
             if (e.b.isService) {
                 val cfg = World.serviceConfig(e.b.service)
-                if (cfg?.category == Config.ServiceCat.POWER) powerCap += 20
+                when (cfg?.category) {
+                    Config.ServiceCat.POWER -> powerCap += 20
+                    Config.ServiceCat.WATER -> waterCap += 20
+                }
             }
         }
         val bldN = st.resCount + st.comCount + st.indCount
         val supplyFactor = if (bldN > 0) min(1.0, powerCap.toDouble() / bldN) else 1.0
-        cov = cov.copy(power = cov.power * supplyFactor.toFloat())
+        val waterFactor = if (bldN > 0) min(1.0, waterCap.toDouble() / bldN) else 1.0
+        cov = cov.copy(power = cov.power * supplyFactor.toFloat(), water = cov.water * waterFactor.toFloat())
         s.lastCoverage = cov
 
         // 人口 = 各住宅入住人数之和；住宅建好即迁入
@@ -330,6 +351,15 @@ object GameData {
                 pushNews("事件结束", s.activeEvents[i].name + " 已解除。", "事件")
                 s.activeEvents.removeAt(i)
             }
+        }
+
+        // 市政任务检查
+        ensureQuest()
+        val q = s.quest
+        if (q != null && !q.done && questValue(q.type) >= q.target) {
+            q.done = true
+            s.funds += q.reward
+            pushNews("任务完成：" + q.name, "达成目标，奖励 " + q.reward + " 万。", "任务")
         }
 
         // 政策倒计时
@@ -488,6 +518,28 @@ object GameData {
         s.funds += Config.LOAN.amount
         pushNews("市政贷款", "借入 " + Config.LOAN.amount.toInt() + " 万，将按日自动还款。", "财政")
         return true to null
+    }
+
+    /** 市政任务当前进度值 */
+    fun questValue(type: String): Double {
+        val s = current ?: return 0.0
+        val st = World.stats()
+        return when (type) {
+            "pop" -> s.population
+            "funds" -> s.funds
+            "buildings" -> (st.resCount + st.comCount + st.indCount).toDouble()
+            "happy" -> s.happiness
+            else -> 0.0
+        }
+    }
+
+    /** 无任务或已完成时生成新任务 */
+    fun ensureQuest() {
+        val s = current ?: return
+        if (s.quest == null || s.quest!!.done) {
+            val q = Config.QUESTS[kotlin.random.Random.nextInt(Config.QUESTS.size)]
+            s.quest = Quest(q.type, q.name, q.target, q.reward)
+        }
     }
 
     // -----------------------------------------------------------------------
