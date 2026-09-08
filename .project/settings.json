@@ -1,0 +1,41 @@
+{
+  "$schema": "../schemas/settings.schema.json",
+  "sources": {
+    "engine": {
+      "tag": "stable",
+      "base_url": "https://tapcode-sce.spark.xd.com/src/engine/"
+    },
+    "engine-res": {
+      "tag": "stable",
+      "base_url": "https://tapcode-sce.spark.xd.com/src/engine-res/"
+    },
+    "official": {
+      "tag": "stable",
+      "base_url": "https://tapcode-sce.spark.xd.com/src/official-res/"
+    },
+    "official-res": {
+      "tag": "stable",
+      "base_url": "https://tapcode-sce.spark.xd.com/src/official-res/"
+    },
+    "project": {
+      "base_url": "assets/"
+    }
+  },
+  "build": {
+    "generate_fs_path": true,
+    "output_dir": "../dist",
+    "asset_dirs": [
+      "../assets",
+      "../scripts"
+    ],
+    "asset_ignores": [],
+    "tags": {
+      "latest": "auto"
+    }
+  },
+  "@runtime": {
+    "multiplayer": {
+      "enabled": false
+    }
+  }
+}

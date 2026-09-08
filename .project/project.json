@@ -1,0 +1,23 @@
+{
+  "$schema": "../schemas/project.schema.json",
+  "project_id": "m_vxn3",
+  "name": "都市天际线：晨光",
+  "version": "1.0.0",
+  "entry": "main.lua",
+  "author": {
+    "name": "GameDev",
+    "id": "gamedev_001"
+  },
+  "description": {
+    "short": "手机版城市建造模拟：铺路网、划分区、盖摩天楼，经营属于你的都市天际线",
+    "long": "在虚构的星辰联邦晨光市担任首席规划师：铺设路网、划定居住/商业/工业分区、建造楼宇与公共设施，按月结算财政、人口与满意度，把江边小城建成繁华大都会。全虚构世界观，无现实机构指涉。"
+  },
+  "taptap_publish": {
+    "developer_id": 403350,
+    "title": "都市天际线：晨光",
+    "screen_orientation": "portrait"
+  },
+  "metadata": {
+    "updated_at": "2026-09-07T15:56:06.418Z"
+  }
+}
