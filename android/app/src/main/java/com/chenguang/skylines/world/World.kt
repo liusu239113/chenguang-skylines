@@ -460,6 +460,64 @@ class World {
             }
             return Config.CITY_LEVELS[0]
         }
+
+        // -------------------------------------------------------------------
+        // 覆盖系统：各类设施对成长建筑的覆盖比例（电力/供水/垃圾/医疗/教育/安全）
+        // -------------------------------------------------------------------
+        private class Anchor(val x: Int, val y: Int, val radius: Int)
+
+        private fun anchorsByCat(): Map<String, List<Anchor>> {
+            val map = mutableMapOf<String, MutableList<Anchor>>()
+            for (e in allBuildings()) {
+                val b = e.b
+                if (!b.isService) continue
+                val cfg = serviceConfig(b.service) ?: continue
+                map.getOrPut(cfg.category) { mutableListOf() }.add(Anchor(e.x, e.y, cfg.radius))
+            }
+            return map
+        }
+
+        /** 某格是否被指定类别的设施覆盖 */
+        fun isCoveredBy(x: Int, y: Int, category: String): Boolean {
+            val list = anchorsByCat()[category] ?: return false
+            for (a in list) {
+                val dx = a.x - x
+                val dy = a.y - y
+                if (dx * dx + dy * dy <= a.radius * a.radius) return true
+            }
+            return false
+        }
+
+        /** 各类别的覆盖比例（0..1，无建筑时视为 1） */
+        fun coverage(): Coverage {
+            val anchors = anchorsByCat()
+            val grown = allBuildings().filter { !it.b.isService }
+            fun ratio(cat: String): Float {
+                if (grown.isEmpty()) return 1f
+                val list = anchors[cat] ?: return 0f
+                if (list.isEmpty()) return 0f
+                var covered = 0
+                for (g in grown) {
+                    for (a in list) {
+                        val dx = a.x - g.x
+                        val dy = a.y - g.y
+                        if (dx * dx + dy * dy <= a.radius * a.radius) {
+                            covered++
+                            break
+                        }
+                    }
+                }
+                return covered.toFloat() / grown.size
+            }
+            return Coverage(
+                ratio(Config.ServiceCat.POWER),
+                ratio(Config.ServiceCat.WATER),
+                ratio(Config.ServiceCat.GARBAGE),
+                ratio(Config.ServiceCat.HEALTH),
+                ratio(Config.ServiceCat.EDUCATION),
+                ratio(Config.ServiceCat.SAFETY)
+            )
+        }
     }
 
     /** 当前人口（GameData 每日写入，供成长/晋级使用） */
@@ -467,3 +525,13 @@ class World {
 }
 
 data class BuildingEntry(val x: Int, val y: Int, val b: Building)
+
+/** 各类基础设施覆盖比例（0..1） */
+data class Coverage(
+    val power: Float,
+    val water: Float,
+    val garbage: Float,
+    val health: Float,
+    val education: Float,
+    val safety: Float
+)

@@ -130,6 +130,17 @@ object Config {
     // -----------------------------------------------------------------------
     // 服务设施
     // -----------------------------------------------------------------------
+    // 设施类别（决定覆盖热力图与负面效果分组）
+    object ServiceCat {
+        const val AMENITY = "amenity"     // 公园/广场（满意度/地价）
+        const val POWER = "power"         // 电力
+        const val WATER = "water"         // 供水
+        const val GARBAGE = "garbage"     // 垃圾处理
+        const val HEALTH = "health"       // 医疗
+        const val EDUCATION = "education" // 教育
+        const val SAFETY = "safety"       // 消防/安全
+    }
+
     data class ServiceDef(
         val id: String,
         val name: String,
@@ -140,18 +151,46 @@ object Config {
         val landValue: Boolean,
         val sizeW: Int,
         val sizeH: Int,
-        val desc: String
+        val desc: String,
+        val category: String = ServiceCat.AMENITY,
+        val unlockPop: Int = 0,           // 人口达到后解锁（里程碑）
+        val pollution: Int = 0            // 设施自身污染（燃煤电厂等）
     )
 
     val SERVICES: List<ServiceDef> = listOf(
+        // ---- 生活品质（开局可用） ----
         ServiceDef("park", "公园", 260, 4, 4, 5, true, 1, 1,
-            "小绿地，提升周边满意度与地价。"),
-        ServiceDef("school", "学校", 520, 10, 7, 4, true, 2, 2,
-            "教育覆盖，满意度与地价提升。"),
-        ServiceDef("clinic", "诊所", 640, 12, 7, 5, false, 1, 1,
-            "基础医疗，覆盖区满意度提升。"),
+            "小绿地，提升周边满意度与地价。", ServiceCat.AMENITY, 0),
         ServiceDef("plaza", "广场", 900, 8, 5, 8, true, 2, 2,
-            "市民广场，显著提升满意度。")
+            "市民广场，显著提升满意度。", ServiceCat.AMENITY, 500),
+        // ---- 电力 ----
+        ServiceDef("wind_farm", "风电场", 500, 6, 6, 0, false, 1, 1,
+            "清洁风电，覆盖周边供电。", ServiceCat.POWER, 0),
+        ServiceDef("solar_plant", "太阳能电站", 800, 5, 7, 0, false, 2, 2,
+            "大面积光伏，供电半径更大。", ServiceCat.POWER, 300),
+        ServiceDef("coal_plant", "燃煤电厂", 1200, 18, 10, -3, false, 2, 2,
+            "供电半径大，但产生污染。", ServiceCat.POWER, 0, 8),
+        // ---- 供水 ----
+        ServiceDef("water_tower", "水塔", 300, 4, 5, 0, false, 1, 1,
+            "为周边城区供水。", ServiceCat.WATER, 0),
+        ServiceDef("pump_station", "水泵站", 600, 7, 8, 0, false, 1, 1,
+            "大范围供水。", ServiceCat.WATER, 150),
+        // ---- 垃圾 ----
+        ServiceDef("landfill", "垃圾场", 350, 7, 6, 0, false, 1, 1,
+            "收集周边生活垃圾，防止堆积。", ServiceCat.GARBAGE, 100),
+        // ---- 医疗 ----
+        ServiceDef("clinic", "诊所", 640, 12, 7, 5, false, 1, 1,
+            "基础医疗，覆盖区满意度提升。", ServiceCat.HEALTH, 0),
+        ServiceDef("hospital", "医院", 900, 15, 8, 6, true, 2, 2,
+            "大型医疗，覆盖更广、满意度更高。", ServiceCat.HEALTH, 700),
+        // ---- 教育 ----
+        ServiceDef("school", "学校", 520, 10, 7, 4, true, 2, 2,
+            "教育覆盖，满意度与地价提升。", ServiceCat.EDUCATION, 0),
+        ServiceDef("middle_school", "中学", 700, 9, 8, 4, true, 2, 2,
+            "进阶教育，提升商业与工业效益。", ServiceCat.EDUCATION, 300),
+        // ---- 安全 ----
+        ServiceDef("fire_station", "消防站", 600, 10, 7, 0, false, 1, 1,
+            "扑灭火灾，保护城区。", ServiceCat.SAFETY, 300)
     )
 
     // -----------------------------------------------------------------------
@@ -181,6 +220,27 @@ object Config {
         const val happinessDecayDay = 0.10
         const val pollutionHappy = 0.045
         const val occupancyPerDay = 0.06
+    }
+
+    // -----------------------------------------------------------------------
+    // 税收（RCI 三税率；10% 为基准，上下限 5~15）
+    // -----------------------------------------------------------------------
+    object TAX {
+        const val min = 5
+        const val max = 15
+        const val default = 10
+        const val happyPerPoint = 1.2   // 税率每超基准 1 点，满意度目标 -1.2
+    }
+
+    // -----------------------------------------------------------------------
+    // 覆盖系统的负面惩罚
+    // -----------------------------------------------------------------------
+    object COVERAGE {
+        const val powerHappyPenalty = 15.0   // 完全缺电时满意度惩罚
+        const val waterHappyPenalty = 15.0
+        const val garbageHappyPenalty = 10.0
+        const val powerIncomeFloor = 0.4     // 缺电时商业/工业收入下限比例
+        const val fireChancePerDay = 0.02    // 每日无消防覆盖建筑起火概率
     }
 
     // -----------------------------------------------------------------------
@@ -218,15 +278,15 @@ object Config {
     // -----------------------------------------------------------------------
     // 城市阶段
     // -----------------------------------------------------------------------
-    data class CityLevelDef(val level: Int, val name: String, val popReq: Int)
+    data class CityLevelDef(val level: Int, val name: String, val popReq: Int, val reward: Int = 0)
 
     val CITY_LEVELS: List<CityLevelDef> = listOf(
-        CityLevelDef(1, "村庄", 0),
-        CityLevelDef(2, "小镇", 150),
-        CityLevelDef(3, "集镇", 500),
-        CityLevelDef(4, "城区", 1500),
-        CityLevelDef(5, "都市", 4000),
-        CityLevelDef(6, "大都会", 10000)
+        CityLevelDef(1, "村庄", 0, 0),
+        CityLevelDef(2, "小镇", 150, 600),
+        CityLevelDef(3, "集镇", 500, 1500),
+        CityLevelDef(4, "城区", 1500, 4000),
+        CityLevelDef(5, "都市", 4000, 10000),
+        CityLevelDef(6, "大都会", 10000, 25000)
     )
 
     // -----------------------------------------------------------------------

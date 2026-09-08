@@ -23,6 +23,12 @@ object AppState {
     var policyOpen by mutableStateOf(false)
     var helpOpen by mutableStateOf(false)
 
+    /** 数据面板 */
+    var dataOpen by mutableStateOf(false)
+
+    /** 覆盖热力图（"" | power/water/garbage/health/education/safety） */
+    var overlay by mutableStateOf("")
+
     /** 实时数值节流刷新（0.5s 一次） */
     var liveTick by mutableStateOf(0)
 

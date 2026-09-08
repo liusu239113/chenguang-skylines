@@ -71,6 +71,9 @@ class MapRenderView @JvmOverloads constructor(
     var tool: Tool? = null
     var onTileChanged: (() -> Unit)? = null
 
+    /** 覆盖热力图："" 关闭 | power/water/garbage/health/education/safety */
+    var overlay: String = ""
+
     private val cell: Float get() = Config.MAP.baseCell * camScale
 
     // 拖拽状态
@@ -781,6 +784,28 @@ class MapRenderView @JvmOverloads constructor(
                     bh + shrink * 2 * (bh / bw),
                     hpx, base
                 )
+            }
+        }
+
+        // ---- 4.5) 覆盖热力图（电力/供水/垃圾/医疗/教育/安全） ----
+        if (overlay.isNotEmpty() && cell >= 5) {
+            val green = RGBA(90, 200, 120, 80)
+            val red = RGBA(220, 80, 70, 120)
+            val blue = RGBA(70, 130, 220, 90)
+            for (e in World.allBuildings()) {
+                val sx = worldToScreenX(e.x - 1f)
+                val sy = worldToScreenY(e.y - 1f)
+                val bw = cell * e.b.w
+                val bh = cell * e.b.h
+                if (e.b.isService) {
+                    val cfg = World.serviceConfig(e.b.service)
+                    if (cfg != null && cfg.category == overlay) {
+                        fillRect(canvas, sx, sy, bw, bh, blue)
+                    }
+                } else {
+                    val ok = World.isCoveredBy(e.x, e.y, overlay)
+                    fillRect(canvas, sx, sy, bw, bh, if (ok) green else red)
+                }
             }
         }
 

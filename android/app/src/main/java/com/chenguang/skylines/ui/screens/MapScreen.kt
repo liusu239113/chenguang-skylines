@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import com.chenguang.skylines.world.MapRenderView
 import com.chenguang.skylines.world.Tool
 import com.chenguang.skylines.world.World
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 // ============================================================================
 // MapScreen — 主界面，与 scripts/Screens/MapScreen.lua 1:1 对应
@@ -136,6 +138,7 @@ fun MapScreenContent(mapView: MapRenderView) {
     val live = AppState.liveTick
     val version = AppState.mapVersion
     val s = GameData.current
+    mapView.overlay = AppState.overlay
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -304,6 +307,49 @@ fun MapScreenContent(mapView: MapRenderView) {
             }
         }
 
+        // ---------------- 数据按钮 ----------------
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 14.dp, bottom = 184.dp)
+        ) {
+            UIHelper.RoundButton("数", size = 40.dp, fontSize = 16.sp) {
+                Sfx.play("sfx_click", 0.6f)
+                AppState.dataOpen = !AppState.dataOpen
+            }
+        }
+
+        // ---------------- 覆盖热力图提示条 ----------------
+        if (AppState.overlay.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 128.dp)
+                    .background(C.panelWhite.toColor(), RoundedCornerShape(16.dp))
+                    .noRippleClickable { }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "覆盖图 · " + overlayLabel(AppState.overlay),
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
+                )
+                Box(
+                    modifier = Modifier
+                        .background(C.accentRed.toColor(), RoundedCornerShape(10.dp))
+                        .clickable { AppState.overlay = "" }
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        "✕", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = Color.White, fontFamily = LocalGameFont.current
+                    )
+                }
+            }
+        }
+
         // ---------------- 底部工具栏 ----------------
         Row(
             modifier = Modifier
@@ -349,6 +395,8 @@ fun MapScreenContent(mapView: MapRenderView) {
         if (AppState.policyOpen) PolicyPanel()
         // ---------------- 帮助面板 ----------------
         if (AppState.helpOpen) HelpPanel()
+        // ---------------- 数据面板 ----------------
+        if (AppState.dataOpen) DataPanel()
     }
 }
 
@@ -401,37 +449,69 @@ private fun DrawerContent(mapView: MapRenderView) {
         horizontalAlignment = Alignment.Start
     ) {
         if (AppState.mode == "service") {
-            Text(
-                "选择服务设施（放进城区里）", fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = C.textDark.toColor(), fontFamily = LocalGameFont.current
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (sv in Config.SERVICES) {
-                    UIHelper.PickChip(
-                        text = sv.name,
-                        sub = "¥" + sv.cost + "万",
-                        selected = AppState.selService == sv.id,
-                        disabled = s.funds < sv.cost,
-                        subColor = if (s.funds < sv.cost) C.accentRed.toColor() else C.textMid.toColor(),
-                        width = 76.dp
-                    ) {
-                        if (s.funds >= sv.cost) {
-                            AppState.selService = sv.id
-                            AppState.serviceOpen = false
-                            MapScreen.syncTool()
-                        } else {
-                            mapView.setToast("资金不足")
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 330.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    "选择设施（放进城区里，覆盖周边）", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                )
+                val groups = listOf(
+                    "生活品质" to Config.ServiceCat.AMENITY,
+                    "电力" to Config.ServiceCat.POWER,
+                    "供水" to Config.ServiceCat.WATER,
+                    "垃圾" to Config.ServiceCat.GARBAGE,
+                    "医疗" to Config.ServiceCat.HEALTH,
+                    "教育" to Config.ServiceCat.EDUCATION,
+                    "消防" to Config.ServiceCat.SAFETY
+                )
+                for ((title, cat) in groups) {
+                    val items = Config.SERVICES.filter { it.category == cat }
+                    if (items.isEmpty()) continue
+                    Text(
+                        title, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                    )
+                    items.chunked(3).forEach { rowItems ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            rowItems.forEach { sv ->
+                                val locked = sv.unlockPop > s.population.toInt()
+                                val poor = s.funds < sv.cost
+                                UIHelper.PickChip(
+                                    text = sv.name,
+                                    sub = if (locked) "人口" + sv.unlockPop else "¥" + sv.cost + "万",
+                                    selected = AppState.selService == sv.id,
+                                    disabled = locked || poor,
+                                    subColor = if (locked) C.textFaint.toColor()
+                                    else if (poor) C.accentRed.toColor() else C.textMid.toColor(),
+                                    width = 92.dp
+                                ) {
+                                    when {
+                                        locked -> mapView.setToast("人口达到 " + sv.unlockPop + " 后解锁")
+                                        poor -> mapView.setToast("资金不足")
+                                        else -> {
+                                            AppState.selService = sv.id
+                                            AppState.serviceOpen = false
+                                            MapScreen.syncTool()
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-            }
-            AppState.selService?.let { id ->
-                val sc = World.serviceConfig(id)
-                if (sc != null) {
-                    Text(
-                        sc.desc + " 覆盖半径 " + sc.radius + " 格。",
-                        fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
-                    )
+                AppState.selService?.let { id ->
+                    val sc = World.serviceConfig(id)
+                    if (sc != null) {
+                        Text(
+                            sc.desc + " 覆盖半径 " + sc.radius + " 格。",
+                            fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                        )
+                    }
                 }
             }
         } else if (AppState.mode == "road") {
@@ -525,6 +605,15 @@ private fun PolicyPanel() {
                     )
                 }
             }
+            // ---- 税率（RCI 三档） ----
+            Text(
+                "税率（% 越高收入越多，满意度与需求越低）",
+                fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            TaxSlider("住宅", s.taxRes) { s.taxRes = it; AppState.bumpLive() }
+            TaxSlider("商业", s.taxCom) { s.taxCom = it; AppState.bumpLive() }
+            TaxSlider("工业", s.taxInd) { s.taxInd = it; AppState.bumpLive() }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -600,6 +689,195 @@ private fun HelpRow(no: String, text: String) {
         Text(
             text, fontSize = 12.sp, color = Config.COLORS.textDark.toColor(),
             fontFamily = LocalGameFont.current, lineHeight = 18.sp, modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+private fun overlayLabel(cat: String): String = when (cat) {
+    Config.ServiceCat.POWER -> "电力"
+    Config.ServiceCat.WATER -> "供水"
+    Config.ServiceCat.GARBAGE -> "垃圾"
+    Config.ServiceCat.HEALTH -> "医疗"
+    Config.ServiceCat.EDUCATION -> "教育"
+    Config.ServiceCat.SAFETY -> "消防"
+    else -> cat
+}
+
+@Composable
+private fun DataPanel() {
+    val C = Config.COLORS
+    val s = GameData.current ?: return
+    val cov = s.lastCoverage
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .noRippleClickable { AppState.dataOpen = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .heightIn(max = 560.dp)
+                .verticalScroll(rememberScrollState())
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .noRippleClickable { },
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "城市数据", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+            )
+
+            // 覆盖率
+            if (cov != null) {
+                CovBar("电力", cov.power)
+                CovBar("供水", cov.water)
+                CovBar("垃圾", cov.garbage)
+                CovBar("医疗", cov.health)
+                CovBar("教育", cov.education)
+                CovBar("消防", cov.safety)
+            }
+
+            // 需求
+            val d = Growth.lastDemand
+            Text(
+                "RCI 需求", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "住宅 ${(d.r * 100).toInt()}% · 商业 ${(d.c * 100).toInt()}% · 工业 ${(d.i * 100).toInt()}%",
+                fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+            )
+
+            // 收支
+            Text(
+                "本月累计 收入 ¥${UIHelper.fmtMoney(s.totalIncome)}万 · 支出 ¥${UIHelper.fmtMoney(s.totalSpent)}万",
+                fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+            )
+
+            // 热力图切换
+            Text(
+                "覆盖热力图", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            val cats = listOf(
+                Config.ServiceCat.POWER, Config.ServiceCat.WATER, Config.ServiceCat.GARBAGE,
+                Config.ServiceCat.HEALTH, Config.ServiceCat.EDUCATION, Config.ServiceCat.SAFETY
+            )
+            cats.chunked(3).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { cat ->
+                        val active = AppState.overlay == cat
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(
+                                    if (active) C.accentSoftBg.toColor() else C.chipBg.toColor(),
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (active) C.accentRed.toColor() else C.border2.toColor(),
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .clickable {
+                                    Sfx.play("sfx_click", 0.5f)
+                                    AppState.overlay = if (active) "" else cat
+                                    AppState.dataOpen = false
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                overlayLabel(cat), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                color = if (active) C.accentRed.toColor() else C.textDark.toColor(),
+                                fontFamily = LocalGameFont.current
+                            )
+                        }
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.accentGreen.toColor(), RoundedCornerShape(20.dp))
+                    .clickable { AppState.dataOpen = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "关闭", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    fontFamily = LocalGameFont.current
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CovBar(label: String, ratio: Float) {
+    val C = Config.COLORS
+    val pct = (ratio * 100).toInt()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            label, fontSize = 12.sp, color = C.textDark.toColor(),
+            fontFamily = LocalGameFont.current, modifier = Modifier.width(34.dp)
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(8.dp)
+                .background(Color(200 / 255f, 200 / 255f, 190 / 255f), RoundedCornerShape(4.dp))
+        ) {
+            Box(
+                modifier = Modifier
+                    .height(8.dp)
+                    .fillMaxWidth(pct / 100f)
+                    .background(
+                        if (pct >= 80) C.accentGreen.toColor()
+                        else if (pct >= 40) C.accentGold.toColor() else C.accentRed.toColor(),
+                        RoundedCornerShape(4.dp)
+                    )
+            )
+        }
+        Text(
+            "$pct%", fontSize = 11.sp, color = C.textMid.toColor(),
+            fontFamily = LocalGameFont.current, modifier = Modifier.width(34.dp),
+            textAlign = TextAlign.End
+        )
+    }
+}
+
+@Composable
+private fun TaxSlider(label: String, value: Int, onChange: (Int) -> Unit) {
+    val C = Config.COLORS
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                label, fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "$value%", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = if (value > Config.TAX.default) C.accentRed.toColor() else C.textDark.toColor(),
+                fontFamily = LocalGameFont.current
+            )
+        }
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onChange(it.roundToInt()) },
+            valueRange = Config.TAX.min.toFloat()..Config.TAX.max.toFloat(),
+            steps = (Config.TAX.max - Config.TAX.min - 1)
         )
     }
 }

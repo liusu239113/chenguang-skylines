@@ -29,6 +29,12 @@ class CityState {
     val policyCooldowns: MutableMap<String, Int> = mutableMapOf()
     val news: MutableList<NewsItem> = mutableListOf()
     var lastLevel: Int = 0
+    // 税收（RCI 三税率，%）
+    var taxRes: Int = Config.TAX.default
+    var taxCom: Int = Config.TAX.default
+    var taxInd: Int = Config.TAX.default
+    // 最近一次覆盖统计（数据面板用）
+    var lastCoverage: com.chenguang.skylines.world.Coverage? = null
 }
 
 object GameData {
@@ -121,6 +127,21 @@ object GameData {
             target += cfg.happy * min(1.2, covered / 14.0)
         }
         target -= st.pollution * E.pollutionHappy
+
+        // 基础设施覆盖不足的惩罚（缺电/缺水/垃圾堆积）
+        val cov = World.coverage()
+        target -= (1 - cov.power) * Config.COVERAGE.powerHappyPenalty
+        target -= (1 - cov.water) * Config.COVERAGE.waterHappyPenalty
+        target -= (1 - cov.garbage) * Config.COVERAGE.garbageHappyPenalty
+
+        // 税率高于基准的惩罚
+        val s = current
+        if (s != null) {
+            target -= max(0.0, (s.taxRes - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
+            target -= max(0.0, (s.taxCom - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
+            target -= max(0.0, (s.taxInd - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
+        }
+
         return max(Config.RESOURCES.happinessMin, min(Config.RESOURCES.happinessMax, target))
     }
 
@@ -130,9 +151,12 @@ object GameData {
 
         val st = World.stats()
         s.pollution = st.pollution
+        val cov = World.coverage()
+        s.lastCoverage = cov
 
-        // 人口向"容量×占用率"靠拢（占用率受满意度驱动）
-        val occTarget = floor(st.resCap * max(0.25, min(1.0, s.happiness / 100.0)))
+        // 人口向"容量×占用率"靠拢（占用率受满意度驱动；缺水时人口增长停滞）
+        val waterMul = if (cov.water < 0.99f) cov.water else 1.0
+        val occTarget = floor(st.resCap * max(0.25, min(1.0, s.happiness / 100.0)) * waterMul)
         if (s.population < occTarget) {
             s.population = min(
                 occTarget,
@@ -146,19 +170,25 @@ object GameData {
         }
         World.current?._pop = s.population.toInt()
 
-        // 收支（万/日）
+        // 收支（万/日）：住宅按住宅税率，商业/工业按各自税率；缺电时产业收入打折
         val occRatio = if (st.resCap > 0) s.population / st.resCap else 0.0
-        var bizIncome = 0.0
+        var bizCom = 0.0
+        var bizInd = 0.0
         for (e in World.allBuildings()) {
             val b = e.b
             if (b.isService) continue
             val lv = Config.GROWN[b.zone]?.levels?.getOrNull(b.level - 1) ?: continue
-            if (b.zone != "residential") {
-                bizIncome += lv.income * occRatio
+            when (b.zone) {
+                "commercial" -> bizCom += lv.income * occRatio
+                "industrial" -> bizInd += lv.income * occRatio
             }
         }
-        val income = (s.population * E.taxPerPopPerDay + E.baseIncomePerDay) * policyMul("taxMul") +
-            bizIncome * (policyMul("incomeMul") - 1)
+        val powerMul = Config.COVERAGE.powerIncomeFloor +
+            (1 - Config.COVERAGE.powerIncomeFloor) * cov.power
+        val bizBase = (bizCom * s.taxCom / 10.0 + bizInd * s.taxInd / 10.0) * powerMul
+        val income = (s.population * E.taxPerPopPerDay + E.baseIncomePerDay) *
+            policyMul("taxMul") * (s.taxRes / 10.0) +
+            bizBase + bizBase * (policyMul("incomeMul") - 1)
         var upkeep = st.roadCount * E.upkeepPerRoadDay
         for (e in World.allBuildings()) {
             if (!e.b.isService) continue
@@ -173,6 +203,18 @@ object GameData {
         val target = computeHappinessTarget(st)
         s.happiness += (target - s.happiness) * 0.10
 
+        // 火灾：无消防覆盖的建筑有概率起火被烧毁
+        val grown = World.allBuildings().filter { !it.b.isService }
+        if (grown.isNotEmpty() && kotlin.random.Random.nextDouble() < Config.COVERAGE.fireChancePerDay) {
+            val victim = grown[kotlin.random.Random.nextInt(grown.size)]
+            if (!World.isCoveredBy(victim.x, victim.y, Config.ServiceCat.SAFETY)) {
+                World.bulldoze(victim.x, victim.y)
+                pushNews("火灾！", "一处建筑因缺乏消防覆盖被烧毁。", "突发")
+            } else {
+                pushNews("火情解除", "消防站及时扑灭了一起火情。", "突发")
+            }
+        }
+
         // 政策倒计时
         for (i in s.activePolicies.indices.reversed()) {
             s.activePolicies[i].daysLeft -= 1
@@ -182,15 +224,19 @@ object GameData {
             if (cd > 0) s.policyCooldowns[id] = cd - 1
         }
 
-        // 晋级检查
+        // 晋级检查（含里程碑奖励）
         val level = World.cityLevel()
         if (s.lastLevel == 0) s.lastLevel = level.level
         if (level.level > s.lastLevel) {
             s.lastLevel = level.level
             pendingLevelUp = true
+            s.funds += level.reward
             pushNews(
                 "城市晋级 " + level.name + "！",
-                String.format("人口达到 %d，晨光市升级为%s。", s.population.toInt(), level.name),
+                String.format(
+                    "人口达到 %d，晨光市升级为%s，获得 %d万 拨款。",
+                    s.population.toInt(), level.name, level.reward
+                ),
                 "头条"
             )
         }
@@ -282,6 +328,9 @@ object GameData {
         if (!ok) return false to msg
         val cfg = World.serviceConfig(id) ?: return false to "未知设施"
         val s = current ?: return false to null
+        if (cfg.unlockPop > s.population.toInt()) {
+            return false to ("人口达到 " + cfg.unlockPop + " 后解锁")
+        }
         if (s.funds < cfg.cost) return false to ("资金不足（需 ¥" + cfg.cost + "万）")
         World.placeService(id, x, y)
         s.funds -= cfg.cost
