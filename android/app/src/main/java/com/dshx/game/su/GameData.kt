@@ -388,7 +388,6 @@ object GameData {
         CitySystems.daily(s, st, cov)
 
         // 人口 / 岗位：住宅迁入，商工办入驻；缺服务或低满意则废弃
-        val satisMul = max(0.35, min(1.2, s.happiness / 55.0))
         var totalRes = 0
         for (e in World.allBuildings()) {
             val b = e.b
@@ -411,27 +410,27 @@ object GameData {
                 if (powered || watered || s.happiness > 35 || b.ageDays < 45) {
                     b.abandoned = false
                     if (b.zone == "residential" && b.residents == 0) {
-                        b.residents = max(2, lv.cap / 6)
+                        b.residents = 1
                     }
                 } else continue
             }
             when (b.zone) {
                 "residential" -> {
-                    val powerMulLocal = if (powered) 1.0 else 0.35
-                    val waterMulLocal = if (watered) 1.0 else 0.45
-                    if (b.residents < lv.cap) {
-                        val migrate = max(1, (lv.cap * 0.22 * satisMul * powerMulLocal * waterMulLocal).toInt())
-                        b.residents = min(lv.cap, b.residents + migrate)
+                    // 一栋一户：L1 一家约 2~4 人，慢慢迁入；拆房人口会从合计里消失
+                    if (powered && watered && b.residents < lv.cap && s.happiness >= 28) {
+                        if (b.ageDays % 3 == 0) b.residents = min(lv.cap, b.residents + 1)
                     }
-                    if (!powered && b.residents > 2 && b.ageDays > 20) {
-                        b.residents = max(1, b.residents - 1)
-                    }
-                    if (s.happiness < 22 && b.residents > 1) b.residents = max(1, b.residents - 1)
+                    if (!powered && b.residents > 1 && b.ageDays > 12) b.residents -= 1
+                    if (!watered && b.residents > 1 && b.ageDays > 16) b.residents -= 1
+                    if (s.happiness < 22 && b.residents > 1) b.residents -= 1
                     totalRes += b.residents
                 }
                 else -> {
-                    val fill = max(1, (lv.cap * 0.22 * (if (powered) 1.0 else 0.3)).toInt())
-                    b.workers = min(lv.cap, b.workers + fill)
+                    if (powered && b.workers < lv.cap && b.ageDays % 2 == 0) {
+                        b.workers = min(lv.cap, b.workers + 1)
+                    } else if (!powered && b.workers > 0) {
+                        b.workers = max(0, b.workers - 1)
+                    }
                 }
             }
         }
@@ -488,7 +487,7 @@ object GameData {
                     Config.ServiceCat.TRANSIT -> s.budgetTransit
                     else -> 100
                 }
-                upkeep += cfg.upkeep / 30.0 * (budget / 100.0)
+                upkeep += cfg.upkeep / 10.0 * (budget / 100.0)
             }
         }
         val rankUpkeep = if (s.rankLevel >= 4) 0.94 else 1.0
@@ -753,7 +752,12 @@ object GameData {
                 if (cfg != null) s.funds += floor(cfg.cost * 0.3)
                 pushNews("拆除设施", "退还部分造价。", "城建")
             }
-            "grown" -> s.funds += 1
+            "grown" -> {
+                s.funds += 1
+                s.population = World.allBuildings().filter { !it.b.isService && it.b.zone == "residential" }
+                    .sumOf { it.b.residents }.toDouble()
+                World.current?._pop = s.population.toInt()
+            }
             "road" -> s.funds += 2
             "zone" -> { /* 清除分区不退款 */ }
         }

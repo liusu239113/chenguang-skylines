@@ -42,9 +42,18 @@ fun RGBA.toColor(): Color = Color(r / 255f, g / 255f, b / 255f, a / 255f)
 object UIHelper {
 
 
-    /** 资金格式化：>=10000 万显示 "x.x万" */
-    fun fmtMoney(v: Double): String =
-        if (v >= 10000 || v <= -10000) String.format("%.1f万", v / 10000) else floor(v).toInt().toString()
+    /** 资金单位已经是「万」。>=10000 万显示「x.x亿」，不要再叠一个万。 */
+    fun fmtMoney(v: Double): String {
+        val n = floor(v).toInt()
+        return if (kotlin.math.abs(n) >= 10000) String.format("%.1f亿", n / 10000.0)
+        else n.toString()
+    }
+
+    fun fmtFunds(v: Double): String {
+        val n = floor(v).toInt()
+        return if (kotlin.math.abs(n) >= 10000) String.format("¥%.1f亿", n / 10000.0)
+        else "¥${n}万"
+    }
 
     fun fmtPop(v: Int): String =
         if (v >= 10000) String.format("%.1f万", v / 10000.0) else v.toString()

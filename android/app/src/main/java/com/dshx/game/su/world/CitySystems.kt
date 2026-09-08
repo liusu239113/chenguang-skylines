@@ -231,7 +231,10 @@ object CitySystems {
                 else -> false
             }
         }
-        if (stations.isEmpty()) return
+        if (stations.isEmpty()) {
+            cars.removeAll { it.kind == kind }
+            return
+        }
         val targets = World.allBuildings().filter { !it.b.isService }
         if (targets.isEmpty()) return
         repeat(min(n, 4)) {

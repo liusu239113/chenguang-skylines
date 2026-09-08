@@ -989,8 +989,7 @@ class MapRenderView @JvmOverloads constructor(
                 val (wx, wy) = Transit.vehicleCell(v)
                 val sx = worldToScreenX(wx)
                 val sy = worldToScreenY(wy)
-                fillRoundRect(canvas, sx - cell * 0.28f, sy - cell * 0.16f, cell * 0.56f, cell * 0.32f, 3f, RGBA(40, 90, 170))
-                fillRect(canvas, sx - cell * 0.12f, sy - cell * 0.08f, cell * 0.24f, cell * 0.16f, RGBA(220, 230, 245))
+                drawVehicleBox(canvas, sx, sy, 0, RGBA(40, 90, 170), longBody = true, selected = false)
             }
             for (ev in CitySystems.cars) {
                 val (wx, wy) = CitySystems.screenCell(ev)
@@ -1000,34 +999,24 @@ class MapRenderView @JvmOverloads constructor(
                     "fire" -> RGBA(220, 70, 50)
                     "ambulance" -> RGBA(240, 240, 245)
                     "police" -> RGBA(50, 80, 180)
-                    "garbage" -> RGBA(80, 140, 80)
+                    "garbage" -> RGBA(90, 118, 86)
                     else -> RGBA(40, 40, 40)
                 }
-                fillRoundRect(canvas, sx - cell * 0.22f, sy - cell * 0.12f, cell * 0.44f, cell * 0.24f, 2f, col)
+                drawVehicleBox(canvas, sx, sy, 0, col, longBody = ev.kind == "garbage", selected = false)
             }
             for (tr in Traffic.trains) {
                 val sx = worldToScreenX(tr.x - 1 + dirs[tr.dir][0] * tr.prog + 0.5f)
                 val sy = worldToScreenY(tr.y - 1 + dirs[tr.dir][1] * tr.prog + 0.5f)
-                val horiz = tr.dir == 0 || tr.dir == 2
-                val rw = if (horiz) cell * 1.05f else cell * 0.34f
-                val rh = if (horiz) cell * 0.34f else cell * 1.05f
-                fillRoundRect(canvas, sx - rw / 2f, sy - rh / 2f, rw, rh, 3f, RGBA(36, 52, 78))
-                fillRect(
-                    canvas,
-                    sx - rw * 0.18f, sy - rh * 0.18f,
-                    rw * 0.36f, rh * 0.36f,
-                    RGBA(230, 210, 80)
-                )
-                if (Traffic.selectedTrain === tr) {
-                    strokeRoundRect(canvas, sx - rw / 2f - 1.5f, sy - rh / 2f - 1.5f, rw + 3f, rh + 3f, 3f, RGBA(220, 80, 50), 255, 1.6f)
-                }
+                drawVehicleBox(canvas, sx, sy, tr.dir, RGBA(36, 52, 78), longBody = true, selected = Traffic.selectedTrain === tr)
             }
             for (pl in Traffic.planes) {
                 val sx = worldToScreenX(pl.x - 0.5f)
                 val sy = worldToScreenY(pl.y - 0.5f) - pl.alt * cell * 0.18f
-                fillRoundRect(canvas, sx - cell * 0.38f, sy - cell * 0.10f, cell * 0.76f, cell * 0.20f, 3f, RGBA(230, 232, 238))
-                fillRect(canvas, sx - cell * 0.08f, sy - cell * 0.28f, cell * 0.16f, cell * 0.56f, RGBA(210, 214, 222))
-                fillCircle(canvas, sx, sy, cell * 0.07f, RGBA(70, 90, 130))
+                val body = RGBA(230, 232, 238)
+                fillRoundRect(canvas, sx - cell * 0.38f, sy - cell * 0.08f, cell * 0.76f, cell * 0.16f, 3f, body.shade(0.72))
+                fillRoundRect(canvas, sx - cell * 0.38f, sy - cell * 0.16f, cell * 0.76f, cell * 0.14f, 3f, body)
+                fillRect(canvas, sx - cell * 0.08f, sy - cell * 0.30f, cell * 0.16f, cell * 0.52f, RGBA(210, 214, 222))
+                fillCircle(canvas, sx, sy, cell * 0.06f, RGBA(70, 90, 130))
                 if (Traffic.selectedPlane === pl) {
                     strokeRoundRect(canvas, sx - cell * 0.42f, sy - cell * 0.32f, cell * 0.84f, cell * 0.64f, 4f, RGBA(220, 80, 50), 255, 1.4f)
                 }
@@ -1488,6 +1477,45 @@ class MapRenderView @JvmOverloads constructor(
         }
         if (World.tile(tx, ty)?.onFire == true) {
             fillCircle(canvas, bx + bw * 0.5f, by - hpx, cell * 0.16f, RGBA(255, 120, 40, 200))
+        }
+    }
+
+    private fun drawVehicleBox(
+        canvas: Canvas,
+        sx: Float,
+        sy: Float,
+        dir: Int,
+        color: RGBA,
+        longBody: Boolean,
+        selected: Boolean
+    ) {
+        val horiz = dir == 0 || dir == 2
+        val L = cell * if (longBody) 0.72f else 0.48f
+        val W = cell * if (longBody) 0.32f else 0.26f
+        val lift = cell * 0.10f
+        val rx: Float
+        val ry: Float
+        val rw: Float
+        val rh: Float
+        if (horiz) {
+            rx = sx - L / 2f; ry = sy - W / 2f; rw = L; rh = W
+        } else {
+            rx = sx - W / 2f; ry = sy - L / 2f; rw = W; rh = L
+        }
+        val rad = max(1.4f, cell * 0.06f)
+        fillRoundRect(canvas, rx + 1.4f, ry + 2.2f, rw, rh, rad, RGBA(40, 48, 40, 70))
+        fillRoundRect(canvas, rx, ry - lift * 0.15f, rw, rh, rad, color.shade(0.72))
+        fillRoundRect(canvas, rx, ry - lift, rw, rh * 0.78f, rad, color)
+        if (selected) {
+            strokeRoundRect(canvas, rx - 1.5f, ry - lift - 1.5f, rw + 3f, rh + 3f, rad, RGBA(220, 80, 50), 255, 1.6f)
+        }
+        val glass = if (nightLevel > 0.35f) RGBA(255, 220, 140) else RGBA(70, 92, 112)
+        if (horiz) {
+            val wx = if (dir == 0) rx + rw * 0.52f else rx + rw * 0.16f
+            fillRect(canvas, wx, ry - lift + rh * 0.16f, rw * 0.28f, rh * 0.42f, glass)
+        } else {
+            val wy = if (dir == 1) ry - lift + rh * 0.50f else ry - lift + rh * 0.14f
+            fillRect(canvas, rx + rw * 0.18f, wy, rw * 0.64f, rh * 0.22f, glass)
         }
     }
 

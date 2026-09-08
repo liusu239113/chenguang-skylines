@@ -544,8 +544,8 @@ class World {
             b.zone = zone
             b.level = level
             b.born = born
-            if (zone == "residential") b.residents = max(2, (Config.GROWN[zone]?.levels?.firstOrNull()?.cap ?: 8) / 6)
-            else b.workers = max(1, (Config.GROWN[zone]?.levels?.firstOrNull()?.cap ?: 8) / 8)
+            if (zone == "residential") b.residents = 2
+            else b.workers = 1
             t.building = b
             return true
         }

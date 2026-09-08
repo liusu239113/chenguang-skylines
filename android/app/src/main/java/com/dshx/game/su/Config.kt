@@ -160,16 +160,16 @@ object Config {
 
     val GROWN: Map<String, GrownDef> = mapOf(
         "residential" to GrownDef("住宅", listOf(
-            LevelDef(12, 4), LevelDef(36, 11), LevelDef(90, 26)
+            LevelDef(4, 2), LevelDef(8, 5), LevelDef(16, 10)
         )),
         "commercial" to GrownDef("商铺", listOf(
-            LevelDef(8, 14), LevelDef(22, 38), LevelDef(50, 84)
+            LevelDef(3, 6), LevelDef(8, 14), LevelDef(16, 28)
         )),
         "industrial" to GrownDef("工厂", listOf(
-            LevelDef(10, 20, 2), LevelDef(26, 50, 4), LevelDef(60, 110, 7)
+            LevelDef(4, 7, 2), LevelDef(10, 16, 4), LevelDef(20, 32, 7)
         )),
         "office" to GrownDef("写字楼", listOf(
-            LevelDef(16, 28), LevelDef(40, 70), LevelDef(90, 140)
+            LevelDef(6, 8), LevelDef(12, 18), LevelDef(24, 36)
         ))
     )
 
@@ -210,59 +210,59 @@ object Config {
 
     val SERVICES: List<ServiceDef> = listOf(
         // ---- 生活品质 ----
-        ServiceDef("park", "公园", 260, 4, 4, 5, true, 1, 1,
+        ServiceDef("park", "公园", 260, 10, 4, 5, true, 1, 1,
             "绿地吸收污染，抬升周边地价与满意度。", ServiceCat.AMENITY, 0),
-        ServiceDef("plaza", "广场", 900, 8, 5, 8, true, 2, 2,
+        ServiceDef("plaza", "广场", 900, 18, 5, 8, true, 2, 2,
             "市民广场，显著提升满意度与地价。", ServiceCat.AMENITY, 500),
         // ---- 电力（容量决定能否撑住全城） ----
-        ServiceDef("wind_farm", "风电场", 500, 6, 6, 0, false, 1, 1,
+        ServiceDef("wind_farm", "风电场", 500, 18, 6, 0, false, 1, 1,
             "清洁风电。容量 18，适合前期。", ServiceCat.POWER, 0, 0, 18, 0),
-        ServiceDef("solar_plant", "太阳能电站", 800, 5, 7, 0, false, 2, 2,
+        ServiceDef("solar_plant", "太阳能电站", 800, 16, 7, 0, false, 2, 2,
             "光伏电站。容量 36，无污染。", ServiceCat.POWER, 300, 0, 36, 0),
-        ServiceDef("coal_plant", "燃煤电厂", 1200, 18, 10, -3, false, 2, 2,
+        ServiceDef("coal_plant", "燃煤电厂", 1200, 42, 10, -3, false, 2, 2,
             "容量 70，稳定但污染重。", ServiceCat.POWER, 0, 8, 70, 0),
         ServiceDef("nuclear_plant", "核电站", 4200, 45, 14, 0, false, 3, 3,
             "容量 180，维护昂贵，污染极低。", ServiceCat.POWER, 4000, 1, 180, 0),
         // ---- 供水 ----
-        ServiceDef("water_tower", "水塔", 300, 4, 5, 0, false, 1, 1,
+        ServiceDef("water_tower", "水塔", 300, 12, 5, 0, false, 1, 1,
             "抽取地下水。容量 18，可随处放。", ServiceCat.WATER, 0, 0, 0, 18),
-        ServiceDef("pump_station", "抽水站", 600, 7, 8, 0, false, 1, 1,
+        ServiceDef("pump_station", "抽水站", 600, 18, 8, 0, false, 1, 1,
             "必须靠河。容量 40，再用水管接到分区。", ServiceCat.WATER, 0, 0, 0, 40),
         // ---- 垃圾 ----
-        ServiceDef("landfill", "垃圾场", 350, 7, 6, 0, false, 1, 1,
+        ServiceDef("landfill", "垃圾场", 350, 22, 6, 0, false, 1, 1,
             "填埋生活垃圾，满载后污染加重。", ServiceCat.GARBAGE, 100, 3),
-        ServiceDef("incinerator", "焚烧厂", 900, 16, 8, -2, false, 2, 2,
+        ServiceDef("incinerator", "焚烧厂", 900, 36, 8, -2, false, 2, 2,
             "烧掉垃圾并发电，有空气污染。", ServiceCat.GARBAGE, 300, 5, 12, 0),
         // ---- 医疗 ----
-        ServiceDef("clinic", "诊所", 640, 12, 7, 5, false, 1, 1,
+        ServiceDef("clinic", "诊所", 640, 28, 7, 5, false, 1, 1,
             "基础医疗，覆盖区健康与满意度提升。", ServiceCat.HEALTH, 0),
-        ServiceDef("hospital", "医院", 900, 15, 8, 6, true, 2, 2,
+        ServiceDef("hospital", "医院", 900, 36, 8, 6, true, 2, 2,
             "大型医疗，覆盖更广。", ServiceCat.HEALTH, 700),
         // ---- 教育（驱动产业升级） ----
-        ServiceDef("school", "小学", 520, 10, 7, 4, true, 2, 2,
+        ServiceDef("school", "小学", 520, 32, 7, 4, true, 2, 2,
             "基础教育，缓慢提升受教育人口。", ServiceCat.EDUCATION, 0),
-        ServiceDef("middle_school", "中学", 700, 9, 8, 4, true, 2, 2,
+        ServiceDef("middle_school", "中学", 700, 28, 8, 4, true, 2, 2,
             "中等教育，商业与制造业需要。", ServiceCat.EDUCATION, 300),
-        ServiceDef("university", "大学", 1800, 22, 10, 6, true, 3, 3,
+        ServiceDef("university", "大学", 1800, 48, 10, 6, true, 3, 3,
             "高等教育，解锁高科技工厂。", ServiceCat.EDUCATION, 600),
         // ---- 安全 ----
-        ServiceDef("fire_station", "消防站", 600, 10, 7, 0, false, 1, 1,
+        ServiceDef("fire_station", "消防站", 600, 24, 7, 0, false, 1, 1,
             "扑灭火灾，无覆盖则建筑会烧毁。", ServiceCat.SAFETY, 100),
-        ServiceDef("police", "警察局", 700, 12, 8, 3, false, 1, 1,
+        ServiceDef("police", "警察局", 700, 28, 8, 3, false, 1, 1,
             "降低犯罪，提升安全感与地价。", ServiceCat.SAFETY, 100),
         // ---- 公交 ----
-        ServiceDef("bus_stop", "公交站", 220, 3, 6, 4, false, 1, 1,
+        ServiceDef("bus_stop", "公交站", 220, 10, 6, 4, false, 1, 1,
             "缓解拥堵，缩短通勤。", ServiceCat.TRANSIT, 150),
-        ServiceDef("metro", "地铁站", 1600, 18, 10, 6, true, 2, 2,
+        ServiceDef("metro", "地铁站", 1600, 40, 10, 6, true, 2, 2,
             "大运量，显著降低拥堵。", ServiceCat.TRANSIT, 600),
-        ServiceDef("rail_station", "火车站", 2000, 20, 10, 8, true, 2, 2,
+        ServiceDef("rail_station", "火车站", 2000, 44, 10, 8, true, 2, 2,
             "连接城外，货运与游客。", ServiceCat.TRANSIT, 1500),
         ServiceDef("harbor", "港口", 1800, 15, 8, 6, true, 2, 2,
             "滨水货运码头，工业出口加成。", ServiceCat.TRANSIT, 1500),
-        ServiceDef("airport", "机场", 5000, 40, 12, 10, true, 3, 3,
+        ServiceDef("airport", "机场", 5000, 80, 12, 10, true, 3, 3,
             "航空枢纽，旅游收入与满意度。", ServiceCat.TRANSIT, 4000),
         // ---- 排污 / 殡葬 / 监狱 ----
-        ServiceDef("sewage", "污水处理厂", 1100, 16, 8, 0, false, 2, 2,
+        ServiceDef("sewage", "污水处理厂", 1100, 36, 8, 0, false, 2, 2,
             "处理污水。未覆盖则污染水源、市民生病。", ServiceCat.WATER, 150, 2, 0, 0),
         ServiceDef("cemetery", "墓地", 400, 4, 6, -1, false, 2, 2,
             "存放遗体。满载后污染周边。", ServiceCat.DEATH, 100),
@@ -290,10 +290,10 @@ object Config {
     }
 
     object GROWTH {
-        const val tickSeconds = 1.4
-        const val spawnChance = 0.62
-        const val upgradeChance = 0.34
-        const val demandMin = 0.12
+        const val tickSeconds = 2.2
+        const val spawnChance = 0.32
+        const val upgradeChance = 0.18
+        const val demandMin = 0.18
         const val abandonHappy = 28.0
         const val upgradeAgeDays = 12
         const val landValueUpgrade = 8
@@ -303,12 +303,12 @@ object Config {
     // 财政
     // -----------------------------------------------------------------------
     object ECONOMY {
-        const val taxPerPopPerDay = 0.10
-        const val baseIncomePerDay = 0.6
-        const val upkeepPerRoadDay = 0.012
+        const val taxPerPopPerDay = 0.04
+        const val baseIncomePerDay = 0.15
+        const val upkeepPerRoadDay = 0.018
         const val happinessDecayDay = 0.10
         const val pollutionHappy = 0.045
-        const val occupancyPerDay = 0.06
+        const val occupancyPerDay = 0.02
     }
 
     // -----------------------------------------------------------------------

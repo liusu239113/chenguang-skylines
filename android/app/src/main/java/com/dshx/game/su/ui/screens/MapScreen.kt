@@ -243,7 +243,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                             .padding(top = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        HudStat("资金", "¥" + UIHelper.fmtMoney(s.funds) + "万", C.accentGold.toColor())
+                        HudStat("资金", UIHelper.fmtFunds(s.funds), C.accentGold.toColor())
                         HudStat("人口", UIHelper.fmtPop(floor(s.population).toInt()), C.textDark.toColor())
                         HudStat(
                             "满意", floor(s.happiness).toInt().toString(),
@@ -1262,7 +1262,7 @@ private fun DataPanel() {
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "今日 税 ${UIHelper.fmtMoney(s.dayIncomeTax)} · 产业 ${UIHelper.fmtMoney(s.dayIncomeBiz)} · 贸易 ${UIHelper.fmtMoney(s.dayIncomeTrade)} · 维护 -${UIHelper.fmtMoney(s.lastUpkeep)} · 净 ${UIHelper.fmtMoney(s.lastNet)}万",
+                "今日 税 ${UIHelper.fmtFunds(s.dayIncomeTax)} · 产业 ${UIHelper.fmtFunds(s.dayIncomeBiz)} · 贸易 ${UIHelper.fmtFunds(s.dayIncomeTrade)} · 维护 -${UIHelper.fmtFunds(s.lastUpkeep)} · 净 ${UIHelper.fmtFunds(s.lastNet)}",
                 fontSize = 10.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -1294,7 +1294,7 @@ private fun DataPanel() {
 
             // 收支
             Text(
-                "本月累计 收入 ¥${UIHelper.fmtMoney(s.totalIncome)}万 · 支出 ¥${UIHelper.fmtMoney(s.totalSpent)}万",
+                "本月累计 收入 ${UIHelper.fmtFunds(s.totalIncome)} · 支出 ${UIHelper.fmtFunds(s.totalSpent)}",
                 fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
 
