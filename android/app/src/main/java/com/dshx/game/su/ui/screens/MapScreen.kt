@@ -53,6 +53,7 @@ import com.dshx.game.su.world.Growth
 import com.dshx.game.su.world.MapRenderView
 import com.dshx.game.su.world.Networks
 import com.dshx.game.su.world.Tool
+import com.dshx.game.su.world.Traffic
 import com.dshx.game.su.world.Transit
 import com.dshx.game.su.world.World
 import kotlin.math.floor
@@ -81,6 +82,7 @@ object MapScreen {
             "district" -> Tool("district")
             "sewer" -> Tool("sewer")
             "metro" -> Tool("metro")
+            "rail" -> Tool("rail")
             "tree" -> Tool("tree")
             "raise" -> Tool("raise")
             "lower" -> Tool("lower")
@@ -139,6 +141,10 @@ object MapScreen {
 
     fun onShow(view: MapRenderView, wDp: Float, hDp: Float) {
         view.setViewport(wDp, hDp, 108f, 96f)
+        view.onTileChanged = {
+            AppState.bumpMap()
+            AppState.bumpLive()
+        }
         if (!AppState.tutShown) {
             AppState.helpOpen = true
             AppState.tutShown = true
@@ -204,9 +210,15 @@ fun MapScreenContent(mapView: MapRenderView) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        (s?.cityName ?: "晨光市") + " · " + GameData.rankDef().name,
+                        (s?.cityName ?: "晨光市") + " · " + (s?.mayorName ?: "未署名") + " · " + GameData.rankDef().name,
                         fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                        color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                        color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                Sfx.play("sfx_click")
+                                AppState.civicOpen = true
+                            }
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -236,6 +248,11 @@ fun MapScreenContent(mapView: MapRenderView) {
                         HudStat(
                             "满意", floor(s.happiness).toInt().toString(),
                             if (s.happiness >= 55) C.accentGreen.toColor() else C.accentRed.toColor()
+                        )
+                        HudStat(
+                            "繁荣",
+                            (World.current?.prosperity ?: 0).toString(),
+                            C.accentBlue.toColor()
                         )
                     }
                 }
@@ -376,6 +393,53 @@ fun MapScreenContent(mapView: MapRenderView) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     val sel = mapView.selectedX to mapView.selectedY
+                    val car = Traffic.selected
+                    val train = Traffic.selectedTrain
+                    val plane = Traffic.selectedPlane
+                    when {
+                        car != null -> {
+                            val d = car.driver
+                            Text(
+                                d.name + " · " + d.carType,
+                                fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                            )
+                            UIHelper.InfoRow("车牌", d.plate, C.accentBlue.toColor())
+                            UIHelper.InfoRow("来自", d.from + " · " + d.homeName)
+                            UIHelper.InfoRow("年龄", d.age.toString() + " 岁")
+                            UIHelper.InfoRow("学历", d.education)
+                            UIHelper.InfoRow("职业", d.job, C.accentGold.toColor())
+                            UIHelper.InfoRow("上班", d.workplace)
+                            UIHelper.InfoRow(
+                                "身份",
+                                when (car.kind) {
+                                    "visitor" -> "外地游客（高速接入）"
+                                    "freight" -> "城际货运"
+                                    else -> "本市住户 · 一户一车"
+                                }
+                            )
+                        }
+                        train != null -> {
+                            Text(
+                                train.name + " 列车",
+                                fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                            )
+                            UIHelper.InfoRow("类型", "城际列车")
+                            UIHelper.InfoRow("铁轨", Networks.railCount.toString() + " 格")
+                            UIHelper.InfoRow("说明", "火车站 + 铁轨才会发车")
+                        }
+                        plane != null -> {
+                            Text(
+                                plane.flight + " 航班",
+                                fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                            )
+                            UIHelper.InfoRow("类型", "民航客机")
+                            UIHelper.InfoRow("起降", "机场上空盘旋进出")
+                            UIHelper.InfoRow("说明", "建机场后才会有飞机")
+                        }
+                        else -> {
                     Text(
                         "(" + sel.first + ", " + sel.second + ")  " + GameData.dateLabel(),
                         fontSize = 13.sp, fontWeight = FontWeight.Bold,
@@ -404,6 +468,13 @@ fun MapScreenContent(mapView: MapRenderView) {
                     if (tile?.cable == true) UIHelper.InfoRow("电缆", "已铺")
                     Networks.districtAt(sel.first, sel.second)?.let { d ->
                         UIHelper.InfoRow("区划", d.name + " · " + Networks.policyName(d.policy))
+                    }
+                    if (World.current?.highwayConnected == true) {
+                        UIHelper.InfoRow("外环高速", "已接通 · 繁荣 " + (World.current?.prosperity ?: 0))
+                    } else if (World.tile(sel.first, sel.second)?.road == "highway") {
+                        UIHelper.InfoRow("外环高速", "未接通城区，外地车进不来", C.accentRed.toColor())
+                    }
+                        }
                     }
                 }
             }
@@ -521,7 +592,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                 val active = when {
                     it.first == "zone" -> AppState.mode == "zone" && AppState.zoneKey == it.third
                     it.first == "plan" -> AppState.planOpen ||
-                        AppState.mode in listOf("pipe", "cable", "bus", "district", "sewer", "metro", "tree", "raise", "lower")
+                        AppState.mode in listOf("pipe", "cable", "bus", "district", "sewer", "metro", "rail", "tree", "raise", "lower")
                     else -> AppState.mode == it.first
                 }
                 UIHelper.ToolItem(it.second, active, width = 40.dp) {
@@ -745,6 +816,11 @@ private fun PlanDrawer(mapView: MapRenderView) {
                 AppState.overlay = "metro"
                 MapScreen.syncTool()
             }
+            UIHelper.PickChip("铁轨", "8万/格", AppState.mode == "rail", width = 86.dp) {
+                AppState.mode = "rail"
+                AppState.overlay = "rail"
+                MapScreen.syncTool()
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             UIHelper.PickChip("公交线", "${Transit.draft.size}站", AppState.mode == "bus", width = 86.dp) {
@@ -765,7 +841,7 @@ private fun PlanDrawer(mapView: MapRenderView) {
         }
         Text(
             "水管 " + Networks.pipeCount + " 格 · 电缆 " + Networks.cableCount +
-                " 格 · 公交 " + Transit.lines.size + " 条 · 乘客 " + Transit.ridership,
+                " 格 · 铁轨 " + Networks.railCount + " · 公交 " + Transit.lines.size + " 条",
             fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
         )
         if (AppState.mode == "bus" || Transit.draft.isNotEmpty()) {
@@ -860,8 +936,9 @@ private fun PolicyPanel() {
                 .padding(horizontal = 14.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            val live = AppState.liveTick
             Text(
-                "市政政策", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                "营造政策", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
             )
@@ -932,11 +1009,11 @@ private fun PolicyPanel() {
             TaxSlider("工业", s.taxInd) { s.taxInd = it; AppState.bumpLive() }
             TaxSlider("办公", s.taxOff) { s.taxOff = it; AppState.bumpLive() }
 
-            // ---- 市政贷款 ----
+            // ---- 营造贷款 ----
             val loanState = when {
                 s.loanDebt > 0 -> "还款中：剩余 " + floor(s.loanDebt).toInt() + " 万"
                 s.loanCooldown > 0 -> "贷款冷却 " + s.loanCooldown + " 天"
-                else -> "市政贷款 · 借 " + Config.LOAN.amount.toInt() + " 万"
+                else -> "营造贷款 · 借 " + Config.LOAN.amount.toInt() + " 万"
             }
             Box(
                 modifier = Modifier
@@ -972,6 +1049,7 @@ private fun PolicyPanel() {
                     fontFamily = LocalGameFont.current
                 )
             }
+            if (live < 0) Text("")
         }
     }
 }
@@ -1002,8 +1080,9 @@ private fun HelpPanel() {
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
             )
             HelpRow("手", "右下角手掌图标=退出建造并拖地图。修完路一定要点它，否则会继续铺路。")
-            HelpRow("职", "顶栏【职】是虚构市政职级。人口和满意度达标后，还要通过任职测评才能晋升。暂停菜单可考试、处理市民来信。")
-            HelpRow("路", "【道路】从大道边按住拖。泥土/两车道/四车道/高速可升级覆盖。路上只跑车辆，不显示行人。")
+            HelpRow("职", "点顶栏营造职级打开营造档案。人口、满意度和测评都达标才会晋升，不是现实官职。")
+            HelpRow("路", "地图外环已有高速。把城区路接到高速，外地车才会按繁荣度进城。本地车一户一辆，点车可看住户。")
+            HelpRow("铁", "先建火车站再【规划】铺铁轨才会跑火车；机场建好会有飞机进出。公交站连成线路才发公交车。")
             HelpRow("区", "【住宅/商业/工业/办公】在路旁涂色，邻路才会长楼。房子建好就会迁入人口。")
             HelpRow("电", "先【服务】放风电/煤电（必须靠路）。再【规划】→电缆把电接到分区，数据面板开「电力」看绿/红色块。")
             HelpRow("水", "抽水站必须靠河。水塔可随处放。再用【规划】→水管接到房子，开「供水」热力图检查。")
@@ -1054,6 +1133,7 @@ private fun overlayLabel(cat: String): String = when (cat) {
     "cable" -> "电缆"
     "sewer" -> "污水"
     "metro" -> "地铁"
+    "rail" -> "铁轨"
     "district" -> "区划"
     else -> cat
 }
@@ -1080,6 +1160,7 @@ private fun DataPanel() {
                 .noRippleClickable { },
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            val live = AppState.liveTick
             Text(
                 "城市数据", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
@@ -1102,7 +1183,7 @@ private fun DataPanel() {
                 fontSize = 11.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "升学率 ${(Civic.schoolRate * 100).toInt()}% · 任职测评通过 ${Civic.examPassed} · 来信 ${Civic.complaintsHandled}",
+                "升学率 ${(Civic.schoolRate * 100).toInt()}% · 营造测评通过 ${Civic.examPassed} · 来信 ${Civic.complaintsHandled}",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -1150,7 +1231,7 @@ private fun DataPanel() {
             s.quest?.let { q ->
                 val v = GameData.questValue(q.type)
                 Text(
-                    "市政任务：" + q.name + " " + v.toInt() + "/" + q.target.toInt() +
+                    "营造任务：" + q.name + " " + v.toInt() + "/" + q.target.toInt() +
                         "（奖励 " + q.reward + " 万）" + if (q.done) " ✓" else "",
                     fontSize = 12.sp, fontWeight = FontWeight.Bold,
                     color = C.accentGold.toColor(), fontFamily = LocalGameFont.current
@@ -1189,7 +1270,7 @@ private fun DataPanel() {
             val cats = listOf(
                 Config.ServiceCat.POWER, Config.ServiceCat.WATER, Config.ServiceCat.GARBAGE,
                 Config.ServiceCat.HEALTH, Config.ServiceCat.EDUCATION, Config.ServiceCat.SAFETY,
-                "traffic", "landvalue", "pipe", "cable", "sewer", "metro", "district"
+                "traffic", "landvalue", "pipe", "cable", "sewer", "metro", "rail", "district"
             )
             cats.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1238,6 +1319,7 @@ private fun DataPanel() {
                     fontFamily = LocalGameFont.current
                 )
             }
+            if (live < 0) Text("")
         }
     }
 }
@@ -1306,7 +1388,10 @@ private fun TaxSlider(
         }
         Slider(
             value = v.toFloat(),
-            onValueChange = { onChange(it.roundToInt().coerceIn(minV, maxV)) },
+            onValueChange = {
+                onChange(it.roundToInt().coerceIn(minV, maxV))
+                AppState.bumpLive()
+            },
             valueRange = minV.toFloat()..maxV.toFloat(),
             steps = max(0, maxV - minV - 1),
             modifier = Modifier
@@ -1347,8 +1432,13 @@ private fun PausePanel() {
                 fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "职级 " + GameData.rankDef().name + " · " + GameData.rankDef().perk,
+                s.mayorName + " · 职级 " + GameData.rankDef().name + " · " + GameData.rankDef().perk,
                 fontSize = 12.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "外环高速 " + (if (World.current?.highwayConnected == true) "已接通" else "未接通") +
+                    " · 繁荣 " + (World.current?.prosperity ?: 0),
+                fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
                 "当前槽位 " + (AppState.activeSlot + 1) +
@@ -1369,12 +1459,12 @@ private fun PausePanel() {
                 AppState.paused = false
                 AppState.settingsOpen = true
             }
-            PauseBtn("市政任职 / 测评", C.chipBg.toColor(), C.textDark.toColor()) {
+            PauseBtn("营造档案 / 测评", C.chipBg.toColor(), C.textDark.toColor()) {
                 Sfx.play("sfx_click")
                 AppState.paused = false
                 AppState.civicOpen = true
             }
-            PauseBtn("市政成就", C.chipBg.toColor(), C.textDark.toColor()) {
+            PauseBtn("营造成就", C.chipBg.toColor(), C.textDark.toColor()) {
                 Sfx.play("sfx_click")
                 AppState.paused = false
                 AppState.achievementOpen = true

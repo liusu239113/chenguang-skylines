@@ -5,6 +5,7 @@ import com.dshx.game.su.world.Building
 import com.dshx.game.su.world.Citizens
 import com.dshx.game.su.world.Growth
 import com.dshx.game.su.world.Networks
+import com.dshx.game.su.world.Traffic
 import com.dshx.game.su.world.Transit
 import com.dshx.game.su.world.World
 import org.json.JSONArray
@@ -74,6 +75,7 @@ object SaveManager {
         json.put("simTime", Growth.simTime)
         json.put("timeOfDay", GameData.timeOfDay.toDouble())
         json.put("cityName", s.cityName)
+        json.put("mayorName", s.mayorName)
         json.put("population", s.population.toInt())
         json.put("funds", s.funds)
         json.put("dateLabel", GameData.dateLabel())
@@ -159,13 +161,14 @@ object SaveManager {
         for (y in 1..w.rows) {
             for (x in 1..w.cols) {
                 val t = w.grid[y - 1][x - 1]
-                if (t.zone == "none" && t.road == null && t.building == null && !t.pipe && !t.cable && !t.sewer && !t.metro && t.district == 0) continue
+                if (t.zone == "none" && t.road == null && t.building == null && !t.pipe && !t.cable && !t.sewer && !t.metro && !t.rail && t.district == 0) continue
                 val o = JSONObject().put("x", x).put("y", y).put("zone", t.zone)
                 t.road?.let { o.put("road", it) }
                 if (t.pipe) o.put("pipe", true)
                 if (t.cable) o.put("cable", true)
                 if (t.sewer) o.put("sewer", true)
                 if (t.metro) o.put("metro", true)
+                if (t.rail) o.put("rail", true)
                 if (t.district != 0) o.put("district", t.district)
                 if (t.groundPol > 0) o.put("groundPol", t.groundPol)
                 if (t.waterPol > 0) o.put("waterPol", t.waterPol)
@@ -221,6 +224,7 @@ object SaveManager {
                 t.cable = o.optBoolean("cable", false)
                 t.sewer = o.optBoolean("sewer", false)
                 t.metro = o.optBoolean("metro", false)
+                t.rail = o.optBoolean("rail", false)
                 t.district = o.optInt("district", 0)
                 t.groundPol = o.optInt("groundPol", 0)
                 t.waterPol = o.optInt("waterPol", 0)
@@ -250,6 +254,7 @@ object SaveManager {
         // 恢复状态
         val s = GameData.current!!
         s.cityName = json.optString("cityName", Config.World.city)
+        s.mayorName = json.optString("mayorName", "未署名")
         s.year = json.optInt("year", 2026)
         s.month = json.optInt("month", 4)
         s.day = json.optInt("day", 1)
@@ -350,6 +355,8 @@ object SaveManager {
         Networks.fromJson(json.optJSONObject("networks"))
         Networks.recount()
         Citizens.rebuild()
+        World.refreshHighwayLink()
+        Traffic.reset()
         GameData.refreshRank()
         return true
     }

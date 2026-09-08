@@ -18,7 +18,6 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
-import kotlin.random.Random
 
 // ============================================================================
 // MapRenderView — 俯视格子地图（Android Canvas 2D 渲染 + 相机 + 手势）
@@ -189,8 +188,52 @@ class MapRenderView @JvmOverloads constructor(
         onTileChanged?.invoke()
     }
 
+    fun trySelectVehicle(mx: Float, my: Float): Boolean {
+        val wx = screenToWorldX(mx)
+        val wy = screenToWorldY(my)
+        val car = Traffic.hitTest(wx, wy)
+        if (car != null) {
+            Traffic.selected = car
+            Traffic.selectedTrain = null
+            Traffic.selectedPlane = null
+            selectedX = car.x
+            selectedY = car.y
+            hasSelection = true
+            Sfx.play("sfx_horn", 0.95f)
+            onTileChanged?.invoke()
+            return true
+        }
+        val train = Traffic.hitTrain(wx, wy)
+        if (train != null) {
+            Traffic.selectedTrain = train
+            Traffic.selected = null
+            Traffic.selectedPlane = null
+            selectedX = train.x
+            selectedY = train.y
+            hasSelection = true
+            Sfx.play("sfx_engine", 0.7f)
+            onTileChanged?.invoke()
+            return true
+        }
+        val plane = Traffic.hitPlane(wx, wy)
+        if (plane != null) {
+            Traffic.selectedPlane = plane
+            Traffic.selected = null
+            Traffic.selectedTrain = null
+            selectedX = plane.ax
+            selectedY = plane.ay
+            hasSelection = true
+            Sfx.play("sfx_engine", 0.45f)
+            onTileChanged?.invoke()
+            return true
+        }
+        Traffic.clearSelection()
+        return false
+    }
+
     fun clearSelection() {
         hasSelection = false
+        Traffic.clearSelection()
     }
 
     fun setToast(msg: String) {
@@ -256,6 +299,11 @@ class MapRenderView @JvmOverloads constructor(
                 if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
                 return ok
             }
+            "rail" -> {
+                val (ok, msg) = GameData.paintRail(tx, ty)
+                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
+                return ok
+            }
             "tree" -> {
                 val (ok, msg) = GameData.plantTree(tx, ty)
                 if (ok) Sfx.play("sfx_build", 0.4f) else if (msg != null) setToast(msg)
@@ -295,6 +343,7 @@ class MapRenderView @JvmOverloads constructor(
             "bus" -> Transit.isStopCell(tx, ty)
             "sewer" -> true
             "metro" -> World.tile(tx, ty)?.terrain != "water"
+            "rail" -> World.tile(tx, ty)?.terrain != "water"
             "tree" -> {
                 val tile = World.tile(tx, ty)
                 tile != null && tile.terrain != "water" && tile.road == null && tile.building == null
@@ -307,196 +356,7 @@ class MapRenderView @JvmOverloads constructor(
         }
     }
 
-    // -----------------------------------------------------------------------
-    // 动态车辆
-    // -----------------------------------------------------------------------
-    private class Car(
-        var x: Int, var y: Int, var dir: Int,
-        var prog: Float, var speed: Float, var color: RGBA,
-        var destX: Int, var destY: Int,
-        var stopped: Boolean = false,
-        var isFreight: Boolean = false
-    )
-
-    private val cars = mutableListOf<Car>()
-
-    /** 道路流量统计（拥堵热力图用） */
-    private val roadFlow = IntArray(Config.MAP.cols * Config.MAP.rows)
-
-    private val carColors = listOf(
-        RGBA(242, 240, 236), RGBA(198, 92, 78), RGBA(96, 128, 182),
-        RGBA(234, 194, 88), RGBA(134, 170, 134), RGBA(96, 98, 104)
-    )
     private val dirs = arrayOf(intArrayOf(1, 0), intArrayOf(0, 1), intArrayOf(-1, 0), intArrayOf(0, -1))
-    private val CARS_TARGET = 42
-
-    private fun isRoadCell(x: Int, y: Int) = World.tile(x, y)?.road != null
-
-    private fun spawnCar() {
-        val w = World.current ?: return
-        // 目的地：随机一个非住宅建筑（通勤/货运目标）
-        val nonRes = World.allBuildings().filter { !it.b.isService && it.b.zone != "residential" }
-        val dest = if (nonRes.isNotEmpty()) nonRes[Random.nextInt(nonRes.size)] else null
-        // 货车：30% 概率从城外入口进出（进出口贸易）
-        val freight = dest != null && Random.nextFloat() < 0.3f
-        val entries = outsideEntries()
-        if (freight && entries.isNotEmpty()) {
-            val (ex, ey) = entries[Random.nextInt(entries.size)]
-            cars.add(
-                Car(
-                    x = ex, y = ey,
-                    dir = Random.nextInt(4),
-                    prog = Random.nextFloat() * 0.5f,
-                    speed = 1.6f + Random.nextFloat() * 1.6f,
-                    color = carColors[Random.nextInt(carColors.size)],
-                    destX = dest!!.x, destY = dest.y,
-                    isFreight = true
-                )
-            )
-            return
-        }
-        repeat(40) {
-            val x = Random.nextInt(2, w.cols)
-            val y = Random.nextInt(2, w.rows)
-            if (isRoadCell(x, y)) {
-                val opts = mutableListOf<Int>()
-                for (d in dirs.indices) {
-                    if (isRoadCell(x + dirs[d][0], y + dirs[d][1])) opts.add(d)
-                }
-                if (opts.isNotEmpty()) {
-                    cars.add(
-                        Car(
-                            x = x, y = y,
-                            dir = opts[Random.nextInt(opts.size)],
-                            prog = Random.nextFloat() * 0.6f,
-                            speed = 1.4f + Random.nextFloat() * 1.8f,
-                            color = carColors[Random.nextInt(carColors.size)],
-                            destX = dest?.x ?: Random.nextInt(2, w.cols),
-                            destY = dest?.y ?: Random.nextInt(2, w.rows)
-                        )
-                    )
-                    return
-                }
-            }
-        }
-    }
-
-    /** 城外入口：地图边缘的大道端点 */
-    private fun outsideEntries(): List<Pair<Int, Int>> {
-        val w = World.current ?: return emptyList()
-        val entries = mutableListOf<Pair<Int, Int>>()
-        for (y in 1..w.rows) {
-            if (w.grid[y - 1][0].road == "avenue") entries.add(1 to y)
-            if (w.grid[y - 1][w.cols - 1].road == "avenue") entries.add(w.cols to y)
-        }
-        for (x in 1..w.cols) {
-            if (w.grid[0][x - 1].road == "avenue") entries.add(x to 1)
-            if (w.grid[w.rows - 1][x - 1].road == "avenue") entries.add(x to w.rows)
-        }
-        return entries
-    }
-
-    /** 0-based 版本：DIRS 环形的对面方向 */
-    private fun oppDir(d: Int) = (d + 2) % 4
-
-    /** 该格是否为路口（横竖两个方向都有路） */
-    private fun isCrossroad(x: Int, y: Int): Boolean {
-        val w = World.current ?: return false
-        if (w.grid.getOrNull(y - 1)?.getOrNull(x - 1)?.road == null) return false
-        val horiz = w.grid[y - 1].getOrNull(x - 2)?.road != null || w.grid[y - 1].getOrNull(x)?.road != null
-        val vert = w.grid.getOrNull(y - 2)?.get(x - 1)?.road != null || w.grid.getOrNull(y)?.get(x - 1)?.road != null
-        return horiz && vert
-    }
-
-    private fun updateCars(dt: Float) {
-        val w = World.current ?: return
-        while (cars.size < CARS_TARGET) spawnCar()
-        val redNow = (Growth.simTime * 1.2).toInt() % 4 < 2
-        // 流量衰减
-        for (i in roadFlow.indices) {
-            if (roadFlow[i] > 0) roadFlow[i] = (roadFlow[i] * 0.95).toInt()
-        }
-        for (i in cars.indices.reversed()) {
-            val c = cars[i]
-            if (!isRoadCell(c.x, c.y)) {
-                cars.removeAt(i)      // 路被拆了
-                continue
-            }
-            // 到达目的地附近：货车离城/卸货，通勤车换新目的地
-            if (abs(c.x - c.destX) + abs(c.y - c.destY) <= 2) {
-                if (c.isFreight) {
-                    cars.removeAt(i)
-                    continue
-                }
-                val nonRes = World.allBuildings().filter { !it.b.isService && it.b.zone != "residential" }
-                if (nonRes.isNotEmpty()) {
-                    val d = nonRes[Random.nextInt(nonRes.size)]
-                    c.destX = d.x
-                    c.destY = d.y
-                }
-            }
-            // 下一格
-            val nx = c.x + dirs[c.dir][0]
-            val ny = c.y + dirs[c.dir][1]
-            // 红绿灯拦停：下一格是路口且红灯，且已接近路口
-            val atCross = isCrossroad(nx, ny)
-            // 车距：同车道前后车保持间距，红灯在停止线排队
-            var blocked = false
-            var followGap = 1f
-            for (o in cars) {
-                if (o === c) continue
-                if (o.dir != c.dir) continue
-                val sameCell = o.x == c.x && o.y == c.y && o.prog > c.prog
-                val nextCell = o.x == nx && o.y == ny && o.prog < 0.45f
-                if (sameCell || nextCell) {
-                    blocked = true
-                    followGap = min(followGap, if (sameCell) o.prog - c.prog else 0.2f)
-                    break
-                }
-            }
-            val rainSlow = if (GameData.weather == 1) 0.72f else 1f
-            val cong = GameData.current?.congestion?.toFloat() ?: 0f
-            c.stopped = (atCross && redNow && c.prog > 0.55f) || blocked
-            if (!c.stopped) {
-                c.prog += c.speed * dt * rainSlow * (0.55f + 0.45f * (1f - cong))
-            } else if (followGap < 0.35f) {
-                c.prog = max(0f, c.prog - dt * 0.4f)
-            }
-            while (c.prog >= 1) {
-                c.prog -= 1
-                val v = dirs[c.dir]
-                c.x += v[0]
-                c.y += v[1]
-                fun ok(d: Int): Boolean {
-                    val vv = dirs[d]
-                    return isRoadCell(c.x + vv[0], c.y + vv[1])
-                }
-                if (!ok(c.dir)) {
-                    val rev = oppDir(c.dir)
-                    val opts = mutableListOf<Int>()
-                    for (d in 0..3) if (d != rev && ok(d)) opts.add(d)
-                    c.dir = if (opts.isNotEmpty()) opts[Random.nextInt(opts.size)] else rev
-                } else if (Random.nextFloat() < 0.3f) {
-                    // 路口：优先朝目的地转向
-                    val rev = oppDir(c.dir)
-                    val opts = mutableListOf<Int>()
-                    for (d in 0..3) if (d != rev && d != c.dir && ok(d)) opts.add(d)
-                    if (opts.isNotEmpty()) {
-                        val best = opts.minByOrNull { d ->
-                            val mx = c.x + dirs[d][0]
-                            val my = c.y + dirs[d][1]
-                            abs(mx - c.destX) + abs(my - c.destY)
-                        }
-                        c.dir = best ?: opts[Random.nextInt(opts.size)]
-                    }
-                }
-            }
-            // 流量统计
-            if (c.x in 1..w.cols && c.y in 1..w.rows) {
-                roadFlow[(c.y - 1) * w.cols + (c.x - 1)]++
-            }
-        }
-    }
 
     // -----------------------------------------------------------------------
     // 输入
@@ -643,7 +503,7 @@ class MapRenderView @JvmOverloads constructor(
     private fun onRelease() {
         val tile = tileUnderCursor(ptrX, ptrY)
         if (dragActive && dragMode == "pan" && !dragMoved) {
-            if (tile != null && World.inBounds(tile.first, tile.second)) {
+            if (!trySelectVehicle(ptrX, ptrY) && tile != null && World.inBounds(tile.first, tile.second)) {
                 selectTile(tile.first, tile.second)
             }
         }
@@ -667,7 +527,6 @@ class MapRenderView @JvmOverloads constructor(
                 toastT = 0f
             }
         }
-        updateCars(dt)
         ambientAcc += dt
         if (ambientAcc > 2.4f && camScale > 1.15f) {
             ambientAcc = 0f
@@ -676,8 +535,8 @@ class MapRenderView @JvmOverloads constructor(
             val t = World.tile(tx, ty)
             when {
                 t?.building?.zone == "industrial" -> Sfx.play("sfx_engine", 0.18f)
-                t?.building?.zone == "residential" && cars.isNotEmpty() -> Sfx.play("sfx_click", 0.08f)
-                t?.road != null && cars.isNotEmpty() -> Sfx.play("sfx_engine", 0.12f)
+                t?.road == "highway" && Traffic.visitorsToday > 0 -> Sfx.play("sfx_engine", 0.14f)
+                t?.road != null && Traffic.localMoving > 0 -> Sfx.play("sfx_engine", 0.10f)
             }
         }
     }
@@ -810,8 +669,8 @@ class MapRenderView @JvmOverloads constructor(
         }
 
         // ---- 1.4) 区划底纹 / 水管 / 电缆 ----
-        val showNet = overlay in listOf("pipe", "cable", "sewer", "metro", "district") ||
-            tool?.kind in listOf("pipe", "cable", "sewer", "metro", "district")
+        val showNet = overlay in listOf("pipe", "cable", "sewer", "metro", "rail", "district") ||
+            tool?.kind in listOf("pipe", "cable", "sewer", "metro", "rail", "district")
         if (showNet) {
             for (ty in y0..y1) {
                 for (tx in x0..x1) {
@@ -833,6 +692,9 @@ class MapRenderView @JvmOverloads constructor(
                     }
                     if ((overlay == "metro" || tool?.kind == "metro") && t.metro) {
                         fillRect(canvas, sx + cell * 0.1f, sy + cell * 0.42f, cell * 0.8f, cell * 0.16f, RGBA(40, 80, 160, 190))
+                    }
+                    if ((overlay == "rail" || tool?.kind == "rail") && t.rail) {
+                        fillRect(canvas, sx + cell * 0.12f, sy + cell * 0.38f, cell * 0.76f, cell * 0.24f, RGBA(70, 70, 78, 210))
                     }
                 }
             }
@@ -909,22 +771,47 @@ class MapRenderView @JvmOverloads constructor(
         if (cell >= 8) {
             val roadPt = mutableListOf<Float>()
             val avePt = mutableListOf<Float>()
+            val hwyPt = mutableListOf<Float>()
+            val railPt = mutableListOf<Float>()
             val cross = mutableListOf<Triple<Float, Float, Int>>()
             for (ty in y0..y1) {
                 for (tx in x0..x1) {
                     val t = w.grid[ty - 1][tx - 1]
-                    val kind = t.road ?: continue
                     val sx = worldToScreenX((tx - 1).toFloat())
                     val sy = worldToScreenY((ty - 1).toFloat())
                     val cx = sx + cell * 0.5f
                     val cy = sy + cell * 0.5f
+                    if (t.rail) {
+                        val ru = w.grid.getOrNull(ty - 2)?.get(tx - 1)?.rail == true
+                        val rd = w.grid.getOrNull(ty)?.get(tx - 1)?.rail == true
+                        val rl = w.grid[ty - 1].getOrNull(tx - 2)?.rail == true
+                        val rr = w.grid[ty - 1].getOrNull(tx)?.rail == true
+                        if (rl || rr) {
+                            railPt.add(sx); railPt.add(cy)
+                            railPt.add(sx + cell); railPt.add(cy)
+                        }
+                        if (ru || rd) {
+                            railPt.add(cx); railPt.add(sy)
+                            railPt.add(cx); railPt.add(sy + cell)
+                        }
+                    }
+                    val kind = t.road ?: continue
                     val up = w.grid.getOrNull(ty - 2)?.get(tx - 1)?.road != null
                     val down = w.grid.getOrNull(ty)?.get(tx - 1)?.road != null
                     val left = w.grid[ty - 1].getOrNull(tx - 2)?.road != null
                     val right = w.grid[ty - 1].getOrNull(tx)?.road != null
                     val horiz = left || right
                     val vert = up || down
-                    if (kind == "avenue") {
+                    if (kind == "highway") {
+                        if (horiz) {
+                            hwyPt.add(sx); hwyPt.add(cy)
+                            hwyPt.add(sx + cell); hwyPt.add(cy)
+                        }
+                        if (vert) {
+                            hwyPt.add(cx); hwyPt.add(sy)
+                            hwyPt.add(cx); hwyPt.add(sy + cell)
+                        }
+                    } else if (kind == "avenue") {
                         if (horiz) {
                             avePt.add(sx); avePt.add(cy)
                             avePt.add(sx + cell); avePt.add(cy)
@@ -953,6 +840,13 @@ class MapRenderView @JvmOverloads constructor(
             }
             if (avePt.isNotEmpty()) {
                 fillLines(canvas, avePt.toFloatArray(), RGBA(200, 165, 60, 220), 255, max(1f, cell * 0.07f))
+            }
+            if (hwyPt.isNotEmpty()) {
+                fillLines(canvas, hwyPt.toFloatArray(), RGBA(240, 240, 245, 230), 255, max(1.4f, cell * 0.08f))
+            }
+            if (railPt.isNotEmpty()) {
+                fillLines(canvas, railPt.toFloatArray(), RGBA(48, 48, 52, 240), 255, max(2.2f, cell * 0.16f))
+                fillLines(canvas, railPt.toFloatArray(), RGBA(210, 210, 214, 220), 255, max(0.8f, cell * 0.04f))
             }
             if (cross.isNotEmpty()) {
                 val cycle = (Growth.simTime * 1.2).toInt() % 4
@@ -1003,14 +897,19 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // ---- 3.5) 车辆（车身+侧面+车顶，右行车道） ----
+        // ---- 3.5) 车辆（一户一车 / 高速游客，右行车道） ----
         if (cell >= 8) {
-            for (c in cars) {
+            for (c in Traffic.cars) {
+                if (c.parked) continue
                 val v = dirs[c.dir]
                 var sx = worldToScreenX(c.x - 1 + v[0] * c.prog + 0.5f)
                 var sy = worldToScreenY(c.y - 1 + v[1] * c.prog + 0.5f)
                 val kind = World.tile(c.x, c.y)?.road
-                val lane = cell * if (kind == "avenue") 0.18f else 0.12f
+                val lane = cell * when (kind) {
+                    "highway" -> 0.20f
+                    "avenue" -> 0.18f
+                    else -> 0.12f
+                }
                 when (c.dir) {
                     0 -> sy += lane
                     2 -> sy -= lane
@@ -1019,8 +918,9 @@ class MapRenderView @JvmOverloads constructor(
                 }
                 if (sx > -cell && sy > -cell && sx < viewW + cell && sy < viewH + cell) {
                     val horiz = (c.dir == 0 || c.dir == 2)
-                    val L = cell * if (c.isFreight) 0.62f else 0.48f
-                    val W = cell * if (c.isFreight) 0.34f else 0.26f
+                    val freight = c.kind == "freight"
+                    val L = cell * if (freight) 0.62f else 0.48f
+                    val W = cell * if (freight) 0.34f else 0.26f
                     val lift = cell * 0.10f
                     val rx: Float; val ry: Float; val rw: Float; val rh: Float
                     if (horiz) {
@@ -1029,9 +929,13 @@ class MapRenderView @JvmOverloads constructor(
                         rx = sx - W / 2f; ry = sy - L / 2f; rw = W; rh = L
                     }
                     val rad = max(1.4f, cell * 0.06f)
+                    val sel = Traffic.selected === c
                     fillRoundRect(canvas, rx + 1.4f, ry + 2.2f, rw, rh, rad, RGBA(40, 48, 40, 70))
                     fillRoundRect(canvas, rx, ry - lift * 0.15f, rw, rh, rad, c.color.shade(0.72))
                     fillRoundRect(canvas, rx, ry - lift, rw, rh * 0.78f, rad, c.color)
+                    if (sel) {
+                        strokeRoundRect(canvas, rx - 1.5f, ry - lift - 1.5f, rw + 3f, rh + 3f, rad, RGBA(220, 80, 50), 255, 1.6f)
+                    }
                     val glass = if (nightLevel > 0.35f) RGBA(255, 220, 140) else RGBA(70, 92, 112)
                     if (horiz) {
                         val wx = if (c.dir == 0) rx + rw * 0.52f else rx + rw * 0.16f
@@ -1094,6 +998,33 @@ class MapRenderView @JvmOverloads constructor(
                     else -> RGBA(40, 40, 40)
                 }
                 fillRoundRect(canvas, sx - cell * 0.22f, sy - cell * 0.12f, cell * 0.44f, cell * 0.24f, 2f, col)
+            }
+            for (tr in Traffic.trains) {
+                val sx = worldToScreenX(tr.x - 1 + dirs[tr.dir][0] * tr.prog + 0.5f)
+                val sy = worldToScreenY(tr.y - 1 + dirs[tr.dir][1] * tr.prog + 0.5f)
+                val horiz = tr.dir == 0 || tr.dir == 2
+                val rw = if (horiz) cell * 1.05f else cell * 0.34f
+                val rh = if (horiz) cell * 0.34f else cell * 1.05f
+                fillRoundRect(canvas, sx - rw / 2f, sy - rh / 2f, rw, rh, 3f, RGBA(36, 52, 78))
+                fillRect(
+                    canvas,
+                    sx - rw * 0.18f, sy - rh * 0.18f,
+                    rw * 0.36f, rh * 0.36f,
+                    RGBA(230, 210, 80)
+                )
+                if (Traffic.selectedTrain === tr) {
+                    strokeRoundRect(canvas, sx - rw / 2f - 1.5f, sy - rh / 2f - 1.5f, rw + 3f, rh + 3f, 3f, RGBA(220, 80, 50), 255, 1.6f)
+                }
+            }
+            for (pl in Traffic.planes) {
+                val sx = worldToScreenX(pl.x - 0.5f)
+                val sy = worldToScreenY(pl.y - 0.5f) - pl.alt * cell * 0.18f
+                fillRoundRect(canvas, sx - cell * 0.38f, sy - cell * 0.10f, cell * 0.76f, cell * 0.20f, 3f, RGBA(230, 232, 238))
+                fillRect(canvas, sx - cell * 0.08f, sy - cell * 0.28f, cell * 0.16f, cell * 0.56f, RGBA(210, 214, 222))
+                fillCircle(canvas, sx, sy, cell * 0.07f, RGBA(70, 90, 130))
+                if (Traffic.selectedPlane === pl) {
+                    strokeRoundRect(canvas, sx - cell * 0.42f, sy - cell * 0.32f, cell * 0.84f, cell * 0.64f, 4f, RGBA(220, 80, 50), 255, 1.4f)
+                }
             }
         }
 
@@ -1190,7 +1121,7 @@ class MapRenderView @JvmOverloads constructor(
                 for (tx in x0..x1) {
                     val t = w.grid[ty - 1][tx - 1]
                     if (t.road == null) continue
-                    val flow = roadFlow[(ty - 1) * w.cols + (tx - 1)]
+                    val flow = Traffic.flowAt(tx, ty)
                     val col = when {
                         flow > 40 -> RGBA(220, 80, 70, 150)
                         flow > 12 -> RGBA(230, 190, 70, 150)
@@ -1229,7 +1160,7 @@ class MapRenderView @JvmOverloads constructor(
                     )
                 }
             }
-        } else if (overlay.isNotEmpty() && overlay !in listOf("pipe", "cable", "district", "sewer", "metro")) {
+        } else if (overlay.isNotEmpty() && overlay !in listOf("pipe", "cable", "district", "sewer", "metro", "rail")) {
             val green = RGBA(70, 190, 110, 110)
             val red = RGBA(210, 70, 60, 95)
             val blue = RGBA(50, 110, 210, 130)
@@ -1270,7 +1201,7 @@ class MapRenderView @JvmOverloads constructor(
             // 路名：沿大道
             if (cell >= 14) {
                 for (line in w.roadLines) {
-                    if (line.kind != "avenue") continue
+                    if (line.kind != "avenue" && line.kind != "highway") continue
                     if (line.dir == "v") {
                         val ly = worldToScreenY((line.labelY - 0.5f))
                         val lx = worldToScreenX(line.segX[0] - 0.5f)
@@ -1499,6 +1430,18 @@ class MapRenderView @JvmOverloads constructor(
             bl.service == "water_tower" -> {
                 drawSolidBox(canvas, bx + bw * 0.38f, by + bh * 0.35f, bw * 0.24f, bh * 0.5f, hpx * 0.7f, RGBA(90, 120, 140))
                 fillCircle(canvas, bx + bw * 0.5f, by - hpx * 0.15f, min(bw, bh) * 0.28f, RGBA(70, 140, 190))
+            }
+            bl.service == "airport" -> {
+                fillRect(canvas, bx, by, bw, bh, RGBA(168, 176, 184))
+                drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.28f, bw * 0.64f, bh * 0.44f, hpx * 0.7f, RGBA(210, 214, 220))
+                fillRect(canvas, bx + bw * 0.04f, by + bh * 0.46f, bw * 0.92f, bh * 0.12f, RGBA(90, 96, 104))
+            }
+            bl.service == "rail_station" -> {
+                drawSolidBox(canvas, bx + bw * 0.1f, by + bh * 0.18f, bw * 0.8f, bh * 0.64f, hpx * 0.85f, RGBA(70, 92, 128))
+                fillRect(canvas, bx + bw * 0.18f, by + bh * 0.55f, bw * 0.64f, bh * 0.18f, RGBA(230, 210, 90, 220))
+            }
+            bl.service == "bus_stop" -> {
+                drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.35f, bw * 0.64f, bh * 0.4f, hpx * 0.4f, RGBA(40, 90, 170))
             }
             bl.zone == "residential" && bl.level == 1 -> {
                 // 小院：主屋 + 侧屋 + 院子

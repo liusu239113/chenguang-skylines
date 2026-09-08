@@ -42,13 +42,17 @@ import com.dshx.game.su.Sfx
 import com.dshx.game.su.SpeedBoost
 import com.dshx.game.su.ui.theme.LocalGameFont
 import com.dshx.game.su.ui.toColor
+import com.dshx.game.su.world.Traffic
+import com.dshx.game.su.world.World
 import kotlin.math.roundToInt
 
 @Composable
 fun CivicPanel() {
     val C = Config.COLORS
+    val live = AppState.liveTick
     val s = GameData.current ?: return
     val next = GameData.nextRank()
+    val cur = GameData.rankDef()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -66,17 +70,91 @@ fun CivicPanel() {
                 .clickable(enabled = false) {},
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("市政任职", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            Text("当前职级：" + GameData.rankDef().name, fontSize = 13.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
-            Text(GameData.rankDef().perk, fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-            Text("升学率 ${(Civic.schoolRate * 100).toInt()}% · 来信已处理 ${Civic.complaintsHandled} · 测评通过 ${Civic.examPassed}", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+            Text(
+                "营造档案", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+            )
+            Text(
+                s.mayorName + " · " + Config.World.playerRole,
+                fontSize = 13.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "当前职级：" + cur.name + "  Lv." + cur.level,
+                fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(cur.perk, fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+            Text(
+                "这是虚构的城市建设资历，不是现实官职。人口、满意、测评、来信都会推进档案。",
+                fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "升学率 ${(Civic.schoolRate * 100).toInt()}% · 来信 ${Civic.complaintsHandled} · 测评通过 ${Civic.examPassed} · 资历 ${s.merit.toInt()}",
+                fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "外环高速 " + (if (World.current?.highwayConnected == true) "已接通" else "未接通") +
+                    " · 繁荣 " + (World.current?.prosperity ?: 0) +
+                    " · 路上车辆 " + Traffic.localMoving +
+                    " · 外地车 " + Traffic.visitorsToday,
+                fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            for (r in Config.RANKS) {
+                val done = s.rankLevel >= r.level
+                val current = s.rankLevel == r.level
+                val popOk = s.population >= r.popReq
+                val hapOk = s.happiness >= r.happyReq
+                val examNeed = (r.level - 1).coerceAtLeast(0)
+                val examOk = Civic.examPassed >= examNeed
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (current) C.accentSoftBg.toColor() else C.chipBg.toColor(),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .border(
+                            1.dp,
+                            if (current) C.accentRed.toColor() else C.border2.toColor(),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(10.dp)
+                ) {
+                    Text(
+                        "Lv.${r.level} ${r.name}" + if (done) "  ✓" else "",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                    )
+                    Text(r.perk, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                    Text(
+                        "人口 ${s.population.toInt()}/${r.popReq}" + (if (popOk) " ✓" else "") +
+                            " · 满意 ${s.happiness.toInt()}/${r.happyReq}" + (if (hapOk) " ✓" else "") +
+                            " · 测评 ${Civic.examPassed}/$examNeed" + (if (examOk) " ✓" else ""),
+                        fontSize = 10.sp,
+                        color = if (done) C.accentGreen.toColor() else C.textMid.toColor(),
+                        fontFamily = LocalGameFont.current
+                    )
+                }
+            }
             if (next != null) {
-                Text("下一职级 ${next.name}：人口 ${next.popReq} / 满意 ${next.happyReq}，并通过任职测评。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                val popNeed = (next.popReq - s.population).coerceAtLeast(0.0).toInt()
+                val hapNeed = (next.happyReq - s.happiness).coerceAtLeast(0.0).toInt()
+                Text(
+                    "下一职「${next.name}」还差：人口 $popNeed · 满意 $hapNeed · 测评通过 ${((next.level - 1) - Civic.examPassed).coerceAtLeast(0)} 次。",
+                    fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                )
+            } else {
+                Text("已是最高营造职级。", fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
             }
             if (Civic.examActive) {
                 val q = Civic.examSession.getOrNull(Civic.examIndex)
                 if (q != null) {
-                    Text("任职测评 ${Civic.examIndex + 1}/${Civic.examSession.size}  得分 ${Civic.examScore}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                    Text(
+                        "营造测评 ${Civic.examIndex + 1}/${Civic.examSession.size}  得分 ${Civic.examScore}",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                    )
                     Text(q.q, fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
                     q.options.forEachIndexed { i, opt ->
                         Box(
@@ -110,7 +188,9 @@ fun CivicPanel() {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        if (can) "开始任职测评（5 题）" else if (Civic.examCooldown > 0) "冷却 ${Civic.examCooldown} 天" else "条件未达，暂不可考",
+                        if (can) "开始营造测评（5 题）"
+                        else if (Civic.examCooldown > 0) "冷却 ${Civic.examCooldown} 天后再考"
+                        else "人口/满意还不够，暂不可考",
                         fontSize = 13.sp, fontWeight = FontWeight.Bold,
                         color = if (can) Color.White else C.textMid.toColor(),
                         fontFamily = LocalGameFont.current
@@ -125,7 +205,7 @@ fun CivicPanel() {
                     .clickable { AppState.civicOpen = false },
                 contentAlignment = Alignment.Center
             ) { Text("关闭", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
-            if (s.population < 0) Text("")
+            if (live < 0) Text("")
         }
     }
 }
@@ -190,7 +270,7 @@ fun AchievementPanel() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text("市政成就 ${s.achievements.size}/${Config.ACHIEVEMENTS.size}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            Text("营造成就 ${s.achievements.size}/${Config.ACHIEVEMENTS.size}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             for (a in Config.ACHIEVEMENTS) {
                 val done = a.id in s.achievements
                 Row(
@@ -249,7 +329,7 @@ fun AdOfferDialog() {
     val act = LocalContext.current as? Activity
     val kind = AppState.adOfferKind
     val (title, body) = when (kind) {
-        "daily" -> "每周市政礼包" to "每周一次。看广告金库到账 280 万。"
+        "daily" -> "每周营造礼包" to "每周一次。看广告金库到账 280 万。"
         "shortfall" -> "资金不够" to (s.lastShortAction + "还差钱。看广告可拿到应急拨款。")
         "bailout" -> "财政告急" to "金库见底。看广告可获得纾困拨款 480 万。"
         else -> return
@@ -300,6 +380,7 @@ fun SettingsPanel() {
     val C = Config.COLORS
     val ctx = LocalContext.current
     val act = ctx as? Activity
+    val live = AppState.liveTick
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -319,9 +400,25 @@ fun SettingsPanel() {
             var bgm by remember { mutableStateOf(Prefs.bgmVolume) }
             var sfx by remember { mutableStateOf(Prefs.sfxVolume) }
             Text("背景音乐 ${(bgm * 100).roundToInt()}%", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Slider(value = bgm, onValueChange = { bgm = it; Prefs.bgmVolume = it }, valueRange = 0f..1f)
+            Slider(
+                value = bgm,
+                onValueChange = {
+                    bgm = it
+                    Prefs.bgmVolume = it
+                    AppState.bumpLive()
+                },
+                valueRange = 0f..1f
+            )
             Text("音效 ${(sfx * 100).roundToInt()}%", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Slider(value = sfx, onValueChange = { sfx = it; Prefs.sfxVolume = it }, valueRange = 0f..1f)
+            Slider(
+                value = sfx,
+                onValueChange = {
+                    sfx = it
+                    Prefs.sfxVolume = it
+                    AppState.bumpLive()
+                },
+                valueRange = 0f..1f
+            )
             Text(
                 if (SpeedBoost.isActive()) "加速剩余 ${SpeedBoost.remainingSec() / 60} 分 ${SpeedBoost.remainingSec() % 60} 秒" else "2x/3x 加速需看广告解锁 20 分钟",
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
@@ -329,7 +426,7 @@ fun SettingsPanel() {
             AdBtn("每周礼包 +280万", !AdOffers.weeklyClaimed, act, "daily")
             AdBtn("税收加倍 12 天", true, act, "doubletax")
             AdBtn("民心安抚 满意+8", true, act, "happy")
-            AdBtn("市政拨款 +220万", true, act, "grant")
+            AdBtn("营造拨款 +220万", true, act, "grant")
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -338,8 +435,7 @@ fun SettingsPanel() {
                     .clickable { AppState.settingsOpen = false },
                 contentAlignment = Alignment.Center
             ) { Text("关闭", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
+            if (live < 0) Text("")
         }
     }
 }
-
-

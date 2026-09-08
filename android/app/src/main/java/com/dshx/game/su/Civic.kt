@@ -95,10 +95,10 @@ object Civic {
         if (examScore >= 4) {
             examPassed = max(examPassed, s.rankLevel)
             s.merit += 18
-            GameData.pushNews("任职测评通过", "你以 $examScore/5 通过市政任职测评，晋升通道已打开。", "市政")
+            GameData.pushNews("营造测评通过", "你以 $examScore/5 通过营造测评，晋升通道已打开。", "营造")
             GameData.refreshRank()
         } else {
-            GameData.pushNews("任职测评未过", "本次 $examScore/5。可在冷却后重考。", "市政")
+            GameData.pushNews("营造测评未过", "本次 $examScore/5。可在冷却后重考。", "营造")
         }
     }
 
@@ -117,7 +117,7 @@ object Civic {
         complaintsHandled += 1
         pending = null
         AppState.complaintOpen = false
-        GameData.pushNews("市民来信已处理", c.title + " · 已给出市政答复。", "信访")
+        GameData.pushNews("市民来信已处理", c.title + " · 已给出营造答复。", "来信")
         AppState.bumpLive()
     }
 
@@ -131,7 +131,7 @@ object Civic {
         ExamQuestion("电缆和水管的作用是？", listOf("装饰用", "把电厂/水厂能力接到分区", "替代道路", "只给公园用"), 1, "管网把供给送到格子。"),
         ExamQuestion("废弃建筑最常见原因？", listOf("楼名不好听", "长期断电缺水或缺岗", "日期是双数", "相机拉太远"), 1, "服务中断过久会弃楼。"),
         ExamQuestion("办公区主要吸收哪类需求？", listOf("工业货车", "白领岗位与办公需求", "农田", "墓园排队"), 1, "办公区分担商办岗位。"),
-        ExamQuestion("处理市民来信的目标是？", listOf("全部无视", "在成本和满意度之间做取舍", "每次都发贷款", "拆掉学校"), 1, "信访是日常治理，不是政治站队。")
+        ExamQuestion("处理市民来信的目标是？", listOf("全部无视", "在成本和满意度之间做取舍", "每次都发贷款", "拆掉学校"), 1, "来信是日常城建取舍，不是现实政治。")
     )
 
     val COMPLAINTS: List<Complaint> = listOf(

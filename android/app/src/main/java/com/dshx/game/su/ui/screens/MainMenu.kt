@@ -54,6 +54,7 @@ import kotlin.random.Random
 private fun startGame(
     mapView: MapRenderView,
     name: String,
+    mayor: String,
     seed: Int,
     difficulty: String,
     slot: Int
@@ -61,7 +62,7 @@ private fun startGame(
     GameData.seed = seed
     GameData.difficultyKey = difficulty
     GameData.sandbox = false
-    GameData.init(seed, name)
+    GameData.init(seed, name, mayor)
     AppState.activeSlot = slot
     SaveManager.save(slot)
     AppState.saveTick++
@@ -178,6 +179,7 @@ private fun MenuButton(text: String, bg: Color, whiteText: Boolean, onClick: () 
 private fun NewGameScreen(mapView: MapRenderView) {
     val C = Config.COLORS
     var name by remember { mutableStateOf("") }
+    var mayor by remember { mutableStateOf("") }
     var seedText by remember { mutableStateOf("") }
     var difficulty by remember { mutableStateOf("normal") }
     var slot by remember { mutableStateOf((0..2).firstOrNull { !SaveManager.hasSlot(it) } ?: 0) }
@@ -212,6 +214,30 @@ private fun NewGameScreen(mapView: MapRenderView) {
                 onValueChange = { if (it.length <= 8) name = it },
                 placeholder = {
                     Text("晨光市", fontFamily = LocalGameFont.current, fontSize = 14.sp)
+                },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontFamily = LocalGameFont.current, fontSize = 14.sp, color = C.textDark.toColor()
+                ),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = C.chipBg.toColor(),
+                    unfocusedContainerColor = C.chipBg.toColor(),
+                    focusedIndicatorColor = C.accentGreen.toColor(),
+                    unfocusedIndicatorColor = C.border2.toColor(),
+                    cursorColor = C.accentGreen.toColor()
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Text(
+                "营造主管姓名", fontSize = 12.sp, color = C.textMid.toColor(),
+                fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth()
+            )
+            TextField(
+                value = mayor,
+                onValueChange = { if (it.length <= 8) mayor = it },
+                placeholder = {
+                    Text("未署名", fontFamily = LocalGameFont.current, fontSize = 14.sp)
                 },
                 singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(
@@ -350,8 +376,9 @@ private fun NewGameScreen(mapView: MapRenderView) {
                     .clickable {
                         Sfx.play("sfx_click")
                         val cityName = if (name.isBlank()) "晨光市" else name.trim()
+                        val mayorName = if (mayor.isBlank()) "未署名" else mayor.trim()
                         val seed = if (seedText.isBlank()) Random.nextInt(1, 100000) else seedText.toIntOrNull() ?: Random.nextInt(1, 100000)
-                        startGame(mapView, cityName, seed, difficulty, slot)
+                        startGame(mapView, cityName, mayorName, seed, difficulty, slot)
                     },
                 contentAlignment = Alignment.Center
             ) {

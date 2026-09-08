@@ -45,7 +45,7 @@ object AdOffers {
             "daily" -> {
                 s.funds += 280
                 weeklyClaimed = true
-                MapRef.view?.setToast("每周市政礼包 +280 万")
+                MapRef.view?.setToast("每周营造礼包 +280 万")
             }
             "shortfall" -> {
                 val add = maxOf(220, s.lastShortfall)
@@ -67,7 +67,7 @@ object AdOffers {
             }
             "grant" -> {
                 s.funds += 220
-                MapRef.view?.setToast("市政拨款 +220 万")
+                MapRef.view?.setToast("营造拨款 +220 万")
             }
         }
         AppState.adOfferOpen = false

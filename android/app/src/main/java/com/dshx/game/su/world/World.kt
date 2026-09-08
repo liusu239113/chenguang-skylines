@@ -22,6 +22,7 @@ class Tile {
     var cable: Boolean = false        // 地下电缆
     var sewer: Boolean = false        // 污水管
     var metro: Boolean = false        // 地铁隧道
+    var rail: Boolean = false         // 地面铁轨
     var district: Int = 0             // 区划 id，0=未划
     var groundPol: Int = 0            // 地面污染 0-100
     var waterPol: Int = 0             // 水污染 0-100
@@ -86,6 +87,8 @@ class World {
     val roadLines: MutableList<RoadLine> = mutableListOf()
     var spawnX: Int = 1
     var spawnY: Int = 1
+    var highwayConnected: Boolean = false
+    var prosperity: Int = 0
 
     class Label(val x: Float, val y: Float, val text: String, val kind: String)
 
@@ -225,7 +228,7 @@ class World {
                 val cx = colAve[i]
                 val xs = IntArray(w.rows)
                 val ys = IntArray(w.rows)
-                for (y in 1..w.rows) {
+                for (y in 4 until w.rows - 2) {
                     setRoad(cx, y, "avenue")
                     xs[y - 1] = cx
                     ys[y - 1] = y
@@ -246,7 +249,7 @@ class World {
                 val ry = rowAve[i]
                 val xs = IntArray(w.cols)
                 val ys = IntArray(w.cols)
-                for (x in 1..w.cols) {
+                for (x in 4 until w.cols - 2) {
                     setRoad(x, ry, "avenue")
                     xs[x - 1] = x
                     ys[x - 1] = ry
@@ -266,8 +269,84 @@ class World {
 
             w.spawnX = colAve[0]
             w.spawnY = rowAve[0]
+
+            // 外环高速：贴地图边缘，不直接进城区。玩家把城区路接到高速后才会进外地车。
+            fun setHwy(x: Int, y: Int) {
+                val t = w.grid[y - 1][x - 1]
+                if (t.terrain == "water") return
+                t.road = "highway"
+                t.zone = "none"
+            }
+            val hx0 = 2
+            val hx1 = w.cols - 1
+            val hy0 = 2
+            val hy1 = w.rows - 1
+            for (x in hx0..hx1) {
+                setHwy(x, hy0)
+                setHwy(x, hy1)
+            }
+            for (y in hy0..hy1) {
+                setHwy(hx0, y)
+                setHwy(hx1, y)
+            }
+            w.roadLines.add(
+                RoadLine(
+                    name = "外环高速",
+                    kind = "highway",
+                    segX = IntArray(hx1 - hx0 + 1) { hx0 + it },
+                    segY = IntArray(hx1 - hx0 + 1) { hy0 },
+                    dir = "h",
+                    labelX = floor(w.cols * 0.5).toInt(),
+                    labelY = 0
+                )
+            )
+
             current = w
             return w
+        }
+
+        fun isHighway(x: Int, y: Int): Boolean = tile(x, y)?.road == "highway"
+
+        fun refreshHighwayLink() {
+            val w = current ?: return
+            var linked = false
+            val dirs = arrayOf(intArrayOf(1, 0), intArrayOf(-1, 0), intArrayOf(0, 1), intArrayOf(0, -1))
+            outer@ for (y in 1..w.rows) {
+                for (x in 1..w.cols) {
+                    if (w.grid[y - 1][x - 1].road != "highway") continue
+                    for (d in dirs) {
+                        val nx = x + d[0]
+                        val ny = y + d[1]
+                        val r = tile(nx, ny)?.road ?: continue
+                        if (r != "highway") {
+                            linked = true
+                            break@outer
+                        }
+                    }
+                }
+            }
+            w.highwayConnected = linked
+        }
+
+        fun highwayRamps(): List<Pair<Int, Int>> {
+            val w = current ?: return emptyList()
+            val out = mutableListOf<Pair<Int, Int>>()
+            val dirs = arrayOf(intArrayOf(1, 0), intArrayOf(-1, 0), intArrayOf(0, 1), intArrayOf(0, -1))
+            for (y in 1..w.rows) {
+                for (x in 1..w.cols) {
+                    if (w.grid[y - 1][x - 1].road != "highway") continue
+                    for (d in dirs) {
+                        val nx = x + d[0]
+                        val ny = y + d[1]
+                        val r = tile(nx, ny)?.road ?: continue
+                        if (r != "highway") {
+                            out.add(x to y)
+                            break
+                        }
+                    }
+                }
+            }
+            return out
         }
 
         // -------------------------------------------------------------------
@@ -427,6 +506,7 @@ class World {
             if (s.category == Config.ServiceCat.WATER && s.id != "sewage") Networks.seedPipesAround(x, y, s.sizeW, s.sizeH)
             if (s.id == "sewage") Networks.seedSewersAround(x, y, s.sizeW, s.sizeH)
             if (s.id == "metro") Networks.seedMetroAround(x, y, s.sizeW, s.sizeH)
+            if (s.id == "rail_station") Networks.seedRailAround(x, y, s.sizeW, s.sizeH)
             return true
         }
 

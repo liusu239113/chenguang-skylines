@@ -19,7 +19,7 @@ object Sfx {
 
     private val NAMES = listOf(
         "sfx_build", "sfx_click", "sfx_demolish", "sfx_levelup", "sfx_month",
-        "sfx_policy", "sfx_save", "sfx_engine", "sfx_cash"
+        "sfx_policy", "sfx_save", "sfx_engine", "sfx_cash", "sfx_horn"
     )
 
     fun init(context: Context) {

@@ -24,6 +24,7 @@ object Networks {
     var cableCount: Int = 0
     var sewerCount: Int = 0
     var metroCount: Int = 0
+    var railCount: Int = 0
 
     val DISTRICT_POLICIES = listOf(
         Triple("", "无专属政策", "该区沿用全城法令"),
@@ -42,6 +43,7 @@ object Networks {
         cableCount = 0
         sewerCount = 0
         metroCount = 0
+        railCount = 0
         val w = World.current
         if (w != null) {
             for (y in 0 until w.rows) for (x in 0 until w.cols) {
@@ -49,6 +51,7 @@ object Networks {
                 w.grid[y][x].cable = false
                 w.grid[y][x].sewer = false
                 w.grid[y][x].metro = false
+                w.grid[y][x].rail = false
                 w.grid[y][x].district = 0
                 w.grid[y][x].groundPol = 0
                 w.grid[y][x].waterPol = 0
@@ -63,16 +66,19 @@ object Networks {
         var c = 0
         var s = 0
         var m = 0
+        var r = 0
         for (y in 0 until w.rows) for (x in 0 until w.cols) {
             if (w.grid[y][x].pipe) p++
             if (w.grid[y][x].cable) c++
             if (w.grid[y][x].sewer) s++
             if (w.grid[y][x].metro) m++
+            if (w.grid[y][x].rail) r++
         }
         pipeCount = p
         cableCount = c
         sewerCount = s
         metroCount = m
+        railCount = r
     }
 
     fun canPipe(x: Int, y: Int): Pair<Boolean, String?> {
@@ -105,6 +111,13 @@ object Networks {
         val t = World.tile(x, y) ?: return false
         if (t.terrain == "water") return false
         t.metro = on
+        return true
+    }
+
+    fun setRail(x: Int, y: Int, on: Boolean = true): Boolean {
+        val t = World.tile(x, y) ?: return false
+        if (t.terrain == "water") return false
+        t.rail = on
         return true
     }
 
@@ -154,6 +167,19 @@ object Networks {
                 if (t.terrain == "water") continue
                 if (t.road != null || (x in ax until ax + bw && y in ay until ay + bh)) {
                     t.metro = true
+                }
+            }
+        }
+        recount()
+    }
+
+    fun seedRailAround(ax: Int, ay: Int, bw: Int, bh: Int, radius: Int = 1) {
+        for (y in (ay - radius)..(ay + bh - 1 + radius)) {
+            for (x in (ax - radius)..(ax + bw - 1 + radius)) {
+                val t = World.tile(x, y) ?: continue
+                if (t.terrain == "water") continue
+                if (t.road != null || (x in ax until ax + bw && y in ay until ay + bh)) {
+                    t.rail = true
                 }
             }
         }

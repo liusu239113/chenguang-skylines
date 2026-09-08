@@ -6,6 +6,7 @@ import com.dshx.game.su.world.Citizens
 import com.dshx.game.su.world.Transit
 import com.dshx.game.su.world.CitySystems
 import com.dshx.game.su.world.Networks
+import com.dshx.game.su.world.Traffic
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
@@ -56,6 +57,7 @@ class CityState {
     var quest: Quest? = null
     // 城市名
     var cityName: String = Config.World.city
+    var mayorName: String = "未署名"
     // 市民慢变量（对照拆解文档：教育/健康/就业驱动长线循环）
     var education: Double = 18.0
     var health: Double = 62.0
@@ -117,7 +119,7 @@ object GameData {
 
     private fun createState(): CityState = CityState()
 
-    fun init(seed: Int = 20260408, cityName: String = Config.World.city) {
+    fun init(seed: Int = 20260408, cityName: String = Config.World.city, mayorName: String = "未署名") {
         GameData.seed = seed
         World.generate(seed)
         Growth.reset()
@@ -127,9 +129,11 @@ object GameData {
         CitySystems.reset()
         Civic.reset()
         AdOffers.reset()
+        Traffic.reset()
         current = createState()
         val s = current!!
         s.cityName = cityName
+        s.mayorName = mayorName.ifBlank { "未署名" }
         World.current?._pop = 0
         speedIdx = 1
         pendingLevelUp = false
@@ -209,7 +213,7 @@ object GameData {
         if (lv > s.rankLevel && examOk) {
             s.rankLevel = lv
             val r = rankDef()
-            pushNews("职级晋升", "你被星辰联邦市政委员会授予「" + r.name + "」。" + r.perk + "。", "市政")
+            pushNews("营造职级提升", s.mayorName + " 的营造职级升为「" + r.name + "」。" + r.perk + "。", "营造")
         }
     }
 
@@ -518,7 +522,7 @@ object GameData {
             if (s.loanDebt <= 0) {
                 s.loanDebt = 0.0
                 s.loanCooldown = Config.LOAN.cooldown
-                pushNews("贷款还清", "市政贷款已全部还清。", "财政")
+                pushNews("贷款还清", "营造贷款已全部还清。", "财政")
             }
         }
         if (s.loanCooldown > 0) s.loanCooldown -= 1
@@ -526,6 +530,7 @@ object GameData {
         s.merit += max(0.0, s.lastNet * 0.02 + s.population * 0.001)
         Civic.tickDay(s)
         AdOffers.tickDay(s)
+        World.refreshHighwayLink()
         refreshRank()
 
         // 满意度向目标靠拢（没人时回到中性，不为空城硬扣）
@@ -674,6 +679,7 @@ object GameData {
         Citizens.tick(simDt)
         Transit.tick(simDt)
         CitySystems.tick(simDt)
+        Traffic.tick(simDt)
     }
 
     // -----------------------------------------------------------------------
@@ -691,8 +697,14 @@ object GameData {
             AdOffers.offerShortfall(pay.toInt(), "修路")
             return false to ("资金不足（需 ¥" + pay + "万）")
         }
+        val linkedBefore = World.current?.highwayConnected == true
         World.setRoad(x, y, kind)
         if (!sandbox) s.funds -= pay
+        World.refreshHighwayLink()
+        if (!linkedBefore && World.current?.highwayConnected == true) {
+            pushNews("外环接通", "城区路接到外环高速，外地游客将按繁荣度进城。", "交通")
+            MapRef.view?.setToast("外环高速已接通")
+        }
         return true to null
     }
 
@@ -729,6 +741,7 @@ object GameData {
             "road" -> s.funds += 2
             "zone" -> { /* 清除分区不退款 */ }
         }
+        World.refreshHighwayLink()
         return true
     }
 
@@ -834,6 +847,21 @@ object GameData {
         return true to null
     }
 
+    fun paintRail(x: Int, y: Int): Pair<Boolean, String?> {
+        val t = World.tile(x, y) ?: return false to "越界"
+        if (t.terrain == "water") return false to "水域无法铺铁轨"
+        if (t.rail) return true to null
+        val s = current ?: return false to null
+        if (!sandbox && s.funds < 8) {
+            AdOffers.offerShortfall(8, "铺铁轨")
+            return false to "资金不足（铁轨 8 万/格）"
+        }
+        Networks.setRail(x, y, true)
+        if (!sandbox) s.funds -= 8
+        Networks.recount()
+        return true to null
+    }
+
     fun plantTree(x: Int, y: Int): Pair<Boolean, String?> {
         val s = current ?: return false to null
         if (!sandbox && s.funds < 1) return false to "资金不足"
@@ -866,7 +894,7 @@ object GameData {
         val amount = Config.LOAN.amount * (if (s.rankLevel >= 2) 1.4 else 1.0)
         s.loanDebt = amount
         s.funds += amount
-        pushNews("市政贷款", "借入 " + amount.toInt() + " 万，将按日自动还款。", "财政")
+        pushNews("营造贷款", "借入 " + amount.toInt() + " 万，将按日自动还款。", "财政")
         return true to null
     }
 
