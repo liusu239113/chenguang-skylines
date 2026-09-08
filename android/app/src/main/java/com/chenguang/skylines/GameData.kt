@@ -38,6 +38,7 @@ class CityState {
     var taxRes: Int = Config.TAX.default
     var taxCom: Int = Config.TAX.default
     var taxInd: Int = Config.TAX.default
+    var taxOff: Int = Config.TAX.default
     // 最近一次覆盖统计（数据面板用）
     var lastCoverage: com.chenguang.skylines.world.Coverage? = null
     // 贷款
@@ -160,6 +161,7 @@ object GameData {
                 "demandR" -> e.demandR
                 "demandC" -> e.demandC
                 "demandI" -> e.demandI
+                "demandO" -> e.demandO
                 "powerUseMul" -> e.powerUseMul
                 "trafficMul" -> e.trafficMul
                 "fireMul" -> e.fireMul
@@ -292,55 +294,90 @@ object GameData {
         s.lastCoverage = cov
         s.education = min(100.0, s.education + (eduScore * 0.08) * (if (cov.education > 0.3f) 1.0 else 0.2) - 0.04)
         s.health = min(100.0, max(20.0, 50.0 + healthScore * 0.6 - s.pollution * 0.35 + (cov.health * 18)))
-        s.jobs = st.comCap + st.indCap
-        s.congestion = max(0.0, min(1.0, (st.roadCount.coerceAtLeast(1).let { roads ->
-            val flowPressure = (s.population / 18.0 + st.comCount * 1.4 + st.indCount * 1.8) / roads
-            flowPressure * policyMul("trafficMul") * (1.0 - min(0.55, transitScore / 40.0))
-        })))
+        s.jobs = st.comCap + st.indCap + st.offCap
+        val trafficLoad = s.population / 12.0 + st.comCount * 1.6 + st.indCount * 2.0 + st.offCount * 1.4
+        val cap = max(12.0, st.roadCapacity.toDouble())
+        s.congestion = max(0.0, min(1.0, trafficLoad / cap * policyMul("trafficMul") * (1.0 - min(0.55, transitScore / 40.0))))
 
-        // 人口 = 各住宅入住人数之和；住宅建好即迁入
+        // 人口 / 岗位：住宅迁入，商工办入驻；缺服务或低满意则废弃
         val waterMul: Double = if (cov.water < 0.99f) cov.water.toDouble() else 1.0
         val satisMul = max(0.3, min(1.2, s.happiness / 60.0))
+        val labor = max(1.0, s.population * 0.62)
+        val jobRate = min(1.2, s.jobs / labor)
         var totalRes = 0
         for (e in World.allBuildings()) {
             val b = e.b
-            if (b.isService || b.zone != "residential") continue
-            val lv = Config.GROWN["residential"]?.levels?.getOrNull(b.level - 1) ?: continue
-            if (b.residents < lv.cap) {
-                val migrate = max(1, (lv.cap * 0.2 * satisMul * waterMul).toInt())
-                b.residents = min(lv.cap, b.residents + migrate)
+            if (b.isService) continue
+            b.ageDays += 1
+            val lv = Config.GROWN[b.zone]?.levels?.getOrNull(b.level - 1) ?: continue
+            val powered = World.isCoveredBy(e.x, e.y, Config.ServiceCat.POWER)
+            val watered = World.isCoveredBy(e.x, e.y, Config.ServiceCat.WATER)
+            val land = World.landValue(e.x, e.y)
+            val shouldAbandon = (!powered && b.ageDays > 8) ||
+                (!watered && b.zone == "residential" && b.ageDays > 10) ||
+                (s.happiness < Config.GROWTH.abandonHappy && b.ageDays > 20 && land < 4)
+            if (shouldAbandon && !b.abandoned) {
+                b.abandoned = true
+                b.residents = 0
+                b.workers = 0
+                pushNews("建筑废弃", "一处" + (Config.GROWN[b.zone]?.name ?: "建筑") + "因缺服务或低满意被弃置。", "城建")
             }
-            if (s.happiness < 30 && b.residents > 0) {
-                b.residents = max(0, b.residents - 1)
+            if (b.abandoned) {
+                if (powered && watered && s.happiness > 45 && land >= 6) {
+                    b.abandoned = false
+                } else continue
             }
-            totalRes += b.residents
+            when (b.zone) {
+                "residential" -> {
+                    if (b.residents < lv.cap) {
+                        val migrate = max(1, (lv.cap * 0.18 * satisMul * waterMul * jobRate).toInt())
+                        b.residents = min(lv.cap, b.residents + migrate)
+                    }
+                    if (s.happiness < 32 && b.residents > 0) b.residents = max(0, b.residents - 1)
+                    totalRes += b.residents
+                }
+                else -> {
+                    val fill = max(1, (lv.cap * 0.22 * (if (powered) 1.0 else 0.3)).toInt())
+                    b.workers = min(lv.cap, b.workers + fill)
+                }
+            }
         }
         s.population = totalRes.toDouble()
         World.current?._pop = totalRes
 
-        // 收支（万/日）：住宅按住宅税率，商业/工业按各自税率；缺电时产业收入打折
         val occRatio = if (st.resCap > 0) s.population / st.resCap else 0.0
         var bizCom = 0.0
         var bizInd = 0.0
+        var bizOff = 0.0
         for (e in World.allBuildings()) {
             val b = e.b
-            if (b.isService) continue
+            if (b.isService || b.abandoned) continue
             val lv = Config.GROWN[b.zone]?.levels?.getOrNull(b.level - 1) ?: continue
+            val fill = if (lv.cap > 0) b.occupied().toDouble() / lv.cap else occRatio
             when (b.zone) {
-                "commercial" -> bizCom += lv.income * occRatio
-                "industrial" -> bizInd += lv.income * occRatio
+                "commercial" -> bizCom += lv.income * fill
+                "industrial" -> bizInd += lv.income * fill
+                "office" -> bizOff += lv.income * fill
             }
         }
         val powerMul = Config.COVERAGE.powerIncomeFloor +
             (1 - Config.COVERAGE.powerIncomeFloor) * cov.power
         val eduMul = 0.85 + s.education / 250.0
         val congMul = 1.0 - s.congestion * 0.35
-        val bizBase = (bizCom * s.taxCom / 10.0 + bizInd * s.taxInd / 10.0) * powerMul * eduMul * congMul
+        val bizBase = (bizCom * s.taxCom / 10.0 + bizInd * s.taxInd / 10.0 + bizOff * s.taxOff / 10.0) *
+            powerMul * eduMul * congMul
         val taxIncome = (s.population * E.taxPerPopPerDay + E.baseIncomePerDay) *
             policyMul("taxMul") * (s.taxRes / 10.0)
         val bizIncome = bizBase * policyMul("incomeMul")
         val income = taxIncome + bizIncome + tradeIncome
-        var upkeep = st.roadCount * E.upkeepPerRoadDay
+        var upkeep = 0.0
+        val ww = World.current
+        if (ww != null) {
+            for (y in 1..ww.rows) for (x in 1..ww.cols) {
+                val kind = ww.grid[y - 1][x - 1].road ?: continue
+                upkeep += Config.ROAD[kind]?.upkeep ?: E.upkeepPerRoadDay
+            }
+        }
         for (e in World.allBuildings()) {
             if (!e.b.isService) continue
             val cfg = World.serviceConfig(e.b.service)
@@ -498,7 +535,7 @@ object GameData {
                 String.format(
                     "人口 %d · 满意度 %d · 本日收支 %s%.1f万 · 建筑 %d 栋",
                     s.population.toInt(), floor(s.happiness).toInt(), net30, net,
-                    st.resCount + st.comCount + st.indCount + st.serviceCount
+                    st.resCount + st.comCount + st.indCount + st.offCount + st.serviceCount
                 ),
                 "月报"
             )
@@ -524,13 +561,16 @@ object GameData {
     // 操作（返回 ok, msg）
     // -----------------------------------------------------------------------
     fun placeRoad(x: Int, y: Int, kind: String): Pair<Boolean, String?> {
-        val (ok, msg) = World.canRoad(x, y)
+        val (ok, msg) = World.canRoad(x, y, kind)
         if (!ok) return false to msg
         val r = Config.ROAD[kind] ?: return false to "未知道路"
         val s = current ?: return false to null
-        if (!sandbox && s.funds < r.cost) return false to ("资金不足（需 ¥" + r.cost + "万）")
+        val exist = World.tile(x, y)?.road
+        val oldCost = if (exist != null) Config.ROAD[exist]?.cost ?: 0 else 0
+        val pay = max(0, r.cost - oldCost)
+        if (!sandbox && s.funds < pay) return false to ("资金不足（需 ¥" + pay + "万）")
         World.setRoad(x, y, kind)
-        if (!sandbox) s.funds -= r.cost
+        if (!sandbox) s.funds -= pay
         return true to null
     }
 

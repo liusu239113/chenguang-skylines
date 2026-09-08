@@ -233,7 +233,7 @@ class MapRenderView @JvmOverloads constructor(
         val t = tool ?: return false
         if (!World.inBounds(tx, ty)) return false
         return when (t.kind) {
-            "road" -> World.canRoad(tx, ty).first
+            "road" -> World.canRoad(tx, ty, t.roadKind ?: "local").first
             "zone" -> {
                 val tile = World.tile(tx, ty)
                 tile != null && tile.road == null && tile.building == null && tile.terrain != "water"
@@ -957,10 +957,11 @@ class MapRenderView @JvmOverloads constructor(
                         base = C.bCivic; hFactor = 0.75f
                     }
                 } else {
-                    base = when (bl.zone) {
+                    base = if (bl.abandoned) C.bAbandoned else when (bl.zone) {
                         "residential" -> C.bResidential
                         "commercial" -> C.bCommercial
                         "industrial" -> C.bIndustrial
+                        "office" -> C.bOffice
                         else -> C.bResidential
                     }
                     hFactor = grownH.getOrElse((bl.level - 1).coerceIn(0, 2)) { 0.3f }
@@ -1253,11 +1254,19 @@ class MapRenderView @JvmOverloads constructor(
 
     private fun zoneBaseColor(t: Tile, x: Int, y: Int): RGBA {
         val C = Config.COLORS
-        t.road?.let { return if (it == "avenue") C.roadAvenue else C.roadLocal }
+        t.road?.let {
+            return when (it) {
+                "highway" -> C.roadHighway
+                "avenue" -> C.roadAvenue
+                "dirt" -> C.roadDirt
+                else -> C.roadLocal
+            }
+        }
         when (t.zone) {
             "residential" -> return C.zoneResidential
             "commercial" -> return C.zoneCommercial
             "industrial" -> return C.zoneIndustrial
+            "office" -> return C.zoneOffice
         }
         when (t.terrain) {
             "water" -> return if ((x + y) % 2 == 0) C.water else C.waterAlt
@@ -1390,6 +1399,10 @@ class MapRenderView @JvmOverloads constructor(
             "commercial" -> {
                 pre = Config.NAMES.COM_PRE
                 suf = Config.NAMES.COM_SUF
+            }
+            "office" -> {
+                pre = Config.NAMES.OFF_PRE
+                suf = Config.NAMES.OFF_SUF
             }
             else -> {
                 pre = Config.NAMES.IND_PRE

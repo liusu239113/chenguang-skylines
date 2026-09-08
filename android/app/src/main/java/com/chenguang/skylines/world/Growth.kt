@@ -21,9 +21,9 @@ object Growth {
     /** 累计模拟时间（秒，含速度倍率），生长动画用 */
     var simTime: Double = 0.0
 
-    data class Demand(var r: Double, var c: Double, var i: Double)
+    data class Demand(var r: Double, var c: Double, var i: Double, var o: Double = 0.2)
 
-    var lastDemand: Demand = Demand(0.5, 0.3, 0.4)
+    var lastDemand: Demand = Demand(0.5, 0.3, 0.4, 0.2)
 
     /** 本次 tick 长了几栋 */
     var grewCount: Int = 0
@@ -32,7 +32,7 @@ object Growth {
         acc = 0.0
         simTime = 0.0
         grewCount = 0
-        lastDemand = Demand(0.5, 0.3, 0.4)
+        lastDemand = Demand(0.5, 0.3, 0.4, 0.2)
     }
 
     fun computeDemand(st: WorldStats, pop: Int): Demand {
@@ -42,23 +42,30 @@ object Growth {
         val taxRes = s?.taxRes ?: Config.TAX.default
         val taxCom = s?.taxCom ?: Config.TAX.default
         val taxInd = s?.taxInd ?: Config.TAX.default
+        val taxOff = s?.taxOff ?: Config.TAX.default
         val taxDragR = 1.0 - max(0, taxRes - Config.TAX.default) * 0.04
         val taxDragC = 1.0 - max(0, taxCom - Config.TAX.default) * 0.04
         val taxDragI = 1.0 - max(0, taxInd - Config.TAX.default) * 0.04
+        val taxDragO = 1.0 - max(0, taxOff - Config.TAX.default) * 0.04
         val overzoneR = max(0, st.resCount - 8) * 1.6
         val overzoneC = max(0, st.comCount - 6) * 1.4
         val overzoneI = max(0, st.indCount - 6) * 1.4
+        val overzoneO = max(0, st.offCount - 4) * 1.5
         val attract = (happy - 50) * 0.35 + (edu - 20) * 0.12
-        val r = ((st.comCap + st.indCap) * 1.15 + 40 + attract - pop - overzoneR) * taxDragR
+        val jobs = st.comCap + st.indCap + st.offCap
+        val r = (jobs * 1.15 + 40 + attract - pop - overzoneR) * taxDragR
         val c = (pop * (0.50 + edu / 400.0) + 25 - st.comCap - overzoneC) * taxDragC
         val i = (pop * 0.45 + 50 + edu * 0.2 - st.indCap - overzoneI) * taxDragI
+        val o = (pop * (edu / 180.0) + 10 - st.offCap - overzoneO) * taxDragO
         val normR = max(st.resCap + 40.0, 1.0)
         val normC = max(st.comCap + 30.0, 1.0)
         val normI = max(st.indCap + 40.0, 1.0)
+        val normO = max(st.offCap + 24.0, 1.0)
         return Demand(
             r = max(0.0, min(1.0, r / normR * GameData.policyMul("demandR"))),
             c = max(0.0, min(1.0, c / normC * GameData.policyMul("demandC"))),
-            i = max(0.0, min(1.0, i / normI * GameData.policyMul("demandI")))
+            i = max(0.0, min(1.0, i / normI * GameData.policyMul("demandI"))),
+            o = max(0.0, min(1.0, o / normO * GameData.policyMul("demandO")))
         )
     }
 
@@ -74,6 +81,7 @@ object Growth {
         if (demand.r >= G.demandMin) pool.add("residential" to demand.r)
         if (demand.c >= G.demandMin) pool.add("commercial" to demand.c)
         if (demand.i >= G.demandMin) pool.add("industrial" to demand.i)
+        if (demand.o >= G.demandMin) pool.add("office" to demand.o)
 
         grewCount = 0
         if (pool.isEmpty()) return
@@ -111,6 +119,7 @@ object Growth {
             val zoneDemand = when (e.b.zone) {
                 "residential" -> demand.r
                 "commercial" -> demand.c
+                "office" -> demand.o
                 else -> demand.i
             }
             val ageOk = (simTime - e.b.born) >= G.upgradeAgeDays * Config.TIME.daySeconds

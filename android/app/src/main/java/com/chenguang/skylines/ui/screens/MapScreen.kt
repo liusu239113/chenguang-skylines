@@ -218,6 +218,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     DemandBar("住", Growth.lastDemand.r, C.accentGreen.toColor(), C.accentGreen.toColor(), live)
                     DemandBar("商", Growth.lastDemand.c, C.accentBlue.toColor(), C.accentBlue.toColor(), live)
                     DemandBar("工", Growth.lastDemand.i, C.accentGold.toColor(), C.accentGold.toColor(), live)
+                    DemandBar("办", Growth.lastDemand.o, C.accentBlue.toColor(), C.accentBlue.toColor(), live)
                 }
                 // 速度
                 Row(
@@ -282,10 +283,19 @@ fun MapScreenContent(mapView: MapRenderView) {
                     UIHelper.InfoRow("地形", World.terrainName(sel.first, sel.second))
                     UIHelper.InfoRow("现状", World.zoneName(sel.first, sel.second), C.accentBlue.toColor())
                     UIHelper.InfoRow("地价", World.landValue(sel.first, sel.second).toString())
+                    UIHelper.InfoRow("噪音", World.noiseAt(sel.first, sel.second).toString())
                     val tb = World.tile(sel.first, sel.second)?.building
-                    if (tb != null && !tb.isService && tb.zone == "residential") {
-                        val cap = Config.GROWN["residential"]?.levels?.getOrNull(tb.level - 1)?.cap ?: 0
-                        UIHelper.InfoRow("入住", tb.residents.toString() + "/" + cap)
+                    if (tb != null && !tb.isService) {
+                        val cap = tb.cap()
+                        if (tb.abandoned) {
+                            UIHelper.InfoRow("状态", "废弃", C.accentRed.toColor())
+                        } else if (tb.zone == "residential") {
+                            UIHelper.InfoRow("入住", tb.residents.toString() + "/" + cap)
+                        } else {
+                            UIHelper.InfoRow("在岗", tb.workers.toString() + "/" + cap)
+                        }
+                        UIHelper.InfoRow("供电", if (World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.POWER)) "已通" else "断电")
+                        UIHelper.InfoRow("供水", if (World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.WATER)) "已通" else "缺水")
                     }
                 }
             }
@@ -427,9 +437,9 @@ fun MapScreenContent(mapView: MapRenderView) {
                 Triple("zone", "住宅", "residential"),
                 Triple("zone", "商业", "commercial"),
                 Triple("zone", "工业", "industrial"),
+                Triple("zone", "办公", "office"),
                 Triple("bulldoze", "推平", null),
-                Triple("service", "服务", null),
-                Triple("view", "查看", null)
+                Triple("service", "服务", null)
             )
             for (it in items) {
                 val active = if (it.first == "zone") {
@@ -437,7 +447,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                 } else {
                     AppState.mode == it.first
                 }
-                UIHelper.ToolItem(it.second, active, width = 44.dp) {
+                UIHelper.ToolItem(it.second, active, width = 40.dp) {
                     if (it.first == "zone") {
                         if (AppState.mode == "zone" && AppState.zoneKey == it.third) {
                             MapScreen.selectMode("view")
@@ -583,11 +593,11 @@ private fun DrawerContent(mapView: MapRenderView) {
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (rk in listOf("local", "avenue")) {
+                for (rk in listOf("dirt", "local", "avenue", "highway")) {
                     val r = Config.ROAD[rk]!!
                     UIHelper.PickChip(
                         text = r.name,
-                        sub = "¥" + r.cost + "/格",
+                        sub = "¥" + r.cost + " 容" + r.capacity,
                         selected = AppState.roadKind == rk,
                         width = 90.dp
                     ) {
@@ -696,6 +706,7 @@ private fun PolicyPanel() {
             TaxSlider("住宅", s.taxRes) { s.taxRes = it; AppState.bumpLive() }
             TaxSlider("商业", s.taxCom) { s.taxCom = it; AppState.bumpLive() }
             TaxSlider("工业", s.taxInd) { s.taxInd = it; AppState.bumpLive() }
+            TaxSlider("办公", s.taxOff) { s.taxOff = it; AppState.bumpLive() }
 
             // ---- 市政贷款 ----
             val loanState = when {
@@ -898,7 +909,7 @@ private fun DataPanel() {
                 color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "住宅 ${(d.r * 100).toInt()}% · 商业 ${(d.c * 100).toInt()}% · 工业 ${(d.i * 100).toInt()}%",
+                "住宅 ${(d.r * 100).toInt()}% · 商业 ${(d.c * 100).toInt()}% · 工业 ${(d.i * 100).toInt()}% · 办公 ${(d.o * 100).toInt()}%",
                 fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
 

@@ -22,10 +22,13 @@ class Tile {
 
 class Building {
     // grown
-    var zone: String? = null          // residential / commercial / industrial
+    var zone: String? = null          // residential / commercial / industrial / office
     var level: Int = 1
     var born: Double = 0.0
     var residents: Int = 0            // 住宅当前入住人数
+    var workers: Int = 0              // 商/工/办公在岗人数
+    var abandoned: Boolean = false
+    var ageDays: Int = 0
     // service
     var service: String? = null
     var ax: Int = 0
@@ -34,6 +37,8 @@ class Building {
     var h: Int = 1
 
     val isService: Boolean get() = service != null
+    fun cap(): Int = Config.GROWN[zone]?.levels?.getOrNull(level - 1)?.cap ?: 0
+    fun occupied(): Int = if (zone == "residential") residents else workers
 }
 
 class RoadLine(
@@ -50,12 +55,15 @@ class WorldStats {
     var resCap: Int = 0
     var comCap: Int = 0
     var indCap: Int = 0
+    var offCap: Int = 0
     var resCount: Int = 0
     var comCount: Int = 0
     var indCount: Int = 0
+    var offCount: Int = 0
     var pollution: Int = 0
     var roadCount: Int = 0
     var serviceCount: Int = 0
+    var roadCapacity: Int = 0
 }
 
 class World {
@@ -299,11 +307,18 @@ class World {
         // 修路
         // -------------------------------------------------------------------
         /** 返回 true 可修；false + msg（无 msg 表示静默跳过） */
-        fun canRoad(x: Int, y: Int): Pair<Boolean, String?> {
+        private val ROAD_RANK = mapOf("dirt" to 0, "local" to 1, "avenue" to 2, "highway" to 3)
+
+        fun canRoad(x: Int, y: Int, kind: String = "local"): Pair<Boolean, String?> {
             val t = tile(x, y) ?: return false to "越界"
             if (t.terrain == "water") return false to "不能铺在水上"
             if (t.building != null) return false to "先拆除这里的建筑"
-            if (t.road != null) return false to null       // 静默跳过
+            val exist = t.road
+            if (exist != null) {
+                val a = ROAD_RANK[exist] ?: 0
+                val b = ROAD_RANK[kind] ?: 0
+                if (b <= a) return false to null
+            }
             return true to null
         }
 
@@ -313,6 +328,17 @@ class World {
             t.road = kind
             t.zone = "none"
             return true
+        }
+
+        fun roadCapacity(x: Int, y: Int): Int = Config.ROAD[tile(x, y)?.road]?.capacity ?: 0
+
+        fun noiseAt(x: Int, y: Int): Int {
+            var n = 0
+            for (dy in -2..2) for (dx in -2..2) {
+                val t = tile(x + dx, y + dy) ?: continue
+                n += Config.ROAD[t.road]?.noise ?: 0
+            }
+            return n
         }
 
         // -------------------------------------------------------------------
@@ -450,7 +476,10 @@ class World {
             for (y in 1..w.rows) {
                 for (x in 1..w.cols) {
                     val t = w.grid[y - 1][x - 1]
-                    if (t.road != null) s.roadCount++
+                    if (t.road != null) {
+                        s.roadCount++
+                        s.roadCapacity += Config.ROAD[t.road]?.capacity ?: 10
+                    }
                     val b = t.building ?: continue
                     if (b.isService) {
                         if (b.ax == x && b.ay == y) {
@@ -459,9 +488,11 @@ class World {
                         }
                     } else {
                         val lv = Config.GROWN[b.zone]?.levels?.getOrNull(b.level - 1) ?: continue
+                        if (b.abandoned) continue
                         when (b.zone) {
                             "residential" -> { s.resCap += lv.cap; s.resCount++ }
                             "commercial" -> { s.comCap += lv.cap; s.comCount++ }
+                            "office" -> { s.offCap += lv.cap; s.offCount++ }
                             else -> {
                                 s.indCap += lv.cap
                                 s.indCount++

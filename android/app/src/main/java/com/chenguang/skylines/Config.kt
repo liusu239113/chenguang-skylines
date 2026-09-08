@@ -102,6 +102,7 @@ object Config {
         RESIDENTIAL("residential", "住宅区", 3),
         COMMERCIAL("commercial", "商业区", 4),
         INDUSTRIAL("industrial", "工业区", 3),
+        OFFICE("office", "办公区", 5),
         NONE("none", "清除分区", 0);
 
         companion object {
@@ -113,6 +114,7 @@ object Config {
         "residential" to ZoneDef("residential", "住宅区", 3, COLORS.zoneResidential),
         "commercial" to ZoneDef("commercial", "商业区", 4, COLORS.zoneCommercial),
         "industrial" to ZoneDef("industrial", "工业区", 3, COLORS.zoneIndustrial),
+        "office" to ZoneDef("office", "办公区", 5, COLORS.zoneOffice),
         "none" to ZoneDef("none", "清除分区", 0, null)
     )
 
@@ -126,16 +128,28 @@ object Config {
         val COM_SUF = listOf("超市", "百货", "食府", "咖啡", "药房", "书店", "面馆")
         val IND_PRE = listOf("永盛", "恒达", "联华", "宏远", "振华", "顺达")
         val IND_SUF = listOf("工厂", "制造", "五金", "纺织", "食品厂")
+        val OFF_PRE = listOf("星辉", "云台", "启明", "瀚海", "银座", "通衢")
+        val OFF_SUF = listOf("大厦", "写字楼", "中心", "塔")
     }
 
     // -----------------------------------------------------------------------
     // 道路
     // -----------------------------------------------------------------------
-    data class RoadDef(val key: String, val name: String, val cost: Int)
+    data class RoadDef(
+        val key: String,
+        val name: String,
+        val cost: Int,
+        val capacity: Int,
+        val speed: Int,
+        val noise: Int,
+        val upkeep: Double
+    )
 
     val ROAD: Map<String, RoadDef> = mapOf(
-        "local" to RoadDef("local", "单车道", 8),
-        "avenue" to RoadDef("avenue", "双车道", 20)
+        "dirt" to RoadDef("dirt", "泥土路", 0, 6, 30, 1, 0.002),
+        "local" to RoadDef("local", "两车道", 8, 14, 40, 2, 0.006),
+        "avenue" to RoadDef("avenue", "四车道", 20, 28, 60, 4, 0.012),
+        "highway" to RoadDef("highway", "高速路", 40, 48, 100, 7, 0.022)
     )
 
     // -----------------------------------------------------------------------
@@ -153,6 +167,9 @@ object Config {
         )),
         "industrial" to GrownDef("工厂", listOf(
             LevelDef(10, 20, 2), LevelDef(26, 50, 4), LevelDef(60, 110, 7)
+        )),
+        "office" to GrownDef("写字楼", listOf(
+            LevelDef(16, 28), LevelDef(40, 70), LevelDef(90, 140)
         ))
     )
 
@@ -388,6 +405,7 @@ object Config {
         val demandR: Double = 1.0,          // 住宅需求倍率
         val demandC: Double = 1.0,
         val demandI: Double = 1.0,
+        val demandO: Double = 1.0,
         val powerUseMul: Double = 1.0,      // 用电倍率
         val trafficMul: Double = 1.0,       // 拥堵倍率
         val fireMul: Double = 1.0,          // 火灾概率倍率
@@ -475,18 +493,23 @@ object Config {
         val hill = RGBA(176, 186, 156, 255)
 
         // 道路
+        val roadDirt = RGBA(186, 168, 132, 255)
         val roadLocal = RGBA(214, 210, 198, 255)
         val roadAvenue = RGBA(230, 197, 104, 255)
+        val roadHighway = RGBA(96, 102, 110, 255)
 
         // 分区
         val zoneResidential = RGBA(233, 217, 166, 255)
         val zoneCommercial = RGBA(224, 200, 200, 255)
         val zoneIndustrial = RGBA(196, 188, 168, 255)
+        val zoneOffice = RGBA(186, 210, 228, 255)
 
         // 建筑体块
         val bResidential = RGBA(236, 214, 150, 255)
         val bCommercial = RGBA(226, 176, 150, 255)
         val bIndustrial = RGBA(200, 190, 165, 255)
+        val bOffice = RGBA(168, 196, 224, 255)
+        val bAbandoned = RGBA(150, 142, 132, 255)
         val bService = RGBA(130, 176, 128, 255)
         val bCivic = RGBA(150, 170, 205, 255)
 

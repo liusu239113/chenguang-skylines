@@ -92,6 +92,7 @@ object SaveManager {
         json.put("taxRes", s.taxRes)
         json.put("taxCom", s.taxCom)
         json.put("taxInd", s.taxInd)
+        json.put("taxOff", s.taxOff)
         json.put("loanDebt", s.loanDebt)
         json.put("loanCooldown", s.loanCooldown)
 
@@ -145,7 +146,8 @@ object SaveManager {
                 t.road?.let { o.put("road", it) }
                 t.building?.let { b ->
                     val bo = JSONObject().put("level", b.level).put("born", b.born)
-                        .put("residents", b.residents)
+                        .put("residents", b.residents).put("workers", b.workers)
+                        .put("abandoned", b.abandoned).put("ageDays", b.ageDays)
                     b.zone?.let { bo.put("zone", it) }
                     b.service?.let {
                         bo.put("service", it).put("ax", b.ax).put("ay", b.ay)
@@ -195,6 +197,9 @@ object SaveManager {
                     b.level = bo.optInt("level", 1)
                     b.born = bo.optDouble("born", 0.0)
                     b.residents = bo.optInt("residents", 0)
+                    b.workers = bo.optInt("workers", 0)
+                    b.abandoned = bo.optBoolean("abandoned", false)
+                    b.ageDays = bo.optInt("ageDays", 0)
                     if (bo.has("zone")) b.zone = bo.optString("zone")
                     if (bo.has("service")) {
                         b.service = bo.optString("service")
@@ -224,6 +229,7 @@ object SaveManager {
         s.taxRes = json.optInt("taxRes", Config.TAX.default)
         s.taxCom = json.optInt("taxCom", Config.TAX.default)
         s.taxInd = json.optInt("taxInd", Config.TAX.default)
+        s.taxOff = json.optInt("taxOff", Config.TAX.default)
         s.loanDebt = json.optDouble("loanDebt", 0.0)
         s.loanCooldown = json.optInt("loanCooldown", 0)
         s.education = json.optDouble("education", 18.0)
