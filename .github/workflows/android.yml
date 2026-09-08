@@ -60,6 +60,8 @@ jobs:
           retention-days: 30
 
       - name: Publish Release
+        # 需要仓库 Settings → Actions → Workflow permissions = Read and write
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
