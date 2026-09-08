@@ -31,12 +31,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dshx.game.su.AdOffers
 import com.dshx.game.su.Ads
 import com.dshx.game.su.AppState
 import com.dshx.game.su.Civic
 import com.dshx.game.su.Config
 import com.dshx.game.su.GameData
-import com.dshx.game.su.MapRef
 import com.dshx.game.su.Prefs
 import com.dshx.game.su.Sfx
 import com.dshx.game.su.SpeedBoost
@@ -220,6 +220,82 @@ fun AchievementPanel() {
 }
 
 @Composable
+private fun AdBtn(text: String, enabled: Boolean, act: Activity?, kind: String) {
+    val C = Config.COLORS
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+            .background(if (enabled) C.accentGold.toColor() else C.chipBg.toColor(), RoundedCornerShape(21.dp))
+            .clickable(enabled = enabled) {
+                if (act == null) return@clickable
+                Ads.reward(act, { AdOffers.grant(kind) })
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            if (enabled) "看广告 · $text" else "今日已领",
+            fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = if (enabled) Color.White else C.textMid.toColor(),
+            fontFamily = LocalGameFont.current
+        )
+    }
+}
+
+@Composable
+fun AdOfferDialog() {
+    val C = Config.COLORS
+    val s = GameData.current ?: return
+    val act = LocalContext.current as? Activity
+    val kind = AppState.adOfferKind
+    val (title, body) = when (kind) {
+        "daily" -> "每日市政礼包" to "看一段广告，金库立刻到账 280 万。"
+        "shortfall" -> "资金不够" to (s.lastShortAction + "还差钱。看广告可拿到应急拨款。")
+        "bailout" -> "财政告急" to "金库见底。看广告可获得纾困拨款 480 万。"
+        else -> return
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor()),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.86f)
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text(body, fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current, textAlign = TextAlign.Center)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .background(C.accentGold.toColor(), RoundedCornerShape(22.dp))
+                    .clickable {
+                        if (act == null) return@clickable
+                        Ads.reward(act, { AdOffers.grant(kind) })
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("看广告领取", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
+            }
+            Text(
+                "先不看",
+                fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                modifier = Modifier.clickable {
+                    AppState.adOfferOpen = false
+                    AppState.adOfferKind = ""
+                }
+            )
+        }
+    }
+}
+
+@Composable
 fun SettingsPanel() {
     val C = Config.COLORS
     val ctx = LocalContext.current
@@ -250,23 +326,10 @@ fun SettingsPanel() {
                 if (SpeedBoost.isActive()) "加速剩余 ${SpeedBoost.remainingSec() / 60} 分 ${SpeedBoost.remainingSec() % 60} 秒" else "2x/3x 加速需看广告解锁 20 分钟",
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .background(C.accentGold.toColor(), RoundedCornerShape(22.dp))
-                    .clickable {
-                        if (act == null) return@clickable
-                        Ads.reward(act, {
-                            GameData.current?.let { it.funds += 220 }
-                            MapRef.view?.setToast("市政拨款 +220 万")
-                            AppState.bumpLive()
-                        })
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("看广告领取市政拨款", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
-            }
+            AdBtn("每日礼包 +280万", !AdOffers.dailyClaimed, act, "daily")
+            AdBtn("税收加倍 12 天", true, act, "doubletax")
+            AdBtn("民心安抚 满意+8", true, act, "happy")
+            AdBtn("市政拨款 +220万", true, act, "grant")
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

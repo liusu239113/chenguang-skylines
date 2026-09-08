@@ -82,6 +82,9 @@ class CityState {
     var budgetTransit: Int = 100
     var rankLevel: Int = 1
     var merit: Double = 0.0
+    var doubleTaxDays: Int = 0
+    var lastShortfall: Int = 0
+    var lastShortAction: String = ""
 }
 
 object GameData {
@@ -123,6 +126,7 @@ object GameData {
         Networks.reset()
         CitySystems.reset()
         Civic.reset()
+        AdOffers.reset()
         current = createState()
         val s = current!!
         s.cityName = cityName
@@ -445,7 +449,8 @@ object GameData {
             policyMul("taxMul") * (s.taxRes / 10.0)
         val bizIncome = bizBase * policyMul("incomeMul")
         val rankTrade = if (s.rankLevel >= 5) 1.08 else 1.0
-        val income = taxIncome + bizIncome + (tradeIncome + landmarkTour) * rankTrade
+        val taxBoost = if (s.doubleTaxDays > 0) 2.0 else 1.0
+        val income = (taxIncome * taxBoost) + bizIncome + (tradeIncome + landmarkTour) * rankTrade
         var upkeep = 0.0
         val ww = World.current
         if (ww != null) {
@@ -503,8 +508,10 @@ object GameData {
             }
         }
         if (s.loanCooldown > 0) s.loanCooldown -= 1
+        if (s.doubleTaxDays > 0) s.doubleTaxDays -= 1
         s.merit += max(0.0, s.lastNet * 0.02 + s.population * 0.001)
         Civic.tickDay(s)
+        AdOffers.tickDay(s)
         refreshRank()
 
         // 满意度向目标靠拢（没人时回到中性，不为空城硬扣）
@@ -666,7 +673,10 @@ object GameData {
         val exist = World.tile(x, y)?.road
         val oldCost = if (exist != null) Config.ROAD[exist]?.cost ?: 0 else 0
         val pay = max(0, r.cost - oldCost)
-        if (!sandbox && s.funds < pay) return false to ("资金不足（需 ¥" + pay + "万）")
+        if (!sandbox && s.funds < pay) {
+            AdOffers.offerShortfall(pay.toInt(), "修路")
+            return false to ("资金不足（需 ¥" + pay + "万）")
+        }
         World.setRoad(x, y, kind)
         if (!sandbox) s.funds -= pay
         return true to null
@@ -686,6 +696,7 @@ object GameData {
         if (!sandbox && s.funds < 0) {
             World.setZone(x, y, "none")
             s.funds += cost
+            AdOffers.offerShortfall(cost, "划区")
             return false to "资金不足"
         }
         return true to null
@@ -715,7 +726,10 @@ object GameData {
         if (!sandbox && cfg.unlockPop > s.population.toInt()) {
             return false to ("人口达到 " + cfg.unlockPop + " 后解锁")
         }
-        if (!sandbox && s.funds < cfg.cost) return false to ("资金不足（需 ¥" + cfg.cost + "万）")
+        if (!sandbox && s.funds < cfg.cost) {
+            AdOffers.offerShortfall(cfg.cost, "建造" + cfg.name)
+            return false to ("资金不足（需 ¥" + cfg.cost + "万）")
+        }
         World.placeService(id, x, y)
         if (!sandbox) s.funds -= cfg.cost
         pushNews(

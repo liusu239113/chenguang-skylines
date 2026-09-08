@@ -1140,26 +1140,26 @@ class MapRenderView @JvmOverloads constructor(
                     }
                     hFactor = when (bl.zone) {
                         "residential" -> when (bl.level) {
-                            1 -> 0.42f + jitter
-                            2 -> 0.95f + jitter
-                            else -> 1.75f + jitter * 1.4f
+                            1 -> 0.85f + jitter
+                            2 -> 1.55f + jitter
+                            else -> 2.55f + jitter * 1.6f
                         }
                         "commercial" -> when (bl.level) {
-                            1 -> 0.38f + jitter * 0.6f
-                            2 -> 0.78f + jitter
-                            else -> 1.28f + jitter
+                            1 -> 0.72f + jitter * 0.6f
+                            2 -> 1.25f + jitter
+                            else -> 1.95f + jitter
                         }
                         "industrial" -> when (bl.level) {
-                            1 -> 0.36f
-                            2 -> 0.58f + jitter * 0.4f
-                            else -> 0.82f
+                            1 -> 0.62f
+                            2 -> 0.95f + jitter * 0.4f
+                            else -> 1.35f
                         }
                         "office" -> when (bl.level) {
-                            1 -> 1.05f + jitter
-                            2 -> 1.7f + jitter
-                            else -> 2.45f + jitter * 1.2f
+                            1 -> 1.55f + jitter
+                            2 -> 2.35f + jitter
+                            else -> 3.35f + jitter * 1.2f
                         }
-                        else -> 0.7f
+                        else -> 1.0f
                     }
                 }
                 // 生长动画：新建建筑从 30% 弹到 100%
@@ -1171,7 +1171,7 @@ class MapRenderView @JvmOverloads constructor(
                         anim = 0.25f + 0.75f * (k * k * (3 - 2 * k))
                     }
                 }
-                val hpx = clamp(bw * 0.55f * hFactor * anim, 0f, cell * 4.2f)
+                val hpx = clamp(bw * 0.72f * hFactor * anim, 0f, cell * 6.2f)
                 val shrink = (anim - 1) * bw * 0.5f
                 drawBuilding(
                     canvas,
@@ -1318,21 +1318,23 @@ class MapRenderView @JvmOverloads constructor(
                     }
                 }
             }
-            // 成长建筑名（住宅/商铺/工厂，缩放在建筑框内）
-            if (cell >= 13) {
+            // 成长建筑名只在选中或高缩放时画在屋顶上方，避免盖住立面
+            if (cell >= 22) {
                 for (ty in y0..y1) {
                     for (tx in x0..x1) {
                         val t = w.grid[ty - 1][tx - 1]
                         val bl = t.building ?: continue
                         if (bl.isService) continue
+                        val selected = selectedX == tx && selectedY == ty
+                        if (!selected && cell < 28) continue
                         val sx = worldToScreenX(tx - 1f)
                         val sy = worldToScreenY(ty - 1f)
                         val bw = cell * bl.w
                         val name = buildingName(bl.zone ?: "residential", tx, ty)
-                        val fs = min(cell * 0.3f, bw * 0.85f / name.length)
+                        val fs = min(cell * 0.22f, bw * 0.7f / name.length)
                         drawText(
-                            canvas, sx + bw / 2f, sy + cell * 0.5f - cell * 0.28f,
-                            fs, RGBA(88, 80, 64), name, TAlign.CENTER, 225
+                            canvas, sx + bw / 2f, sy - cell * 0.55f,
+                            fs, RGBA(70, 64, 52), name, TAlign.CENTER, if (selected) 240 else 170
                         )
                     }
                 }
@@ -1558,26 +1560,26 @@ class MapRenderView @JvmOverloads constructor(
         val ry = ry0 + pad
         val rw = rw0 - pad * 2
         val rh = rh0 - pad * 2
-        val skew = min(hpx * 0.28f, cell * 0.42f)
+        val skew = min(hpx * 0.42f, cell * 0.62f)
         if (hpx > 1.5 && cell >= 6) {
             // 地面投影（右下，统一太阳方向）
             fillRect(
-                canvas, rx + skew * 0.6f + 2f, ry + rh - 1f,
-                rw + 2f, max(2f, cell * 0.10f), RGBA(40, 48, 40, 55)
+                canvas, rx + skew * 0.7f + 2f, ry + rh - 1f,
+                rw + skew * 0.5f, max(3f, cell * 0.14f), RGBA(40, 48, 40, 70)
             )
             // 左侧面（更暗）
             path.reset()
             path.moveTo(rx, ry + rh)
-            path.lineTo(rx - skew * 0.15f, ry + rh * 0.15f - hpx * 0.15f)
+            path.lineTo(rx - skew * 0.22f, ry + rh * 0.2f - hpx * 0.12f)
+            path.lineTo(rx - skew * 0.18f, ry - hpx + rh * 0.08f)
             path.lineTo(rx, ry - hpx)
-            path.lineTo(rx, ry + rh)
             path.close()
-            fillPath(canvas, path, base.shade(Config.BUILD.sideShade.toDouble() * 0.82))
+            fillPath(canvas, path, base.shade(Config.BUILD.sideShade.toDouble() * 0.78))
             // 右侧面
             path.reset()
             path.moveTo(rx + rw, ry + rh)
-            path.lineTo(rx + rw + skew, ry + rh * 0.35f - hpx * 0.12f)
-            path.lineTo(rx + rw + skew, ry - hpx + rh * 0.18f)
+            path.lineTo(rx + rw + skew, ry + rh * 0.28f - hpx * 0.08f)
+            path.lineTo(rx + rw + skew, ry - hpx + rh * 0.12f)
             path.lineTo(rx + rw, ry - hpx)
             path.close()
             fillPath(canvas, path, base.shade(Config.BUILD.sideShade.toDouble()))
@@ -1588,7 +1590,7 @@ class MapRenderView @JvmOverloads constructor(
             path.lineTo(rx + rw, ry - hpx)
             path.lineTo(rx + rw, ry + rh)
             path.close()
-            fillPath(canvas, path, base.shade(0.82))
+            fillPath(canvas, path, base.shade(0.86))
             // 楼层横线
             if (hpx >= cell * 0.28f && cell >= 10) {
                 strokeColor(base.shade(0.48), 180, max(0.5f, cell * 0.012f))
@@ -1622,17 +1624,16 @@ class MapRenderView @JvmOverloads constructor(
                     }
                 }
             }
-            // 顶面（提亮 + 屋檐）
-            fillRoundRect(
-                canvas, rx - 0.6f, ry - hpx - 1.2f, rw + 1.2f, rh * 0.92f,
-                min(2.8f, cell * 0.12f),
-                base.shade(Config.BUILD.roofLight.toDouble())
-            )
-            strokeRoundRect(
-                canvas, rx - 0.6f, ry - hpx - 1.2f, rw + 1.2f, rh * 0.92f,
-                min(2.8f, cell * 0.12f),
-                base.shade(0.50), 255, max(0.6f, cell * 0.025f)
-            )
+            // 顶面做成菱形屋盖，增强 2.5D 体积
+            path.reset()
+            path.moveTo(rx, ry - hpx)
+            path.lineTo(rx + rw * 0.5f, ry - hpx - min(hpx * 0.18f, cell * 0.22f))
+            path.lineTo(rx + rw, ry - hpx)
+            path.lineTo(rx + rw + skew * 0.55f, ry - hpx + rh * 0.18f)
+            path.lineTo(rx + rw * 0.5f, ry - hpx + rh * 0.28f)
+            path.close()
+            fillPath(canvas, path, base.shade(Config.BUILD.roofLight.toDouble()))
+            strokePath(canvas, path, base.shade(0.48), 220, max(0.6f, cell * 0.02f))
         } else {
             fillRoundRect(canvas, rx, ry, rw, rh, min(2.5f, cell * 0.12f), base)
         }

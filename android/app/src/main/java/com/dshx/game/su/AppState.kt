@@ -57,6 +57,8 @@ object AppState {
     var achievementOpen by mutableStateOf(false)
     var adLoading by mutableStateOf(false)
     var toastMsg by mutableStateOf("")
+    var adOfferOpen by mutableStateOf(false)
+    var adOfferKind by mutableStateOf("")
 
     fun bumpLive() {
         liveTick++

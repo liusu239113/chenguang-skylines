@@ -98,23 +98,23 @@ private fun MainMenuScreen(mapView: MapRenderView) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x66000000))
+                .background(Color(0x33000000))
         )
         Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.Center)
                 .fillMaxWidth()
-                .padding(start = 22.dp, end = 22.dp, bottom = 36.dp, top = 48.dp),
+                .padding(horizontal = 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_title_logo),
                 contentDescription = Config.TITLE,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(96.dp)
-                    .padding(horizontal = 8.dp),
+                    .height(110.dp)
+                    .padding(horizontal = 12.dp),
                 contentScale = ContentScale.Fit
             )
             if (recent != null && recentMeta != null && recentMeta.exists) {

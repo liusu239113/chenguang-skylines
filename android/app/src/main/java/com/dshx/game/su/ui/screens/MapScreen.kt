@@ -192,38 +192,51 @@ fun MapScreenContent(mapView: MapRenderView) {
                 .fillMaxWidth()
                 .noRippleClickable { }
         ) {
-            // 行1：资源胶囊
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadowCard(18.dp, C.panelWhite.toColor())
-                    .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(start = 12.dp, end = 10.dp, top = 8.dp, bottom = 8.dp)
             ) {
-                if (s != null) {
-                    UIHelper.Chip("", s.cityName)
-                    ChipValue("职", GameData.rankDef().name, C.accentBlue.toColor(), live)
-                    ChipValue("资金", "¥" + UIHelper.fmtMoney(s.funds) + "万", C.accentGold.toColor(), live)
-                    ChipValue("人口", UIHelper.fmtPop(floor(s.population).toInt()), C.textDark.toColor(), live)
-                    ChipValue(
-                        "满意", floor(s.happiness).toInt().toString(),
-                        if (s.happiness >= 55) C.accentGreen.toColor() else C.accentRed.toColor(), live
-                    )
-                    ChipValue("", GameData.dateLabel(), C.textDark.toColor(), live)
-                }
-                // 简报按钮
-                Box(
-                    modifier = Modifier
-                        .background(C.accentSoftBg.toColor(), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                        .clickable { MapScreen.goNewspaper() },
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        "简报", fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                        color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
+                        (s?.cityName ?: "晨光市") + " · " + GameData.rankDef().name,
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                     )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            GameData.dateLabel(), fontSize = 11.sp, color = C.textMid.toColor(),
+                            fontFamily = LocalGameFont.current
+                        )
+                        Box(
+                            modifier = Modifier
+                                .background(C.accentSoftBg.toColor(), RoundedCornerShape(10.dp))
+                                .clickable { MapScreen.goNewspaper() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("简报", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
+                        }
+                    }
+                }
+                if (s != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        HudStat("资金", "¥" + UIHelper.fmtMoney(s.funds) + "万", C.accentGold.toColor())
+                        HudStat("人口", UIHelper.fmtPop(floor(s.population).toInt()), C.textDark.toColor())
+                        HudStat(
+                            "满意", floor(s.happiness).toInt().toString(),
+                            if (s.happiness >= 55) C.accentGreen.toColor() else C.accentRed.toColor()
+                        )
+                    }
                 }
             }
 
@@ -301,7 +314,8 @@ fun MapScreenContent(mapView: MapRenderView) {
 
         // 详情/抽屉/弹层打开时藏左侧按钮，避免挡住信息卡
         val overlayOpen = AppState.policyOpen || AppState.helpOpen || AppState.dataOpen || AppState.paused ||
-            AppState.settingsOpen || AppState.civicOpen || AppState.complaintOpen || AppState.achievementOpen
+            AppState.settingsOpen || AppState.civicOpen || AppState.complaintOpen || AppState.achievementOpen ||
+            AppState.adOfferOpen
         val infoOpen = AppState.mode == "view" && mapView.selectedX > 0
         val drawerOpen = (AppState.mode == "service" && AppState.serviceOpen) ||
             (AppState.mode == "road" && AppState.roadOpen) ||
@@ -552,23 +566,16 @@ fun MapScreenContent(mapView: MapRenderView) {
         if (AppState.achievementOpen) AchievementPanel()
         if (AppState.settingsOpen) SettingsPanel()
         if (AppState.complaintOpen && Civic.pending != null) ComplaintPanel()
+        if (AppState.adOfferOpen) AdOfferDialog()
         if (AppState.paused) PausePanel()
     }
 }
 
 @Composable
-private fun ChipValue(label: String, value: String, color: Color, live: Int) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        if (label.isNotEmpty()) {
-            Text(
-                label, fontSize = 10.sp, color = Config.COLORS.textMid.toColor(),
-                fontFamily = LocalGameFont.current
-            )
-        }
-        Text(
-            value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color,
-            fontFamily = LocalGameFont.current
-        )
+private fun HudStat(label: String, value: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, fontSize = 10.sp, color = Config.COLORS.textMid.toColor(), fontFamily = LocalGameFont.current)
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = color, fontFamily = LocalGameFont.current)
     }
 }
 
@@ -1350,6 +1357,11 @@ private fun PausePanel() {
             PauseBtn("继续游戏", C.accentGreen.toColor(), Color.White) {
                 Sfx.play("sfx_click")
                 AppState.paused = false
+            }
+            PauseBtn("看广告领奖励", C.accentGold.toColor(), Color.White) {
+                Sfx.play("sfx_click")
+                AppState.paused = false
+                AppState.settingsOpen = true
             }
             PauseBtn("设置 · 音量/广告", C.chipBg.toColor(), C.textDark.toColor()) {
                 Sfx.play("sfx_click")
