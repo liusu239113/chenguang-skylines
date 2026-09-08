@@ -282,7 +282,7 @@ class MapRenderView @JvmOverloads constructor(
             cars.add(
                 Car(
                     x = ex, y = ey,
-                    dir = dirs[Random.nextInt(4)],
+                    dir = Random.nextInt(4),
                     prog = Random.nextFloat() * 0.5f,
                     speed = 1.6f + Random.nextFloat() * 1.6f,
                     color = carColors[Random.nextInt(carColors.size)],
