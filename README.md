@@ -17,6 +17,17 @@
 - **城市晋级**：村庄 → 小镇 → 集镇 → 城区 → 都市 → 大都会
 - 建筑出生带弹跳动画；道路上有动态车流；市政政策系统；报纸式 UI 配站酷快乐体
 
+## Android 原生版（Kotlin）
+
+`android/` 下是 1:1 移植的 Android 原生应用（Kotlin + Jetpack Compose），玩法、数值、渲染细节与 Lua 版逐项对齐。
+
+- 地图渲染：自定义 `MapRenderView`，Android Canvas 2D 还原 NanoVG 绘制（地形/装饰/路网/车流/微立体建筑/标签/幽灵预览）
+- 手势：单指拖动平移、双指捏合缩放、工具拖拽笔刷（修路 / 涂分区 / 推平 / 放设施）
+- UI 叠层：Compose 复刻报纸风三屏（主菜单 / 地图主界面 / 晨光简报）
+- 字体：站酷快乐体（assets + res/font 各一份，Canvas 与 Compose 共用）
+- 音效：SoundPool 播放 ogg（build / click / demolish / levelup / month）
+- 构建：`android` 目录标准 Gradle 工程，minSdk 26 / targetSdk 35；推送到 main 会触发 `.github/workflows/android.yml` 产出 debug APK
+
 ## 技术要点
 
 - 引擎：UrhoX（Lua 5.4），raw NanoVG 俯视格子地图 + urhox-libs/UI 叠层
