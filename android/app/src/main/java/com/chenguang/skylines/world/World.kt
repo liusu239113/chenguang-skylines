@@ -25,6 +25,7 @@ class Building {
     var zone: String? = null          // residential / commercial / industrial
     var level: Int = 1
     var born: Double = 0.0
+    var residents: Int = 0            // 住宅当前入住人数
     // service
     var service: String? = null
     var ax: Int = 0

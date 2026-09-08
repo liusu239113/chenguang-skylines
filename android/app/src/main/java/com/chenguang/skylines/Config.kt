@@ -307,6 +307,30 @@ object Config {
     )
 
     // -----------------------------------------------------------------------
+    // 随机事件（由城市状态触发，不是无脑随机）
+    //   cond: power(缺电) / water(缺水) / health(缺医疗) / happy(满意度低)
+    //         boom(商业需求高) / random(常态随机)
+    // -----------------------------------------------------------------------
+    data class EventDef(
+        val id: String,
+        val name: String,
+        val desc: String,
+        val duration: Int,
+        val happy: Double,
+        val incomeMul: Double,
+        val cond: String
+    )
+
+    val EVENTS: List<EventDef> = listOf(
+        EventDef("blackout", "停电事故", "供电不足，部分城区断电。", 3, -12.0, 0.85, "power"),
+        EventDef("pipe", "水管爆裂", "供水不足，生活受影响。", 3, -10.0, 1.0, "water"),
+        EventDef("flu", "流感疫情", "医疗覆盖不足，疫情蔓延。", 5, -8.0, 1.0, "health"),
+        EventDef("strike", "工人罢工", "满意度长期低迷，工厂停工。", 4, -8.0, 0.80, "happy"),
+        EventDef("boom", "投资热潮", "商业需求旺盛，消费激增。", 8, 6.0, 1.20, "boom"),
+        EventDef("festival", "城市节日", "全城欢庆，消费与满意度上升。", 3, 10.0, 1.10, "random")
+    )
+
+    // -----------------------------------------------------------------------
     // 政策
     // -----------------------------------------------------------------------
     data class PolicyEffect(

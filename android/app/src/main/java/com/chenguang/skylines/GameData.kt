@@ -1,6 +1,7 @@
 package com.chenguang.skylines
 
 import com.chenguang.skylines.world.World
+import com.chenguang.skylines.world.Growth
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
@@ -14,6 +15,8 @@ import kotlin.math.min
 data class PolicyActive(val id: String, var daysLeft: Int)
 
 data class NewsItem(val month: String, val headline: String, val body: String, val tag: String)
+
+data class ActiveEvent(val id: String, val name: String, var daysLeft: Int, val happy: Double, val incomeMul: Double)
 
 class CityState {
     var year: Int = 2026
@@ -40,6 +43,8 @@ class CityState {
     var loanCooldown: Int = 0
     // 成就
     val achievements: MutableSet<String> = mutableSetOf()
+    // 进行中的事件
+    val activeEvents: MutableList<ActiveEvent> = mutableListOf()
     // 城市名
     var cityName: String = Config.World.city
 }
@@ -61,6 +66,7 @@ object GameData {
     var sandbox: Boolean = false
 
     private var dayAcc: Double = 0.0
+    private var eventCooldown: Int = 12
 
     fun difficultyDef(): Config.DifficultyDef =
         Config.DIFFICULTIES.firstOrNull { it.key == difficultyKey } ?: Config.DIFFICULTIES[1]
@@ -78,6 +84,7 @@ object GameData {
         pendingLevelUp = false
         monthFlash = false
         dayAcc = 0.0
+        eventCooldown = 12
         pushNews(
             "城市奠基",
             s.cityName + "迎来新任" + Config.World.playerRole +
@@ -157,6 +164,7 @@ object GameData {
             target -= max(0.0, (s.taxRes - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
             target -= max(0.0, (s.taxCom - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
             target -= max(0.0, (s.taxInd - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
+            for (ev in s.activeEvents) target += ev.happy
         }
 
         return max(Config.RESOURCES.happinessMin, min(Config.RESOURCES.happinessMax, target))
@@ -171,21 +179,25 @@ object GameData {
         val cov = World.coverage()
         s.lastCoverage = cov
 
-        // 人口向"容量×占用率"靠拢（占用率受满意度驱动；缺水时人口增长停滞）
+        // 人口 = 各住宅入住人数之和；住宅建好即迁入
         val waterMul: Double = if (cov.water < 0.99f) cov.water.toDouble() else 1.0
-        val occTarget = floor(st.resCap * max(0.25, min(1.0, s.happiness / 100.0)) * waterMul)
-        if (s.population < occTarget) {
-            s.population = min(
-                occTarget,
-                s.population + max(1.0, floor((occTarget - s.population) * E.occupancyPerDay))
-            )
-        } else {
-            s.population = max(
-                occTarget,
-                s.population - max(1.0, floor((s.population - occTarget) * 0.15))
-            )
+        val satisMul = max(0.3, min(1.2, s.happiness / 60.0))
+        var totalRes = 0
+        for (e in World.allBuildings()) {
+            val b = e.b
+            if (b.isService || b.zone != "residential") continue
+            val lv = Config.GROWN["residential"]?.levels?.getOrNull(b.level - 1) ?: continue
+            if (b.residents < lv.cap) {
+                val migrate = max(1, (lv.cap * 0.2 * satisMul * waterMul).toInt())
+                b.residents = min(lv.cap, b.residents + migrate)
+            }
+            if (s.happiness < 30 && b.residents > 0) {
+                b.residents = max(0, b.residents - 1)
+            }
+            totalRes += b.residents
         }
-        World.current?._pop = s.population.toInt()
+        s.population = totalRes.toDouble()
+        World.current?._pop = totalRes
 
         // 收支（万/日）：住宅按住宅税率，商业/工业按各自税率；缺电时产业收入打折
         val occRatio = if (st.resCap > 0) s.population / st.resCap else 0.0
@@ -213,7 +225,9 @@ object GameData {
             if (cfg != null) upkeep += cfg.upkeep / 30.0
         }
         val diff = difficultyDef()
-        val net = (income * diff.incomeMul) - (if (sandbox) 0.0 else upkeep * diff.upkeepMul)
+        var eventIncomeMul = 1.0
+        for (ev in s.activeEvents) eventIncomeMul *= ev.incomeMul
+        val net = (income * diff.incomeMul * eventIncomeMul) - (if (sandbox) 0.0 else upkeep * diff.upkeepMul)
         s.funds += net
         if (net >= 0) s.totalIncome += net else s.totalSpent += -net
 
@@ -262,6 +276,38 @@ object GameData {
                 s.achievements.add(a.id)
                 s.funds += a.reward
                 pushNews("成就解锁：" + a.name, a.desc + "，奖励 " + a.reward + " 万。", "成就")
+            }
+        }
+
+        // 事件触发（由城市状态触发，不是无脑随机）
+        if (eventCooldown <= 0) {
+            val candidates = mutableListOf<Config.EventDef>()
+            for (ev in Config.EVENTS) {
+                val trigger = when (ev.cond) {
+                    "power" -> cov.power < 0.5
+                    "water" -> cov.water < 0.5
+                    "health" -> cov.health < 0.5
+                    "happy" -> s.happiness < 45
+                    "boom" -> Growth.lastDemand.c > 0.75
+                    else -> true
+                }
+                if (trigger) candidates.add(ev)
+            }
+            if (candidates.isNotEmpty() && kotlin.random.Random.nextDouble() < 0.25) {
+                val ev = candidates[kotlin.random.Random.nextInt(candidates.size)]
+                s.activeEvents.add(ActiveEvent(ev.id, ev.name, ev.duration, ev.happy, ev.incomeMul))
+                pushNews("事件：" + ev.name, ev.desc, "事件")
+                eventCooldown = 15 + kotlin.random.Random.nextInt(15)
+            }
+        } else {
+            eventCooldown -= 1
+        }
+        // 事件倒计时
+        for (i in s.activeEvents.indices.reversed()) {
+            s.activeEvents[i].daysLeft -= 1
+            if (s.activeEvents[i].daysLeft <= 0) {
+                pushNews("事件结束", s.activeEvents[i].name + " 已解除。", "事件")
+                s.activeEvents.removeAt(i)
             }
         }
 

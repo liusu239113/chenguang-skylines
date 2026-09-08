@@ -97,6 +97,15 @@ object SaveManager {
         for (a in s.achievements) ach.put(a)
         json.put("achievements", ach)
 
+        val evs = JSONArray()
+        for (ev in s.activeEvents) {
+            evs.put(
+                JSONObject().put("id", ev.id).put("name", ev.name)
+                    .put("daysLeft", ev.daysLeft).put("happy", ev.happy).put("incomeMul", ev.incomeMul)
+            )
+        }
+        json.put("activeEvents", evs)
+
         val news = JSONArray()
         for (n in s.news) {
             news.put(
@@ -117,6 +126,7 @@ object SaveManager {
                 t.road?.let { o.put("road", it) }
                 t.building?.let { b ->
                     val bo = JSONObject().put("level", b.level).put("born", b.born)
+                        .put("residents", b.residents)
                     b.zone?.let { bo.put("zone", it) }
                     b.service?.let {
                         bo.put("service", it).put("ax", b.ax).put("ay", b.ay)
@@ -164,6 +174,7 @@ object SaveManager {
                     val b = Building()
                     b.level = bo.optInt("level", 1)
                     b.born = bo.optDouble("born", 0.0)
+                    b.residents = bo.optInt("residents", 0)
                     if (bo.has("zone")) b.zone = bo.optString("zone")
                     if (bo.has("service")) {
                         b.service = bo.optString("service")
@@ -216,6 +227,18 @@ object SaveManager {
         s.achievements.clear()
         val ach = json.optJSONArray("achievements")
         if (ach != null) for (i in 0 until ach.length()) s.achievements.add(ach.getString(i))
+
+        s.activeEvents.clear()
+        val evs = json.optJSONArray("activeEvents")
+        if (evs != null) for (i in 0 until evs.length()) {
+            val o = evs.getJSONObject(i)
+            s.activeEvents.add(
+                ActiveEvent(
+                    o.optString("id"), o.optString("name"), o.optInt("daysLeft"),
+                    o.optDouble("happy", 0.0), o.optDouble("incomeMul", 1.0)
+                )
+            )
+        }
 
         s.news.clear()
         val news = json.optJSONArray("news")

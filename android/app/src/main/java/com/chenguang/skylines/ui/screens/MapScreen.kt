@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
@@ -158,6 +159,7 @@ fun MapScreenContent(mapView: MapRenderView) {
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
+                .statusBarsPadding()
                 .padding(top = 10.dp, start = 10.dp, end = 10.dp)
                 .fillMaxWidth()
                 .noRippleClickable { }
@@ -224,12 +226,12 @@ fun MapScreenContent(mapView: MapRenderView) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val speeds = listOf("‖" to 1, "▶" to 2, "▶▶" to 3, "▶▶▶" to 4)
+                    val speeds = listOf("‖" to 0, "▶" to 1, "▶▶" to 2, "▶▶▶" to 3)
                     for (sp in speeds) {
                         val active = GameData.speedIdx == sp.second
                         Box(
                             modifier = Modifier
-                                .width(if (sp.second == 1) 34.dp else 44.dp)
+                                .width(if (sp.second == 0) 34.dp else 44.dp)
                                 .height(26.dp)
                                 .background(
                                     if (active) C.accentSoftBg.toColor() else Color.Transparent,
@@ -370,6 +372,33 @@ fun MapScreenContent(mapView: MapRenderView) {
                         "✕", fontSize = 12.sp, fontWeight = FontWeight.Bold,
                         color = Color.White, fontFamily = LocalGameFont.current
                     )
+                }
+            }
+        }
+
+        // ---------------- 进行中事件提示条 ----------------
+        if (s != null && s.activeEvents.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 166.dp)
+                    .noRippleClickable { },
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                for (ev in s.activeEvents) {
+                    Row(
+                        modifier = Modifier
+                            .background(C.accentSoftBg.toColor(), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "⚠ " + ev.name + " · 剩" + ev.daysLeft + "天",
+                            fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
+                        )
+                    }
                 }
             }
         }
