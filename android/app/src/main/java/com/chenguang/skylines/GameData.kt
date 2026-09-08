@@ -65,6 +65,9 @@ object GameData {
     var difficultyKey: String = "normal"
     var sandbox: Boolean = false
 
+    /** 一天内时间：0=清晨，0.25=正午，0.5=黄昏，0.75=夜晚 */
+    var timeOfDay: Float = 0.25f
+
     private var dayAcc: Double = 0.0
     private var eventCooldown: Int = 12
 
@@ -364,6 +367,7 @@ object GameData {
         val s = current ?: return
         val simDt = dt * speed()
         if (simDt <= 0) return
+        timeOfDay = (timeOfDay + (simDt / T.daySeconds).toFloat()) % 1f
         dayAcc += simDt
         while (dayAcc >= T.daySeconds) {
             dayAcc -= T.daySeconds

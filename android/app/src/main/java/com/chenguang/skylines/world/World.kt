@@ -345,6 +345,19 @@ class World {
                     if (t.road != null || t.building != null) return false to "该位置被占用"
                 }
             }
+            // 基础设施（电/水/垃圾等）必须邻路，否则无法接入路网
+            if (s.category != Config.ServiceCat.AMENITY) {
+                var adjacent = false
+                outer@ for (yy in y - 1..y + s.sizeH) {
+                    for (xx in x - 1..x + s.sizeW) {
+                        if (isRoad(xx, yy)) {
+                            adjacent = true
+                            break@outer
+                        }
+                    }
+                }
+                if (!adjacent) return false to "需建在道路旁（接入电网/管网）"
+            }
             return true to null
         }
 
@@ -467,52 +480,62 @@ class World {
         }
 
         // -------------------------------------------------------------------
-        // 覆盖系统：各类设施对成长建筑的覆盖比例（电力/供水/垃圾/医疗/教育/安全）
+        // 覆盖系统：电/水/垃圾等「沿道路网」传播（设施需邻路才生效）
         // -------------------------------------------------------------------
-        private class Anchor(val x: Int, val y: Int, val radius: Int)
 
-        private fun anchorsByCat(): Map<String, List<Anchor>> {
-            val map = mutableMapOf<String, MutableList<Anchor>>()
+        /** 沿路网 BFS：从该类设施扩散，返回被覆盖的成长建筑 id 集合（id = y*cols+x） */
+        fun bfsCovered(category: String): Set<Int> {
+            val w = current ?: return emptySet()
+            val result = mutableSetOf<Int>()
+            val queue = ArrayDeque<Pair<Int, Int>>()
+            val visited = mutableSetOf<Pair<Int, Int>>()
             for (e in allBuildings()) {
                 val b = e.b
                 if (!b.isService) continue
                 val cfg = serviceConfig(b.service) ?: continue
-                map.getOrPut(cfg.category) { mutableListOf() }.add(Anchor(e.x, e.y, cfg.radius))
+                if (cfg.category != category) continue
+                for (yy in e.y until e.y + b.h) {
+                    for (xx in e.x until e.x + b.w) {
+                        val p = xx to yy
+                        if (visited.add(p)) queue.addLast(p)
+                    }
+                }
             }
-            return map
+            val dx = intArrayOf(1, -1, 0, 0)
+            val dy = intArrayOf(0, 0, 1, -1)
+            while (queue.isNotEmpty()) {
+                val (cx, cy) = queue.removeFirst()
+                for (k in 0 until 4) {
+                    val nx = cx + dx[k]
+                    val ny = cy + dy[k]
+                    val t = tile(nx, ny) ?: continue
+                    if (t.road != null) {
+                        val p = nx to ny
+                        if (visited.add(p)) queue.addLast(p)
+                    } else if (t.building != null && t.building?.isService != true) {
+                        result.add(ny * w.cols + nx)
+                    }
+                }
+            }
+            return result
         }
 
-        /** 某格是否被指定类别的设施覆盖 */
+        /** 某格是否被覆盖（沿路网） */
         fun isCoveredBy(x: Int, y: Int, category: String): Boolean {
-            val list = anchorsByCat()[category] ?: return false
-            for (a in list) {
-                val dx = a.x - x
-                val dy = a.y - y
-                if (dx * dx + dy * dy <= a.radius * a.radius) return true
-            }
-            return false
+            val w = current ?: return false
+            return (y * w.cols + x) in bfsCovered(category)
         }
 
         /** 各类别的覆盖比例（0..1，无建筑时视为 1） */
         fun coverage(): Coverage {
-            val anchors = anchorsByCat()
+            val w = current ?: return Coverage(1f, 1f, 1f, 1f, 1f, 1f)
             val grown = allBuildings().filter { !it.b.isService }
             fun ratio(cat: String): Float {
                 if (grown.isEmpty()) return 1f
-                val list = anchors[cat] ?: return 0f
-                if (list.isEmpty()) return 0f
-                var covered = 0
-                for (g in grown) {
-                    for (a in list) {
-                        val dx = a.x - g.x
-                        val dy = a.y - g.y
-                        if (dx * dx + dy * dy <= a.radius * a.radius) {
-                            covered++
-                            break
-                        }
-                    }
-                }
-                return covered.toFloat() / grown.size
+                val covered = bfsCovered(cat)
+                var n = 0
+                for (g in grown) if ((g.y * w.cols + g.x) in covered) n++
+                return n.toFloat() / grown.size
             }
             return Coverage(
                 ratio(Config.ServiceCat.POWER),

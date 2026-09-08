@@ -522,7 +522,8 @@ private fun DrawerContent(mapView: MapRenderView) {
                     "垃圾" to Config.ServiceCat.GARBAGE,
                     "医疗" to Config.ServiceCat.HEALTH,
                     "教育" to Config.ServiceCat.EDUCATION,
-                    "消防" to Config.ServiceCat.SAFETY
+                    "消防" to Config.ServiceCat.SAFETY,
+                    "交通" to Config.ServiceCat.TRANSIT
                 )
                 for ((title, cat) in groups) {
                     val items = Config.SERVICES.filter { it.category == cat }

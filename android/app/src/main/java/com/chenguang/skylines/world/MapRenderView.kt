@@ -74,6 +74,9 @@ class MapRenderView @JvmOverloads constructor(
     /** 覆盖热力图："" 关闭 | power/water/garbage/health/education/safety */
     var overlay: String = ""
 
+    /** 夜晚因子 0=白天 1=深夜（由 GameData.timeOfDay 计算） */
+    private var nightLevel = 0f
+
     private val cell: Float get() = Config.MAP.baseCell * camScale
 
     // 拖拽状态
@@ -249,7 +252,10 @@ class MapRenderView @JvmOverloads constructor(
     // -----------------------------------------------------------------------
     private class Car(
         var x: Int, var y: Int, var dir: Int,
-        var prog: Float, var speed: Float, var color: RGBA
+        var prog: Float, var speed: Float, var color: RGBA,
+        var destX: Int, var destY: Int,
+        var stopped: Boolean = false,
+        var isFreight: Boolean = false
     )
 
     private val cars = mutableListOf<Car>()
@@ -265,6 +271,27 @@ class MapRenderView @JvmOverloads constructor(
 
     private fun spawnCar() {
         val w = World.current ?: return
+        // 目的地：随机一个非住宅建筑（通勤/货运目标）
+        val nonRes = World.allBuildings().filter { !it.b.isService && it.b.zone != "residential" }
+        val dest = if (nonRes.isNotEmpty()) nonRes[Random.nextInt(nonRes.size)] else null
+        // 货车：30% 概率从城外入口进出（进出口贸易）
+        val freight = dest != null && Random.nextFloat() < 0.3f
+        val entries = outsideEntries()
+        if (freight && entries.isNotEmpty()) {
+            val (ex, ey) = entries[Random.nextInt(entries.size)]
+            cars.add(
+                Car(
+                    x = ex, y = ey,
+                    dir = dirs[Random.nextInt(4)],
+                    prog = Random.nextFloat() * 0.5f,
+                    speed = 1.6f + Random.nextFloat() * 1.6f,
+                    color = carColors[Random.nextInt(carColors.size)],
+                    destX = dest!!.x, destY = dest.y,
+                    isFreight = true
+                )
+            )
+            return
+        }
         repeat(40) {
             val x = Random.nextInt(2, w.cols)
             val y = Random.nextInt(2, w.rows)
@@ -280,7 +307,9 @@ class MapRenderView @JvmOverloads constructor(
                             dir = opts[Random.nextInt(opts.size)],
                             prog = Random.nextFloat() * 0.6f,
                             speed = 1.4f + Random.nextFloat() * 1.8f,
-                            color = carColors[Random.nextInt(carColors.size)]
+                            color = carColors[Random.nextInt(carColors.size)],
+                            destX = dest?.x ?: Random.nextInt(2, w.cols),
+                            destY = dest?.y ?: Random.nextInt(2, w.rows)
                         )
                     )
                     return
@@ -289,37 +318,99 @@ class MapRenderView @JvmOverloads constructor(
         }
     }
 
+    /** 城外入口：地图边缘的大道端点 */
+    private fun outsideEntries(): List<Pair<Int, Int>> {
+        val w = World.current ?: return emptyList()
+        val entries = mutableListOf<Pair<Int, Int>>()
+        for (y in 1..w.rows) {
+            if (w.grid[y - 1][0].road == "avenue") entries.add(1 to y)
+            if (w.grid[y - 1][w.cols - 1].road == "avenue") entries.add(w.cols to y)
+        }
+        for (x in 1..w.cols) {
+            if (w.grid[0][x - 1].road == "avenue") entries.add(x to 1)
+            if (w.grid[w.rows - 1][x - 1].road == "avenue") entries.add(x to w.rows)
+        }
+        return entries
+    }
+
     /** 0-based 版本：DIRS 环形的对面方向 */
     private fun oppDir(d: Int) = (d + 2) % 4
+
+    /** 该格是否为路口（横竖两个方向都有路） */
+    private fun isCrossroad(x: Int, y: Int): Boolean {
+        val w = World.current ?: return false
+        if (w.grid.getOrNull(y - 1)?.getOrNull(x - 1)?.road == null) return false
+        val horiz = w.grid[y - 1].getOrNull(x - 2)?.road != null || w.grid[y - 1].getOrNull(x)?.road != null
+        val vert = w.grid.getOrNull(y - 2)?.get(x - 1)?.road != null || w.grid.getOrNull(y)?.get(x - 1)?.road != null
+        return horiz && vert
+    }
 
     private fun updateCars(dt: Float) {
         val w = World.current ?: return
         while (cars.size < CARS_TARGET) spawnCar()
+        val redNow = (Growth.simTime * 1.2).toInt() % 4 < 2
         for (i in cars.indices.reversed()) {
             val c = cars[i]
             if (!isRoadCell(c.x, c.y)) {
                 cars.removeAt(i)      // 路被拆了
-            } else {
+                continue
+            }
+            // 到达目的地附近：货车离城/卸货，通勤车换新目的地
+            if (abs(c.x - c.destX) + abs(c.y - c.destY) <= 2) {
+                if (c.isFreight) {
+                    cars.removeAt(i)
+                    continue
+                }
+                val nonRes = World.allBuildings().filter { !it.b.isService && it.b.zone != "residential" }
+                if (nonRes.isNotEmpty()) {
+                    val d = nonRes[Random.nextInt(nonRes.size)]
+                    c.destX = d.x
+                    c.destY = d.y
+                }
+            }
+            // 下一格
+            val nx = c.x + dirs[c.dir][0]
+            val ny = c.y + dirs[c.dir][1]
+            // 红绿灯拦停：下一格是路口且红灯，且已接近路口
+            val atCross = isCrossroad(nx, ny)
+            // 车距：前方同向有车则停（防穿模）
+            var blocked = false
+            for (o in cars) {
+                if (o !== c && o.dir == c.dir && o.x == nx && o.y == ny && o.prog > c.prog) {
+                    blocked = true
+                    break
+                }
+            }
+            c.stopped = (atCross && redNow && c.prog > 0.6f) || blocked
+            if (!c.stopped) {
                 c.prog += c.speed * dt
-                while (c.prog >= 1) {
-                    c.prog -= 1
-                    val v = dirs[c.dir]
-                    c.x += v[0]
-                    c.y += v[1]
-                    fun ok(d: Int): Boolean {
-                        val vv = dirs[d]
-                        return isRoadCell(c.x + vv[0], c.y + vv[1])
-                    }
-                    if (!ok(c.dir)) {
-                        val rev = oppDir(c.dir)
-                        val opts = mutableListOf<Int>()
-                        for (d in 0..3) if (d != rev && ok(d)) opts.add(d)
-                        c.dir = if (opts.isNotEmpty()) opts[Random.nextInt(opts.size)] else rev
-                    } else if (Random.nextFloat() < 0.18f) {
-                        val rev = oppDir(c.dir)
-                        val opts = mutableListOf<Int>()
-                        for (d in 0..3) if (d != rev && d != c.dir && ok(d)) opts.add(d)
-                        if (opts.isNotEmpty()) c.dir = opts[Random.nextInt(opts.size)]
+            }
+            while (c.prog >= 1) {
+                c.prog -= 1
+                val v = dirs[c.dir]
+                c.x += v[0]
+                c.y += v[1]
+                fun ok(d: Int): Boolean {
+                    val vv = dirs[d]
+                    return isRoadCell(c.x + vv[0], c.y + vv[1])
+                }
+                if (!ok(c.dir)) {
+                    val rev = oppDir(c.dir)
+                    val opts = mutableListOf<Int>()
+                    for (d in 0..3) if (d != rev && ok(d)) opts.add(d)
+                    c.dir = if (opts.isNotEmpty()) opts[Random.nextInt(opts.size)] else rev
+                } else if (Random.nextFloat() < 0.3f) {
+                    // 路口：优先朝目的地转向
+                    val rev = oppDir(c.dir)
+                    val opts = mutableListOf<Int>()
+                    for (d in 0..3) if (d != rev && d != c.dir && ok(d)) opts.add(d)
+                    if (opts.isNotEmpty()) {
+                        val best = opts.minByOrNull { d ->
+                            val mx = c.x + dirs[d][0]
+                            val my = c.y + dirs[d][1]
+                            abs(mx - c.destX) + abs(my - c.destY)
+                        }
+                        c.dir = best ?: opts[Random.nextInt(opts.size)]
                     }
                 }
             }
@@ -602,7 +693,10 @@ class MapRenderView @JvmOverloads constructor(
         val w = World.current ?: return
         val C = Config.COLORS
 
-        fillRect(canvas, 0f, 0f, viewW, viewH, C.uiBackdrop)
+        // 昼夜：天空色 + 夜晚因子
+        val tod = GameData.timeOfDay
+        nightLevel = nightFactor(tod)
+        fillRect(canvas, 0f, 0f, viewW, viewH, skyColor(tod))
 
         val cell = this.cell
         val x0 = Config.clamp(tileAtX(0f), 1, w.cols)
@@ -744,14 +838,50 @@ class MapRenderView @JvmOverloads constructor(
                     fillCircle(canvas, cx, cy, max(1.2f, cell * 0.06f), col)
                 }
             }
+            // 路灯：夜晚沿路点亮
+            if (nightLevel > 0.3f) {
+                for (ty in y0..y1) {
+                    for (tx in x0..x1) {
+                        if (w.grid[ty - 1][tx - 1].road != null && (tx + ty) % 2 == 0) {
+                            val lx = worldToScreenX(tx - 1f)
+                            val ly = worldToScreenY(ty - 1f)
+                            fillCircle(
+                                canvas, lx + cell * 0.5f, ly + cell * 0.5f,
+                                max(1f, cell * 0.09f),
+                                RGBA(255, 230, 150, (nightLevel * 180).toInt())
+                            )
+                        }
+                    }
+                }
+            }
+            // 电线杆（沿道路，白天可见）
+            if (cell >= 12) {
+                strokeColor(RGBA(90, 85, 75, 160), 255, max(1f, cell * 0.02f))
+                for (ty in y0..y1) {
+                    for (tx in x0..x1) {
+                        if (w.grid[ty - 1][tx - 1].road == null || (tx + ty) % 2 == 1) continue
+                        val px = worldToScreenX(tx - 1f) + cell * 0.14f
+                        val py = worldToScreenY(ty - 1f)
+                        canvas.drawLine(px, py + cell * 0.2f, px, py + cell * 0.5f, paint)
+                    }
+                }
+            }
         }
 
         // ---- 3.5) 车辆 ----
         if (cell >= 9) {
             for (c in cars) {
                 val v = dirs[c.dir]
-                val sx = worldToScreenX(c.x - 1 + v[0] * c.prog + 0.5f)
-                val sy = worldToScreenY(c.y - 1 + v[1] * c.prog + 0.5f)
+                var sx = worldToScreenX(c.x - 1 + v[0] * c.prog + 0.5f)
+                var sy = worldToScreenY(c.y - 1 + v[1] * c.prog + 0.5f)
+                // 右行车道偏移（沿前进方向靠右）
+                val lane = cell * 0.12f
+                when (c.dir) {
+                    0 -> sy += lane   // 东行靠南
+                    2 -> sy -= lane   // 西行靠北
+                    1 -> sx -= lane   // 南行靠西
+                    3 -> sx += lane   // 北行靠东
+                }
                 if (sx > -cell && sy > -cell && sx < viewW + cell && sy < viewH + cell) {
                     val horiz = (c.dir == 0 || c.dir == 2)
                     val L = cell * 0.46f
@@ -851,6 +981,7 @@ class MapRenderView @JvmOverloads constructor(
                 }
             }
             // 2) 建筑着色（覆盖=绿，缺=红，设施本体=蓝）
+            val coveredSet = World.bfsCovered(overlay)
             for (e in World.allBuildings()) {
                 val sx = worldToScreenX(e.x - 1f)
                 val sy = worldToScreenY(e.y - 1f)
@@ -862,7 +993,7 @@ class MapRenderView @JvmOverloads constructor(
                         fillRect(canvas, sx, sy, bw, bh, blue)
                     }
                 } else {
-                    val ok = World.isCoveredBy(e.x, e.y, overlay)
+                    val ok = (e.y * w.cols + e.x) in coveredSet
                     fillRect(canvas, sx, sy, bw, bh, if (ok) green else red)
                 }
             }
@@ -1004,6 +1135,11 @@ class MapRenderView @JvmOverloads constructor(
             canvas.drawRect(sxp, syp, sxp + sw, syp + sh, paint)
         }
 
+        // ---- 6.5) 夜晚压暗 ----
+        if (nightLevel > 0.02f) {
+            fillRect(canvas, 0f, 0f, viewW, viewH, RGBA(18, 24, 52, (nightLevel * 88).toInt()))
+        }
+
         // ---- 7) Toast ----
         if (toastMsg != null && typeface != null) {
             val alpha = if (toastT > 2.6f) clamp((3.2f - toastT) / 0.6f, 0f, 1f) else 1f
@@ -1059,11 +1195,20 @@ class MapRenderView @JvmOverloads constructor(
             path.lineTo(rx + rw, ry + rh)
             path.close()
             fillPath(canvas, path, base.shade(Config.BUILD.sideShade.toDouble()))
+            // 楼层横线（强化立体层次）
+            if (hpx >= cell * 0.35f && cell >= 12) {
+                strokeColor(base.shade(0.45), 255, max(0.5f, cell * 0.015f))
+                var fy = ry + rh - cell * 0.3f
+                while (fy > ry - hpx + cell * 0.05f) {
+                    canvas.drawLine(rx, fy, rx + rw, fy, paint)
+                    fy -= cell * 0.3f
+                }
+            }
             // 窗户
             if (cell >= 14 && hpx >= cell * 0.35f) {
                 val cols = max(1, floor(rw / (cell * 0.26f)).toInt())
                 val rows = max(1, floor((hpx + rh) / (cell * 0.26f)).toInt() - 1)
-                fillColor(base.shade(0.48))
+                fillColor(if (nightLevel > 0.3f) RGBA(255, 218, 120) else base.shade(0.48))
                 for (wi in 0 until cols) {
                     for (wj in 0 until rows) {
                         val wx = rx + (rw - cols * cell * 0.26f) * 0.5f + wi * cell * 0.26f + cell * 0.05f
@@ -1111,5 +1256,45 @@ class MapRenderView @JvmOverloads constructor(
         val i = (x * 7 + y * 13) % pre.size
         val j = (x * 5 + y * 11) % suf.size
         return pre[i] + suf[j]
+    }
+
+    /** 天空色：按一天内时间插值（清晨→白昼→黄昏→夜晚） */
+    private fun skyColor(tod: Float): RGBA {
+        val frames = listOf(
+            0.0f to RGBA(255, 205, 165),
+            0.18f to RGBA(178, 210, 235),
+            0.45f to RGBA(178, 210, 235),
+            0.55f to RGBA(238, 170, 120),
+            0.68f to RGBA(28, 36, 66),
+            0.9f to RGBA(20, 26, 50),
+            1.0f to RGBA(255, 205, 165)
+        )
+        return lerpColor(frames, tod)
+    }
+
+    private fun nightFactor(tod: Float): Float = when {
+        tod < 0.05f -> (0.05f - tod) / 0.05f * 0.8f
+        tod < 0.6f -> 0f
+        tod < 0.68f -> (tod - 0.6f) / 0.08f
+        tod < 0.92f -> 1f
+        else -> (1f - tod) / 0.08f
+    }
+
+    private fun lerpColor(frames: List<Pair<Float, RGBA>>, t: Float): RGBA {
+        if (t <= frames.first().first) return frames.first().second
+        for (i in 0 until frames.size - 1) {
+            val (t0, c0) = frames[i]
+            val (t1, c1) = frames[i + 1]
+            if (t <= t1) {
+                val k = if (t1 > t0) (t - t0) / (t1 - t0) else 0f
+                return RGBA(
+                    (c0.r + (c1.r - c0.r) * k).toInt(),
+                    (c0.g + (c1.g - c0.g) * k).toInt(),
+                    (c0.b + (c1.b - c0.b) * k).toInt(),
+                    255
+                )
+            }
+        }
+        return frames.last().second
     }
 }

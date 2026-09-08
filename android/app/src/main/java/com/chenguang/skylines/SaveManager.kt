@@ -65,6 +65,7 @@ object SaveManager {
         json.put("sandbox", GameData.sandbox)
         json.put("speedIdx", GameData.speedIdx)
         json.put("simTime", Growth.simTime)
+        json.put("timeOfDay", GameData.timeOfDay.toDouble())
         json.put("cityName", s.cityName)
         json.put("population", s.population.toInt())
         json.put("funds", s.funds)
@@ -254,6 +255,7 @@ object SaveManager {
 
         GameData.speedIdx = json.optInt("speedIdx", 2)
         Growth.simTime = json.optDouble("simTime", 0.0)
+        GameData.timeOfDay = json.optDouble("timeOfDay", 0.25).toFloat()
         World.current?._pop = s.population.toInt()
         return true
     }

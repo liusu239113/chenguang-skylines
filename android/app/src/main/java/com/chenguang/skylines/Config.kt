@@ -168,6 +168,7 @@ object Config {
         const val HEALTH = "health"       // 医疗
         const val EDUCATION = "education" // 教育
         const val SAFETY = "safety"       // 消防/安全
+        const val TRANSIT = "transit"     // 公交
     }
 
     data class ServiceDef(
@@ -219,7 +220,16 @@ object Config {
             "进阶教育，提升商业与工业效益。", ServiceCat.EDUCATION, 300),
         // ---- 安全 ----
         ServiceDef("fire_station", "消防站", 600, 10, 7, 0, false, 1, 1,
-            "扑灭火灾，保护城区。", ServiceCat.SAFETY, 300)
+            "扑灭火灾，保护城区。", ServiceCat.SAFETY, 300),
+        // ---- 公交 ----
+        ServiceDef("bus_stop", "公交站", 220, 3, 6, 4, false, 1, 1,
+            "公共交通，缓解拥堵、提升满意度。", ServiceCat.TRANSIT, 150),
+        ServiceDef("rail_station", "火车站", 2000, 20, 10, 8, true, 2, 2,
+            "铁路枢纽，连接城外、大运量。", ServiceCat.TRANSIT, 1500),
+        ServiceDef("harbor", "港口", 1800, 15, 8, 6, true, 2, 2,
+            "滨水货运码头。", ServiceCat.TRANSIT, 1500),
+        ServiceDef("airport", "机场", 5000, 40, 12, 10, true, 3, 3,
+            "航空枢纽，带来旅游收入。", ServiceCat.TRANSIT, 4000)
     )
 
     // -----------------------------------------------------------------------
