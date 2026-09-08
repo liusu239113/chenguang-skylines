@@ -28,6 +28,7 @@ import com.chenguang.skylines.GameData
 import com.chenguang.skylines.NewsItem
 import com.chenguang.skylines.Sfx
 import com.chenguang.skylines.ui.theme.LocalGameFont
+import com.chenguang.skylines.ui.toColor
 import com.chenguang.skylines.world.World
 import kotlin.math.floor
 

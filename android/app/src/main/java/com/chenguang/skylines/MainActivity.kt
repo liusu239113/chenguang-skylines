@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.chenguang.skylines.ui.screens.MainMenuContent
+import com.chenguang.skylines.ui.toColor
 import com.chenguang.skylines.ui.screens.MapScreen
 import com.chenguang.skylines.ui.screens.MapScreenContent
 import com.chenguang.skylines.ui.screens.NewspaperContent
