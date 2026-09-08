@@ -39,7 +39,7 @@ object Growth {
         val normC = max(st.comCap + 30.0, 1.0)
         val normI = max(st.indCap + 40.0, 1.0)
         val r = (st.comCap + st.indCap) * 1.15 + 40 - pop      // 岗位缺口 → 住宅需求
-        val c = pop * 0.55 - st.comCap                          // 消费缺口 → 商业需求
+        val c = pop * 0.55 + 25 - st.comCap                    // 消费缺口 + 基础客流 → 商业需求
         val i = pop * 0.45 + 50 - st.indCap                     // 外部订单 → 工业需求
         return Demand(
             r = max(0.0, min(1.0, r / normR)),

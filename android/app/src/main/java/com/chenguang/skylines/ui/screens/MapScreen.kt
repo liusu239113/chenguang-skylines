@@ -72,13 +72,23 @@ object MapScreen {
 
     fun selectMode(m: String) {
         Sfx.play("sfx_click")
-        if (AppState.mode == m && m != "zone") {
+        if (m == "service") {
+            // 点「服务」总是重新打开抽屉选择设施
+            AppState.mode = "service"
+            AppState.serviceOpen = true
+            AppState.roadOpen = false
+        } else if (m == "road") {
+            // 点「道路」打开抽屉选单/双车道
+            AppState.mode = "road"
+            AppState.roadOpen = true
+            AppState.serviceOpen = false
+        } else if (AppState.mode == m && m != "zone") {
             AppState.mode = "view"
             AppState.serviceOpen = false
             AppState.roadOpen = false
         } else {
             AppState.mode = m
-            AppState.serviceOpen = (m == "service") && (AppState.selService == null)
+            AppState.serviceOpen = false
             AppState.roadOpen = false
         }
         syncTool()
@@ -703,7 +713,7 @@ private fun HelpPanel() {
             HelpRow("一步", "选【道路】，从大道边按住拖拽修路——分区内只有邻路的格子才会长楼。")
             HelpRow("二步", "点【住宅/商业/工业】激活分区笔刷，在路旁涂色（每格少量花费）。")
             HelpRow("三步", "时间自动流动：需求条（顶部住/商/工）越高，对应分区越快自动长楼、小楼升高楼。")
-            HelpRow("四步", "【服务】放公园/学校进城区提升满意度和地价；【推平】拆楼拆路。")
+            HelpRow("四步", "【服务】放公园、电站、水塔、垃圾场进城区；【推平】拖过可拆建筑、拆路、清除分区。")
             HelpRow("五步", "人口达标城市晋级：村庄→小镇→集镇→城区→都市→大都会。注意收支别破产。")
             Box(
                 modifier = Modifier

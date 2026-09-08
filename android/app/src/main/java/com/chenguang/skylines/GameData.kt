@@ -369,6 +369,7 @@ object GameData {
             }
             "grown" -> s.funds += 1
             "road" -> s.funds += 2
+            "zone" -> { /* 清除分区不退款 */ }
         }
         return true
     }

@@ -653,11 +653,15 @@ class MapRenderView @JvmOverloads constructor(
                             path.close()
                             fillPath(canvas, path, RGBA(142, 152, 124, 255))
                         }
-                        t.terrain == "water" && cell >= 10 -> {
-                            strokeColor(RGBA(255, 255, 255, 42), 255, max(1f, cell * 0.05f))
+                        t.terrain == "water" && cell >= 8 -> {
+                            strokeColor(RGBA(255, 255, 255, 70), 255, max(1f, cell * 0.045f))
                             canvas.drawLine(
-                                sx + cell * 0.15f, sy + cell * 0.5f,
-                                sx + cell * 0.85f, sy + cell * 0.5f, paint
+                                sx + cell * 0.2f, sy + cell * 0.35f,
+                                sx + cell * 0.8f, sy + cell * 0.35f, paint
+                            )
+                            canvas.drawLine(
+                                sx + cell * 0.15f, sy + cell * 0.65f,
+                                sx + cell * 0.85f, sy + cell * 0.65f, paint
                             )
                         }
                     }
@@ -683,22 +687,62 @@ class MapRenderView @JvmOverloads constructor(
             if (any) strokePath(canvas, path, RGBA(255, 255, 255, 22), 255, 0.5f)
         }
 
-        // ---- 3) 道路中心虚线（大道黄线） ----
-        if (cell >= 10) {
-            val pts = mutableListOf<Float>()
+        // ---- 3) 道路车道线（单车道灰中线 / 大道双黄线）+ 路口红绿灯 ----
+        if (cell >= 8) {
+            val roadPt = mutableListOf<Float>()
+            val avePt = mutableListOf<Float>()
+            val cross = mutableListOf<Triple<Float, Float, Int>>()
             for (ty in y0..y1) {
                 for (tx in x0..x1) {
                     val t = w.grid[ty - 1][tx - 1]
-                    if (t.road != null && t.road == "avenue") {
-                        val sx = worldToScreenX((tx - 1).toFloat())
-                        val sy = worldToScreenY((ty - 1).toFloat())
-                        pts.add(sx); pts.add(sy + cell * 0.5f)
-                        pts.add(sx + cell); pts.add(sy + cell * 0.5f)
+                    val kind = t.road ?: continue
+                    val sx = worldToScreenX((tx - 1).toFloat())
+                    val sy = worldToScreenY((ty - 1).toFloat())
+                    val cx = sx + cell * 0.5f
+                    val cy = sy + cell * 0.5f
+                    val up = w.grid.getOrNull(ty - 2)?.get(tx - 1)?.road != null
+                    val down = w.grid.getOrNull(ty)?.get(tx - 1)?.road != null
+                    val left = w.grid[ty - 1].getOrNull(tx - 2)?.road != null
+                    val right = w.grid[ty - 1].getOrNull(tx)?.road != null
+                    val horiz = left || right
+                    val vert = up || down
+                    if (kind == "avenue") {
+                        if (horiz) {
+                            avePt.add(sx); avePt.add(cy)
+                            avePt.add(sx + cell); avePt.add(cy)
+                        }
+                        if (vert) {
+                            avePt.add(cx); avePt.add(sy)
+                            avePt.add(cx); avePt.add(sy + cell)
+                        }
+                    } else {
+                        if (horiz) {
+                            roadPt.add(sx); roadPt.add(cy)
+                            roadPt.add(sx + cell); roadPt.add(cy)
+                        }
+                        if (vert) {
+                            roadPt.add(cx); roadPt.add(sy)
+                            roadPt.add(cx); roadPt.add(sy + cell)
+                        }
+                    }
+                    if ((left || right) && (up || down)) {
+                        cross.add(Triple(cx, cy, if (kind == "avenue") 1 else 0))
                     }
                 }
             }
-            if (pts.isNotEmpty()) {
-                fillLines(canvas, pts.toFloatArray(), RGBA(190, 160, 80, 160), 255, max(1f, cell * 0.06f))
+            if (roadPt.isNotEmpty()) {
+                fillLines(canvas, roadPt.toFloatArray(), RGBA(150, 145, 132, 200), 255, max(1f, cell * 0.05f))
+            }
+            if (avePt.isNotEmpty()) {
+                fillLines(canvas, avePt.toFloatArray(), RGBA(200, 165, 60, 220), 255, max(1f, cell * 0.07f))
+            }
+            if (cross.isNotEmpty()) {
+                val cycle = (Growth.simTime * 1.2).toInt() % 4
+                val red = cycle < 2
+                val col = if (red) RGBA(210, 60, 50, 255) else RGBA(70, 180, 90, 255)
+                for ((cx, cy, _) in cross) {
+                    fillCircle(canvas, cx, cy, max(1.2f, cell * 0.06f), col)
+                }
             }
         }
 
@@ -788,10 +832,25 @@ class MapRenderView @JvmOverloads constructor(
         }
 
         // ---- 4.5) 覆盖热力图（电力/供水/垃圾/医疗/教育/安全） ----
-        if (overlay.isNotEmpty() && cell >= 5) {
-            val green = RGBA(90, 200, 120, 80)
-            val red = RGBA(220, 80, 70, 120)
-            val blue = RGBA(70, 130, 220, 90)
+        if (overlay.isNotEmpty()) {
+            val green = RGBA(90, 200, 120, 95)
+            val red = RGBA(220, 80, 70, 135)
+            val blue = RGBA(70, 130, 220, 105)
+            val rangeFill = RGBA(96, 200, 140, 22)
+            // 1) 该类设施的覆盖范围圈
+            for (e in World.allBuildings()) {
+                if (!e.b.isService) continue
+                val cfg = World.serviceConfig(e.b.service) ?: continue
+                if (cfg.category != overlay) continue
+                val cx = worldToScreenX(e.x - 1 + cfg.sizeW / 2f)
+                val cy = worldToScreenY(e.y - 1 + cfg.sizeH / 2f)
+                val r = cell * (cfg.radius + 0.5f)
+                if (cx + r > 0 && cx - r < viewW && cy + r > 0 && cy - r < viewH) {
+                    fillCircle(canvas, cx, cy, r, rangeFill)
+                    strokeCircle(canvas, cx, cy, r, RGBA(96, 200, 140, 115), 255, 1.5f)
+                }
+            }
+            // 2) 建筑着色（覆盖=绿，缺=红，设施本体=蓝）
             for (e in World.allBuildings()) {
                 val sx = worldToScreenX(e.x - 1f)
                 val sy = worldToScreenY(e.y - 1f)
@@ -853,6 +912,25 @@ class MapRenderView @JvmOverloads constructor(
                         val chars = sc.name.length
                         val fs = min(cell * 0.5f, cell * bl.w * 0.92f / chars)
                         drawText(canvas, sx, sy, fs, RGBA(60, 76, 58), sc.name, TAlign.CENTER, 235)
+                    }
+                }
+            }
+            // 成长建筑名（住宅/商铺/工厂，缩放在建筑框内）
+            if (cell >= 13) {
+                for (ty in y0..y1) {
+                    for (tx in x0..x1) {
+                        val t = w.grid[ty - 1][tx - 1]
+                        val bl = t.building ?: continue
+                        if (bl.isService) continue
+                        val sx = worldToScreenX(tx - 1f)
+                        val sy = worldToScreenY(ty - 1f)
+                        val bw = cell * bl.w
+                        val name = buildingName(bl.zone ?: "residential", tx, ty)
+                        val fs = min(cell * 0.3f, bw * 0.85f / name.length)
+                        drawText(
+                            canvas, sx + bw / 2f, sy + cell * 0.5f - cell * 0.28f,
+                            fs, RGBA(88, 80, 64), name, TAlign.CENTER, 225
+                        )
                     }
                 }
             }
@@ -1010,5 +1088,28 @@ class MapRenderView @JvmOverloads constructor(
         }
         // 地面投影
         fillRect(canvas, rx + 1, ry + rh - 1, rw - 2, max(1.5f, cell * 0.08f), RGBA(60, 70, 60, 46))
+    }
+
+    /** 成长建筑按坐标确定性取名 */
+    private fun buildingName(zone: String, x: Int, y: Int): String {
+        val pre: List<String>
+        val suf: List<String>
+        when (zone) {
+            "residential" -> {
+                pre = Config.NAMES.RES_PRE
+                suf = Config.NAMES.RES_SUF
+            }
+            "commercial" -> {
+                pre = Config.NAMES.COM_PRE
+                suf = Config.NAMES.COM_SUF
+            }
+            else -> {
+                pre = Config.NAMES.IND_PRE
+                suf = Config.NAMES.IND_SUF
+            }
+        }
+        val i = (x * 7 + y * 13) % pre.size
+        val j = (x * 5 + y * 11) % suf.size
+        return pre[i] + suf[j]
     }
 }

@@ -140,8 +140,8 @@ class World {
                 }
             }
 
-            // 河流
-            val riverX = floor(w.cols * 0.72).toInt()
+            // 河流（靠地图右边缘，不穿市中心）
+            val riverX = w.cols - 2
             for (y in 1..w.rows) {
                 val rx = riverX + floor(nz.noise(y * 0.12, 5.5) * 6 - 3).toInt()
                 val width = 2 + floor(nz.noise(y * 0.08, 9.1) * 2).toInt()
@@ -154,10 +154,10 @@ class World {
                 }
             }
 
-            // 湖泊
-            val lakeX = riverX - 4
-            val lakeY = floor(w.rows * 0.30).toInt()
-            val lakeR = 5
+            // 湖泊（左上角角落，不占用市中心建设用地）
+            val lakeX = 5
+            val lakeY = 4
+            val lakeR = 4
             for (y in max(1, lakeY - lakeR)..min(w.rows, lakeY + lakeR)) {
                 for (x in max(1, lakeX - lakeR)..min(w.cols, lakeX + lakeR)) {
                     if ((x - lakeX) * (x - lakeX) + (y - lakeY) * (y - lakeY) <= lakeR * lakeR) {
@@ -194,7 +194,7 @@ class World {
             val colAve = intArrayOf(
                 floor(w.cols * 0.22).toInt(),
                 floor(w.cols * 0.5).toInt(),
-                riverX + 4
+                floor(w.cols * 0.78).toInt()
             )
             val rowAve = intArrayOf(
                 floor(w.rows * 0.20).toInt(),
@@ -403,7 +403,7 @@ class World {
             return out
         }
 
-        /** 推土机：返回 Pair(kind, id)，kind = "grown" | "service" | "road"，未拆到为 null */
+        /** 推土机：返回 Pair(kind, id)，kind = "grown" | "service" | "road" | "zone"，未拆到为 null */
         fun bulldoze(x: Int, y: Int): Pair<String, String?>? {
             val t = tile(x, y) ?: return null
             val w = current ?: return null
@@ -422,6 +422,10 @@ class World {
             t.road?.let { kind ->
                 t.road = null
                 return "road" to kind
+            }
+            if (t.zone != "none") {
+                t.zone = "none"
+                return "zone" to null
             }
             return null
         }

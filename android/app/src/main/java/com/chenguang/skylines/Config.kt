@@ -117,13 +117,25 @@ object Config {
     )
 
     // -----------------------------------------------------------------------
+    // 建筑名字池（成长建筑按坐标确定性取名）
+    // -----------------------------------------------------------------------
+    object NAMES {
+        val RES_PRE = listOf("翠湖", "梧桐", "晨曦", "望江", "桂香", "青藤", "云溪", "暖阳")
+        val RES_SUF = listOf("小区", "公寓", "家园", "里弄", "新村")
+        val COM_PRE = listOf("兴旺", "百汇", "惠民", "大众", "老街", "新街", "中心", "金源")
+        val COM_SUF = listOf("超市", "百货", "食府", "咖啡", "药房", "书店", "面馆")
+        val IND_PRE = listOf("永盛", "恒达", "联华", "宏远", "振华", "顺达")
+        val IND_SUF = listOf("工厂", "制造", "五金", "纺织", "食品厂")
+    }
+
+    // -----------------------------------------------------------------------
     // 道路
     // -----------------------------------------------------------------------
     data class RoadDef(val key: String, val name: String, val cost: Int)
 
     val ROAD: Map<String, RoadDef> = mapOf(
-        "local" to RoadDef("local", "道路", 8),
-        "avenue" to RoadDef("avenue", "大道", 20)
+        "local" to RoadDef("local", "单车道", 8),
+        "avenue" to RoadDef("avenue", "双车道", 20)
     )
 
     // -----------------------------------------------------------------------
@@ -364,13 +376,13 @@ object Config {
         val grass = RGBA(168, 196, 158, 255)
         val grassAlt = RGBA(158, 188, 148, 255)
         val forest = RGBA(120, 158, 116, 255)
-        val water = RGBA(150, 170, 150, 255)
-        val waterAlt = RGBA(138, 158, 140, 255)
+        val water = RGBA(112, 168, 196, 255)
+        val waterAlt = RGBA(100, 156, 186, 255)
         val plain = RGBA(186, 198, 168, 255)
         val hill = RGBA(176, 186, 156, 255)
 
         // 道路
-        val roadLocal = RGBA(244, 241, 232, 255)
+        val roadLocal = RGBA(214, 210, 198, 255)
         val roadAvenue = RGBA(230, 197, 104, 255)
 
         // 分区
