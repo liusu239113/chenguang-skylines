@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 太阳 -->
+    <path
+        android:fillColor="#B08C3E"
+        android:pathData="M72,34m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+    <!-- 天际线：住宅 / 商业 / 工业三种体块 -->
+    <path
+        android:fillColor="#ECD696"
+        android:pathData="M24,78 L24,54 L36,54 L36,78 Z" />
+    <path
+        android:fillColor="#E2B096"
+        android:pathData="M42,78 L42,42 L56,42 L56,78 Z" />
+    <path
+        android:fillColor="#C8BEA5"
+        android:pathData="M62,78 L62,62 L76,62 L76,78 Z" />
+    <!-- 路面 -->
+    <path
+        android:fillColor="#E6C568"
+        android:pathData="M18,78h72v6h-72z" />
+</vector>

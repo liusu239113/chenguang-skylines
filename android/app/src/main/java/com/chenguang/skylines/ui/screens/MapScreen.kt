@@ -1,0 +1,623 @@
+package com.chenguang.skylines.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.chenguang.skylines.AppState
+import com.chenguang.skylines.Config
+import com.chenguang.skylines.GameData
+import com.chenguang.skylines.MapRef
+import com.chenguang.skylines.Sfx
+import com.chenguang.skylines.ui.UIHelper
+import com.chenguang.skylines.ui.theme.LocalGameFont
+import com.chenguang.skylines.world.Growth
+import com.chenguang.skylines.world.MapRenderView
+import com.chenguang.skylines.world.Tool
+import com.chenguang.skylines.world.World
+import kotlin.math.floor
+
+// ============================================================================
+// MapScreen — 主界面，与 scripts/Screens/MapScreen.lua 1:1 对应
+//   顶部：资金/人口/满意/日期 + RCI 需求条 + 时间速度 + 简报
+//   底部：道路 | 住宅区 | 商业区 | 工业区 | 推平 | 服务 | 查看
+// ============================================================================
+
+object MapScreen {
+
+    private var uiTimer = 0f
+
+    fun syncTool() {
+        val t = when (AppState.mode) {
+            "road" -> Tool("road", roadKind = AppState.roadKind)
+            "zone" -> Tool("zone", zoneKey = AppState.zoneKey)
+            "bulldoze" -> Tool("bulldoze")
+            "service" -> AppState.selService?.let { Tool("service", id = it) }
+            else -> null
+        }
+        MapRef.view?.tool = t
+        AppState.bumpMap()
+    }
+
+    fun selectMode(m: String) {
+        Sfx.play("sfx_click")
+        if (AppState.mode == m && m != "zone") {
+            AppState.mode = "view"
+            AppState.serviceOpen = false
+            AppState.roadOpen = false
+        } else {
+            AppState.mode = m
+            AppState.serviceOpen = (m == "service") && (AppState.selService == null)
+            AppState.roadOpen = false
+        }
+        syncTool()
+    }
+
+    fun setZoneKey(zk: String) {
+        Sfx.play("sfx_click", 0.6f)
+        AppState.zoneKey = zk
+        AppState.mode = "zone"
+        AppState.serviceOpen = false
+        syncTool()
+    }
+
+    fun cancelTool() {
+        AppState.mode = "view"
+        AppState.serviceOpen = false
+        AppState.roadOpen = false
+        syncTool()
+    }
+
+    fun onShow(view: MapRenderView, wDp: Float, hDp: Float) {
+        view.setViewport(wDp, hDp, 70f, 88f)
+        if (!AppState.tutShown) {
+            AppState.helpOpen = true
+            AppState.tutShown = true
+        }
+        syncTool()
+        AppState.bumpLive()
+        AppState.bumpMap()
+    }
+
+    fun tick(dt: Float, view: MapRenderView?) {
+        uiTimer += dt
+        if (uiTimer >= 0.5f) {
+            uiTimer = 0f
+            if (AppState.screen == "map") AppState.bumpLive()
+        }
+        if (GameData.pendingLevelUp) {
+            GameData.pendingLevelUp = false
+            Sfx.play("sfx_levelup")
+            view?.setToast("城市晋级 " + World.cityLevel().name + "！")
+        } else if (GameData.monthFlash) {
+            GameData.monthFlash = false
+            Sfx.play("sfx_month")
+            view?.setToast(GameData.monthLabel() + " 月度结算完成")
+        }
+    }
+
+    fun goNewspaper() {
+        Sfx.play("sfx_click")
+        AppState.screen = "newspaper"
+    }
+}
+
+@Composable
+fun MapScreenContent(mapView: MapRenderView) {
+    val C = Config.COLORS
+    val live = AppState.liveTick
+    val version = AppState.mapVersion
+    val s = GameData.current
+
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // ---------------- 顶部资源条 ----------------
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 10.dp, start = 10.dp, end = 10.dp)
+                .fillMaxWidth()
+                .noRippleClickable { }
+        ) {
+            // 行1：资源胶囊
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadowCard(18.dp, C.panelWhite.toColor())
+                    .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (s != null) {
+                    UIHelper.Chip("", World.cityLevel().name)
+                    ChipValue("资金", "¥" + UIHelper.fmtMoney(s.funds) + "万", C.accentGold.toColor(), live)
+                    ChipValue("人口", UIHelper.fmtPop(floor(s.population).toInt()), C.textDark.toColor(), live)
+                    ChipValue(
+                        "满意", floor(s.happiness).toInt().toString(),
+                        if (s.happiness >= 55) C.accentGreen.toColor() else C.accentRed.toColor(), live
+                    )
+                    ChipValue("", GameData.dateLabel(), C.textDark.toColor(), live)
+                }
+                // 简报按钮
+                Box(
+                    modifier = Modifier
+                        .background(C.accentSoftBg.toColor(), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .clickable { MapScreen.goNewspaper() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "简报", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
+                    )
+                }
+            }
+
+            // 行2：RCI 需求条 + 速度控制
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // RCI
+                Row(
+                    modifier = Modifier
+                        .background(C.panelWhite.toColor(), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DemandBar("住", Growth.lastDemand.r, C.accentGreen.toColor(), C.accentGreen.toColor(), live)
+                    DemandBar("商", Growth.lastDemand.c, C.accentBlue.toColor(), C.accentBlue.toColor(), live)
+                    DemandBar("工", Growth.lastDemand.i, C.accentGold.toColor(), C.accentGold.toColor(), live)
+                }
+                // 速度
+                Row(
+                    modifier = Modifier
+                        .background(C.panelWhite.toColor(), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val speeds = listOf("‖" to 1, "▶" to 2, "▶▶" to 3, "▶▶▶" to 4)
+                    for (sp in speeds) {
+                        val active = GameData.speedIdx == sp.second
+                        Box(
+                            modifier = Modifier
+                                .width(if (sp.second == 1) 34.dp else 44.dp)
+                                .height(26.dp)
+                                .background(
+                                    if (active) C.accentSoftBg.toColor() else Color.Transparent,
+                                    RoundedCornerShape(9.dp)
+                                )
+                                .clickable {
+                                    Sfx.play("sfx_click", 0.5f)
+                                    GameData.setSpeed(sp.second)
+                                    AppState.bumpLive()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                sp.first, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                color = if (active) C.accentRed.toColor() else C.textMid.toColor(),
+                                fontFamily = LocalGameFont.current
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---------------- 信息卡（查看模式） ----------------
+        if (AppState.mode == "view" && mapView.selectedX > 0 && version >= 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 88.dp, start = 10.dp, end = 10.dp)
+                    .fillMaxWidth()
+                    .noRippleClickable { }
+            ) {
+                UIHelper.Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    radius = 16.dp,
+                    paddingTop = 10.dp,
+                    paddingBottom = 10.dp,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val sel = mapView.selectedX to mapView.selectedY
+                    Text(
+                        "(" + sel.first + ", " + sel.second + ")  " + GameData.dateLabel(),
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                    )
+                    UIHelper.InfoRow("海拔", World.elevation(sel.first, sel.second).toString() + "m")
+                    UIHelper.InfoRow("地形", World.terrainName(sel.first, sel.second))
+                    UIHelper.InfoRow("现状", World.zoneName(sel.first, sel.second), C.accentBlue.toColor())
+                }
+            }
+        }
+
+        // ---------------- 抽屉（服务 / 道路） ----------------
+        if ((AppState.mode == "service" && AppState.serviceOpen) || (AppState.mode == "road" && AppState.roadOpen)) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 80.dp, start = 10.dp, end = 10.dp)
+                    .fillMaxWidth()
+                    .noRippleClickable { }
+            ) {
+                DrawerContent(mapView)
+            }
+        }
+
+        // ---------------- 政策按钮 ----------------
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 14.dp, bottom = 84.dp)
+        ) {
+            UIHelper.RoundButton("策", size = 40.dp, fontSize = 15.sp) {
+                Sfx.play("sfx_click", 0.6f)
+                AppState.policyOpen = !AppState.policyOpen
+            }
+        }
+
+        // ---------------- 帮助按钮 ----------------
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 14.dp, bottom = 134.dp)
+        ) {
+            UIHelper.RoundButton("?", size = 40.dp, fontSize = 20.sp) {
+                Sfx.play("sfx_click", 0.6f)
+                AppState.helpOpen = !AppState.helpOpen
+            }
+        }
+
+        // ---------------- 底部工具栏 ----------------
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 14.dp, start = 10.dp, end = 10.dp)
+                .fillMaxWidth()
+                .shadowCard(22.dp, C.panelWhite.toColor())
+                .padding(horizontal = 4.dp, vertical = 4.dp)
+                .noRippleClickable { },
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val items = listOf(
+                Triple("road", "道路", null as String?),
+                Triple("zone", "住宅", "residential"),
+                Triple("zone", "商业", "commercial"),
+                Triple("zone", "工业", "industrial"),
+                Triple("bulldoze", "推平", null),
+                Triple("service", "服务", null),
+                Triple("view", "查看", null)
+            )
+            for (it in items) {
+                val active = if (it.first == "zone") {
+                    AppState.mode == "zone" && AppState.zoneKey == it.third
+                } else {
+                    AppState.mode == it.first
+                }
+                UIHelper.ToolItem(it.second, active, width = 44.dp) {
+                    if (it.first == "zone") {
+                        if (AppState.mode == "zone" && AppState.zoneKey == it.third) {
+                            MapScreen.selectMode("view")
+                        } else {
+                            MapScreen.setZoneKey(it.third!!)
+                        }
+                    } else {
+                        MapScreen.selectMode(it.first)
+                    }
+                }
+            }
+        }
+
+        // ---------------- 政策面板 ----------------
+        if (AppState.policyOpen) PolicyPanel()
+        // ---------------- 帮助面板 ----------------
+        if (AppState.helpOpen) HelpPanel()
+    }
+}
+
+@Composable
+private fun ChipValue(label: String, value: String, color: Color, live: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        if (label.isNotEmpty()) {
+            Text(
+                label, fontSize = 10.sp, color = Config.COLORS.textMid.toColor(),
+                fontFamily = LocalGameFont.current
+            )
+        }
+        Text(
+            value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color,
+            fontFamily = LocalGameFont.current
+        )
+    }
+}
+
+@Composable
+private fun DemandBar(label: String, v: Double, labelColor: Color, fillColor: Color, live: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(label, fontSize = 10.sp, color = labelColor, fontFamily = LocalGameFont.current)
+        Box(
+            modifier = Modifier
+                .width(34.dp)
+                .height(6.dp)
+                .background(Color(200 / 255f, 200 / 255f, 190 / 255f), RoundedCornerShape(3.dp))
+        ) {
+            Box(
+                modifier = Modifier
+                    .height(6.dp)
+                    .width((34 * (kotlin.math.max(4, floor(v * 100).toInt()) / 100f)).dp)
+                    .background(fillColor, RoundedCornerShape(3.dp))
+            )
+        }
+    }
+}
+
+@Composable
+private fun DrawerContent(mapView: MapRenderView) {
+    val C = Config.COLORS
+    val s = GameData.current ?: return
+    UIHelper.Card(
+        modifier = Modifier.fillMaxWidth(),
+        radius = 16.dp,
+        padding = 14.dp,
+        paddingTop = 12.dp,
+        paddingBottom = 12.dp,
+        horizontalAlignment = Alignment.Start
+    ) {
+        if (AppState.mode == "service") {
+            Text(
+                "选择服务设施（放进城区里）", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (sv in Config.SERVICES) {
+                    UIHelper.PickChip(
+                        text = sv.name,
+                        sub = "¥" + sv.cost + "万",
+                        selected = AppState.selService == sv.id,
+                        disabled = s.funds < sv.cost,
+                        subColor = if (s.funds < sv.cost) C.accentRed.toColor() else C.textMid.toColor(),
+                        width = 76.dp
+                    ) {
+                        if (s.funds >= sv.cost) {
+                            AppState.selService = sv.id
+                            AppState.serviceOpen = false
+                            MapScreen.syncTool()
+                        } else {
+                            mapView.setToast("资金不足")
+                        }
+                    }
+                }
+            }
+            AppState.selService?.let { id ->
+                val sc = World.serviceConfig(id)
+                if (sc != null) {
+                    Text(
+                        sc.desc + " 覆盖半径 " + sc.radius + " 格。",
+                        fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                    )
+                }
+            }
+        } else if (AppState.mode == "road") {
+            Text(
+                "道路类型", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (rk in listOf("local", "avenue")) {
+                    val r = Config.ROAD[rk]!!
+                    UIHelper.PickChip(
+                        text = r.name,
+                        sub = "¥" + r.cost + "/格",
+                        selected = AppState.roadKind == rk,
+                        width = 90.dp
+                    ) {
+                        AppState.roadKind = rk
+                        MapScreen.syncTool()
+                        AppState.roadOpen = false
+                    }
+                }
+            }
+            Text(
+                "按住拖拽连续修路；分区内邻路才会长楼。",
+                fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
+            )
+        }
+    }
+}
+
+@Composable
+private fun PolicyPanel() {
+    val C = Config.COLORS
+    val s = GameData.current ?: return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .noRippleClickable { AppState.policyOpen = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.88f)
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(horizontal = 14.dp, vertical = 16.dp)
+                .noRippleClickable { },
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "市政政策", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+            )
+            for (pol in Config.POLICIES) {
+                val cd = s.policyCooldowns[pol.id] ?: 0
+                val active = s.activePolicies.any { it.id == pol.id }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(C.chipBg.toColor(), RoundedCornerShape(12.dp))
+                        .border(1.dp, C.border2.toColor(), RoundedCornerShape(12.dp))
+                        .clickable {
+                            val (ok, msg) = GameData.activatePolicy(pol.id)
+                            if (!ok) MapRef.view?.setToast(msg ?: "无法启用") else Sfx.play("sfx_click")
+                            AppState.bumpLive()
+                        }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            pol.name, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                            color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                        )
+                        Text(
+                            pol.desc, fontSize = 10.sp, color = C.textMid.toColor(),
+                            fontFamily = LocalGameFont.current
+                        )
+                    }
+                    Text(
+                        if (active) "生效中" else if (cd > 0) cd.toString() + "天" else "启用",
+                        fontSize = 11.sp,
+                        color = if (active) C.accentGreen.toColor()
+                        else if (cd > 0) C.textFaint.toColor() else C.accentRed.toColor(),
+                        fontFamily = LocalGameFont.current,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.accentGreen.toColor(), RoundedCornerShape(20.dp))
+                    .clickable { AppState.policyOpen = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "关闭", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    fontFamily = LocalGameFont.current
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HelpPanel() {
+    val C = Config.COLORS
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .noRippleClickable { AppState.helpOpen = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .wrapContentHeight()
+                .verticalScroll(rememberScrollState())
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(18.dp)
+                .noRippleClickable { },
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                "新手指引 · 像都市天际线一样建城", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+            )
+            HelpRow("操作", "单指拖动平移；双指捏合或右侧 +/− 缩放；点格子查看信息。")
+            HelpRow("一步", "选【道路】，从大道边按住拖拽修路——分区内只有邻路的格子才会长楼。")
+            HelpRow("二步", "点【住宅/商业/工业】激活分区笔刷，在路旁涂色（每格少量花费）。")
+            HelpRow("三步", "时间自动流动：需求条（顶部住/商/工）越高，对应分区越快自动长楼、小楼升高楼。")
+            HelpRow("四步", "【服务】放公园/学校进城区提升满意度和地价；【推平】拆楼拆路。")
+            HelpRow("五步", "人口达标城市晋级：村庄→小镇→集镇→城区→都市→大都会。注意收支别破产。")
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(42.dp)
+                    .background(C.accentGreen.toColor(), RoundedCornerShape(21.dp))
+                    .clickable { AppState.helpOpen = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "开始建设", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    fontFamily = LocalGameFont.current
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HelpRow(no: String, text: String) {
+    Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+        Text(
+            no, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            color = Config.COLORS.accentRed.toColor(), fontFamily = LocalGameFont.current
+        )
+        Text(
+            text, fontSize = 12.sp, color = Config.COLORS.textDark.toColor(),
+            fontFamily = LocalGameFont.current, lineHeight = 18.sp, modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+private val CardShadow = Color(90 / 255f, 100 / 255f, 90 / 255f, 70 / 255f)
+
+private fun Modifier.shadowCard(radius: Dp, color: Color): Modifier {
+    val shape = RoundedCornerShape(radius)
+    return this
+        .shadow(4.dp, shape, ambientColor = CardShadow, spotColor = CardShadow)
+        .background(color, shape)
+}
+
+@Composable
+private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier =
+    this.then(
+        Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick
+        )
+    )
