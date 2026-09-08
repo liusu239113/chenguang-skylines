@@ -612,11 +612,11 @@ private fun Modifier.shadowCard(radius: Dp, color: Color): Modifier {
         .background(color, shape)
 }
 
-@Composable
+/** 拦截触摸但无涟漪（等价于 Lua 的 pointerEvents = "auto"） */
 private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier =
     this.then(
         Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
+            interactionSource = null,
             indication = null,
             onClick = onClick
         )

@@ -10,8 +10,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.ChenguangSkylines"
-        android:hardwareAccelerated="true"
-        android:isGame="true">
+        android:hardwareAccelerated="true">
 
         <activity
             android:name=".MainActivity"
