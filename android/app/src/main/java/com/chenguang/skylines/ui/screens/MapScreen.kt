@@ -136,6 +136,7 @@ object MapScreen {
             Sfx.play("sfx_month")
             view?.setToast(GameData.monthLabel() + " 月度结算完成")
             SaveManager.save(AppState.activeSlot)   // 每月自动存档
+            AppState.saveTick++
         }
     }
 
@@ -280,6 +281,12 @@ fun MapScreenContent(mapView: MapRenderView) {
                     UIHelper.InfoRow("海拔", World.elevation(sel.first, sel.second).toString() + "m")
                     UIHelper.InfoRow("地形", World.terrainName(sel.first, sel.second))
                     UIHelper.InfoRow("现状", World.zoneName(sel.first, sel.second), C.accentBlue.toColor())
+                    UIHelper.InfoRow("地价", World.landValue(sel.first, sel.second).toString())
+                    val tb = World.tile(sel.first, sel.second)?.building
+                    if (tb != null && !tb.isService && tb.zone == "residential") {
+                        val cap = Config.GROWN["residential"]?.levels?.getOrNull(tb.level - 1)?.cap ?: 0
+                        UIHelper.InfoRow("入住", tb.residents.toString() + "/" + cap)
+                    }
                 }
             }
         }
@@ -624,6 +631,18 @@ private fun PolicyPanel() {
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
             )
+            Text(
+                GameData.policyStatusLine(),
+                fontSize = 11.sp, color = C.accentGreen.toColor(),
+                fontFamily = LocalGameFont.current,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                "启用后立刻改税收/需求/污染/拥堵，并持续到倒计时结束。",
+                fontSize = 10.sp, color = C.textMid.toColor(),
+                fontFamily = LocalGameFont.current,
+                modifier = Modifier.fillMaxWidth()
+            )
             for (pol in Config.POLICIES) {
                 val cd = s.policyCooldowns[pol.id] ?: 0
                 val active = s.activePolicies.any { it.id == pol.id }
@@ -634,7 +653,12 @@ private fun PolicyPanel() {
                         .border(1.dp, C.border2.toColor(), RoundedCornerShape(12.dp))
                         .clickable {
                             val (ok, msg) = GameData.activatePolicy(pol.id)
-                            if (!ok) MapRef.view?.setToast(msg ?: "无法启用") else Sfx.play("sfx_click")
+                            if (!ok) {
+                                MapRef.view?.setToast(msg ?: "无法启用")
+                            } else {
+                                Sfx.play("sfx_policy")
+                                MapRef.view?.setToast(msg ?: "政策已生效")
+                            }
                             AppState.bumpLive()
                         }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -652,7 +676,10 @@ private fun PolicyPanel() {
                         )
                     }
                     Text(
-                        if (active) "生效中" else if (cd > 0) cd.toString() + "天" else "启用",
+                        if (active) {
+                            val left = s.activePolicies.firstOrNull { it.id == pol.id }?.daysLeft ?: 0
+                            "生效中 ${left}天"
+                        } else if (cd > 0) "冷却 ${cd}天" else "启用",
                         fontSize = 11.sp,
                         color = if (active) C.accentGreen.toColor()
                         else if (cd > 0) C.textFaint.toColor() else C.accentRed.toColor(),
@@ -744,7 +771,9 @@ private fun HelpPanel() {
             HelpRow("二步", "点【住宅/商业/工业】激活分区笔刷，在路旁涂色（每格少量花费）。")
             HelpRow("三步", "时间自动流动：需求条（顶部住/商/工）越高，对应分区越快自动长楼、小楼升高楼。")
             HelpRow("四步", "【服务】放公园、电站、水塔、垃圾场进城区；【推平】拖过可拆建筑、拆路、清除分区。")
-            HelpRow("五步", "人口达标城市晋级：村庄→小镇→集镇→城区→都市→大都会。注意收支别破产。")
+            HelpRow("五步", "点【策】启用市政政策：减税/绿化/免费公交会立刻改需求、污染和拥堵，持续到倒计时结束。")
+            HelpRow("六步", "【≡】保存进度会写入当前槽位，主菜单「存档管理」能看到城市名、人口和日期。")
+            HelpRow("七步", "人口达标晋级：村庄→小镇→集镇→城区→都市→大都会。缺电缺水会停产，注意别破产。")
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -835,8 +864,20 @@ private fun DataPanel() {
                 fontFamily = LocalGameFont.current
             )
             Text(
-                "基础 ${bd.base.toInt()} · 服务 +${bd.service.toInt()} · 污染 ${bd.pollution.toInt()} · 覆盖 ${bd.coveragePenalty.toInt()} · 税 ${bd.taxPenalty.toInt()} · 事件 ${bd.event.toInt()}",
+                "基础 ${bd.base.toInt()} · 服务 ${bd.service.toInt()} · 污染 ${bd.pollution.toInt()} · 覆盖 ${bd.coveragePenalty.toInt()} · 税 ${bd.taxPenalty.toInt()} · 事件 ${bd.event.toInt()} · 政策 ${bd.policy.toInt()} · 通勤 ${bd.commute.toInt()} · 就业 ${bd.jobs.toInt()}",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "教育 ${s.education.toInt()} · 健康 ${s.health.toInt()} · 岗位 ${s.jobs} · 拥堵 ${(s.congestion * 100).toInt()}%",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "今日 税 ${UIHelper.fmtMoney(s.dayIncomeTax)} · 产业 ${UIHelper.fmtMoney(s.dayIncomeBiz)} · 贸易 ${UIHelper.fmtMoney(s.dayIncomeTrade)} · 维护 -${UIHelper.fmtMoney(s.lastUpkeep)} · 净 ${UIHelper.fmtMoney(s.lastNet)}万",
+                fontSize = 10.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                GameData.policyStatusLine(),
+                fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current
             )
 
             // 市政任务
@@ -1029,21 +1070,28 @@ private fun PausePanel() {
                 GameData.dateLabel() + " · 人口 " + s.population.toInt() + " · 满意 " + floor(s.happiness).toInt(),
                 fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
+            Text(
+                "当前槽位 " + (AppState.activeSlot + 1) +
+                    if (s.lastSavedLabel.isNotEmpty()) " · 上次 " + s.lastSavedLabel else " · 尚未手动保存",
+                fontSize = 11.sp, color = C.accentGold.toColor(), fontFamily = LocalGameFont.current
+            )
             PauseBtn("继续游戏", C.accentGreen.toColor(), Color.White) {
                 Sfx.play("sfx_click")
                 AppState.paused = false
             }
-            PauseBtn("保存进度", C.chipBg.toColor(), C.textDark.toColor()) {
-                Sfx.play("sfx_click")
+            PauseBtn("保存到槽位 " + (AppState.activeSlot + 1), C.chipBg.toColor(), C.textDark.toColor()) {
+                Sfx.play("sfx_save")
                 SaveManager.save(AppState.activeSlot)
-                MapRef.view?.setToast("已保存")
+                AppState.saveTick++
+                MapRef.view?.setToast("已写入槽位 " + (AppState.activeSlot + 1) + " · " + s.cityName)
             }
             PauseBtn("保存并返回主菜单", C.chipBg.toColor(), C.textDark.toColor()) {
-                Sfx.play("sfx_click")
+                Sfx.play("sfx_save")
                 SaveManager.save(AppState.activeSlot)
+                AppState.saveTick++
                 AppState.paused = false
                 AppState.screen = "menu"
-                AppState.menuScreen = "main"
+                AppState.menuScreen = "slots"
             }
         }
     }

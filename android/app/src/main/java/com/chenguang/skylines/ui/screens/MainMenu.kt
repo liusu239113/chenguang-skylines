@@ -47,11 +47,21 @@ import kotlin.random.Random
 // MainMenu — 标题画面 + 新游戏流程 + 存档管理，与端游基础体验对齐
 // ============================================================================
 
-private fun startGame(mapView: MapRenderView, name: String, seed: Int, difficulty: String, sandbox: Boolean) {
+private fun startGame(
+    mapView: MapRenderView,
+    name: String,
+    seed: Int,
+    difficulty: String,
+    sandbox: Boolean,
+    slot: Int
+) {
     GameData.seed = seed
     GameData.difficultyKey = difficulty
     GameData.sandbox = sandbox
     GameData.init(seed, name)
+    AppState.activeSlot = slot
+    SaveManager.save(slot)
+    AppState.saveTick++
     AppState.overlay = ""
     AppState.mode = "view"
     AppState.paused = false
@@ -72,7 +82,9 @@ fun MainMenuContent(mapView: MapRenderView) {
 @Composable
 private fun MainMenuScreen(mapView: MapRenderView) {
     val C = Config.COLORS
+    val saveTick = AppState.saveTick
     val recent = (0..2).firstOrNull { SaveManager.hasSlot(it) }
+    val recentMeta = recent?.let { SaveManager.meta(it) }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -112,8 +124,11 @@ private fun MainMenuScreen(mapView: MapRenderView) {
                     .background(C.textDark.toColor())
             )
 
-            if (recent != null) {
-                MenuButton("继续游戏", C.accentGreen.toColor(), true) {
+            if (recent != null && recentMeta != null && recentMeta.exists) {
+                MenuButton(
+                    "继续游戏 · " + recentMeta.cityName,
+                    C.accentGreen.toColor(), true
+                ) {
                     Sfx.play("sfx_click")
                     if (SaveManager.load(recent)) {
                         AppState.activeSlot = recent
@@ -124,6 +139,13 @@ private fun MainMenuScreen(mapView: MapRenderView) {
                         AppState.screen = "map"
                     }
                 }
+                Text(
+                    recentMeta.levelName + " · 人口 " + recentMeta.population +
+                        " · " + recentMeta.dateLabel + " · 槽位 " + (recent + 1),
+                    fontSize = 10.sp, color = C.textMid.toColor(),
+                    fontFamily = LocalGameFont.current, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             MenuButton("新游戏", C.accentBlue.toColor(), true) {
@@ -141,7 +163,8 @@ private fun MainMenuScreen(mapView: MapRenderView) {
 
             MenuButton("GM 模式（无限资源）", C.chipBg.toColor(), false) {
                 Sfx.play("sfx_click")
-                startGame(mapView, "沙盒之城", Random.nextInt(1, 100000), "normal", true)
+                val slot = (0..2).firstOrNull { !SaveManager.hasSlot(it) } ?: 0
+                startGame(mapView, "沙盒之城", Random.nextInt(1, 100000), "normal", true, slot)
             }
 
             Text(
@@ -178,6 +201,8 @@ private fun NewGameScreen(mapView: MapRenderView) {
     var name by remember { mutableStateOf("") }
     var seedText by remember { mutableStateOf("") }
     var difficulty by remember { mutableStateOf("normal") }
+    var slot by remember { mutableStateOf((0..2).firstOrNull { !SaveManager.hasSlot(it) } ?: 0) }
+    val saveTick = AppState.saveTick
 
     Box(
         modifier = Modifier.fillMaxSize().background(C.uiBackdrop.toColor()),
@@ -264,6 +289,43 @@ private fun NewGameScreen(mapView: MapRenderView) {
                 }
             }
 
+            Text(
+                "存档槽位（新游戏会立刻写入该槽）", fontSize = 12.sp, color = C.textMid.toColor(),
+                fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (i in 0..2) {
+                    val meta = SaveManager.meta(i)
+                    val active = slot == i
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                if (active) C.accentSoftBg.toColor() else C.chipBg.toColor(),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .border(
+                                1.dp,
+                                if (active) C.accentRed.toColor() else C.border2.toColor(),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .clickable { slot = i }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (meta.exists) "槽${i + 1}\n覆盖" else "槽${i + 1}\n空",
+                            fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = if (active) C.accentRed.toColor() else C.textDark.toColor(),
+                            fontFamily = LocalGameFont.current, textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+
             // 难度
             Text(
                 "难度", fontSize = 12.sp, color = C.textMid.toColor(),
@@ -310,7 +372,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                         Sfx.play("sfx_click")
                         val cityName = if (name.isBlank()) "晨光市" else name.trim()
                         val seed = if (seedText.isBlank()) Random.nextInt(1, 100000) else seedText.toIntOrNull() ?: Random.nextInt(1, 100000)
-                        startGame(mapView, cityName, seed, difficulty, false)
+                        startGame(mapView, cityName, seed, difficulty, false, slot)
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -363,13 +425,17 @@ private fun SlotsScreen(mapView: MapRenderView) {
                 ) {
                     if (meta.exists) {
                         Text(
-                            "槽位 ${slot + 1} · " + meta.cityName,
+                            "槽位 ${slot + 1} · " + meta.cityName + " · " + meta.levelName,
                             fontSize = 14.sp, fontWeight = FontWeight.Bold,
                             color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                         )
                         Text(
                             "人口 ${meta.population} · 资金 ¥${floor(meta.funds).toInt()}万 · " + meta.dateLabel,
                             fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                        )
+                        Text(
+                            "游玩 ${meta.playMinutes} 分钟 · 点载入进入该档",
+                            fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),

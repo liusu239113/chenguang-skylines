@@ -51,6 +51,20 @@ class CityState {
     var quest: Quest? = null
     // 城市名
     var cityName: String = Config.World.city
+    // 市民慢变量（对照拆解文档：教育/健康/就业驱动长线循环）
+    var education: Double = 18.0
+    var health: Double = 62.0
+    var jobs: Int = 0
+    var lastIncome: Double = 0.0
+    var lastUpkeep: Double = 0.0
+    var lastNet: Double = 0.0
+    var dayIncomeTax: Double = 0.0
+    var dayIncomeBiz: Double = 0.0
+    var dayIncomeTrade: Double = 0.0
+    var congestion: Double = 0.0
+    var bankruptDays: Int = 0
+    var playSeconds: Double = 0.0
+    var lastSavedLabel: String = ""
 }
 
 object GameData {
@@ -86,6 +100,7 @@ object GameData {
     fun init(seed: Int = 20260408, cityName: String = Config.World.city) {
         GameData.seed = seed
         World.generate(seed)
+        Growth.reset()
         current = createState()
         val s = current!!
         s.cityName = cityName
@@ -95,6 +110,8 @@ object GameData {
         monthFlash = false
         dayAcc = 0.0
         eventCooldown = 12
+        timeOfDay = 0.25f
+        weather = 0
         pushNews(
             "城市奠基",
             s.cityName + "迎来新任" + Config.World.playerRole +
@@ -128,19 +145,49 @@ object GameData {
     }
 
     // -----------------------------------------------------------------------
-    // 政策效果聚合
+    // 政策效果聚合（生效期内每天都吃到，而不是启用瞬间冲一次）
     // -----------------------------------------------------------------------
-    private fun policyMul(key: String): Double {
+    fun policyMul(key: String): Double {
         val s = current ?: return 1.0
         var m = 1.0
         for (ap in s.activePolicies) {
             val p = Config.POLICIES.firstOrNull { it.id == ap.id } ?: continue
-            when (key) {
-                "taxMul" -> m *= p.effect.taxMul
-                "incomeMul" -> m *= p.effect.incomeMul
+            val e = p.effect
+            m *= when (key) {
+                "taxMul" -> e.taxMul
+                "incomeMul" -> e.incomeMul
+                "pollutionMul" -> e.pollutionMul
+                "demandR" -> e.demandR
+                "demandC" -> e.demandC
+                "demandI" -> e.demandI
+                "powerUseMul" -> e.powerUseMul
+                "trafficMul" -> e.trafficMul
+                "fireMul" -> e.fireMul
+                "upgradeMul" -> e.upgradeMul
+                "upkeepMul" -> e.upkeepMul
+                else -> 1.0
             }
         }
         return m
+    }
+
+    fun policyHappyBonus(): Double {
+        val s = current ?: return 0.0
+        var h = 0.0
+        for (ap in s.activePolicies) {
+            val p = Config.POLICIES.firstOrNull { it.id == ap.id } ?: continue
+            h += p.effect.happy
+        }
+        return h
+    }
+
+    fun policyStatusLine(): String {
+        val s = current ?: return "暂无生效政策"
+        if (s.activePolicies.isEmpty()) return "暂无生效政策"
+        return s.activePolicies.joinToString(" · ") { ap ->
+            val p = Config.POLICIES.firstOrNull { it.id == ap.id }
+            (p?.name ?: ap.id) + " 剩" + ap.daysLeft + "天"
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -148,14 +195,15 @@ object GameData {
     // -----------------------------------------------------------------------
     data class HappyBreakdown(
         val base: Double, val service: Double, val pollution: Double,
-        val coveragePenalty: Double, val taxPenalty: Double, val event: Double, val target: Double
+        val coveragePenalty: Double, val taxPenalty: Double, val event: Double,
+        val policy: Double, val commute: Double, val jobs: Double, val target: Double
     )
 
-    /** 满意度分解（数据面板根因展示） */
+    /** 满意度分解（对照拆解文档：健康/教育/通勤/就业/犯罪/政策） */
     fun happinessBreakdown(): HappyBreakdown {
-        val s = current ?: return HappyBreakdown(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        val s = current ?: return HappyBreakdown(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         val st = World.stats()
-        val base = 52.0
+        val base = 48.0
         var service = 0.0
         for (e in World.allBuildings()) {
             val b = e.b
@@ -170,8 +218,8 @@ object GameData {
             }
             service += cfg.happy * min(1.2, covered / 14.0)
         }
-        val pollution = -st.pollution * E.pollutionHappy
-        val cov = World.coverage()
+        val pollution = -st.pollution * E.pollutionHappy * policyMul("pollutionMul")
+        val cov = s.lastCoverage ?: World.coverage()
         val coveragePenalty =
             -(1 - cov.power) * Config.COVERAGE.powerHappyPenalty -
                 (1 - cov.water) * Config.COVERAGE.waterHappyPenalty -
@@ -182,11 +230,19 @@ object GameData {
                 max(0.0, (s.taxInd - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
         var event = 0.0
         for (ev in s.activeEvents) event += ev.happy
+        val policy = policyHappyBonus()
+        val commute = -s.congestion * 10.0
+        val labor = max(1.0, s.population * 0.62)
+        val jobRate = min(1.2, s.jobs / labor)
+        val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06
         val target = max(
             Config.RESOURCES.happinessMin,
-            min(Config.RESOURCES.happinessMax, base + service + pollution + coveragePenalty + taxPenalty + event)
+            min(
+                Config.RESOURCES.happinessMax,
+                base + service + pollution + coveragePenalty + taxPenalty + event + policy + commute + jobs
+            )
         )
-        return HappyBreakdown(base, service, pollution, coveragePenalty, taxPenalty, event, target)
+        return HappyBreakdown(base, service, pollution, coveragePenalty, taxPenalty, event, policy, commute, jobs, target)
     }
 
     private fun computeHappinessTarget(st: com.chenguang.skylines.world.WorldStats): Double =
@@ -197,7 +253,7 @@ object GameData {
         s.day += 1
 
         val st = World.stats()
-        s.pollution = st.pollution
+        s.pollution = (st.pollution * policyMul("pollutionMul")).toInt()
         // 天气随机切换
         if (kotlin.random.Random.nextInt(100) < 8) {
             weather = kotlin.random.Random.nextInt(3)
@@ -206,20 +262,41 @@ object GameData {
         // 电力/供水供需：容量 vs 建筑数，不足则覆盖比例打折
         var powerCap = 0
         var waterCap = 0
+        var eduScore = 0.0
+        var healthScore = 0.0
+        var transitScore = 0.0
+        var tradeIncome = 0.0
         for (e in World.allBuildings()) {
-            if (e.b.isService) {
-                val cfg = World.serviceConfig(e.b.service)
-                when (cfg?.category) {
-                    Config.ServiceCat.POWER -> powerCap += 20
-                    Config.ServiceCat.WATER -> waterCap += 20
+            if (!e.b.isService) continue
+            val cfg = World.serviceConfig(e.b.service) ?: continue
+            powerCap += cfg.powerCap
+            waterCap += cfg.waterCap
+            when (cfg.category) {
+                Config.ServiceCat.EDUCATION -> eduScore += cfg.radius * 0.8
+                Config.ServiceCat.HEALTH -> healthScore += cfg.radius * 0.7
+                Config.ServiceCat.TRANSIT -> {
+                    transitScore += cfg.radius * 0.5
+                    when (cfg.id) {
+                        "harbor", "rail_station" -> tradeIncome += 8.0
+                        "airport" -> tradeIncome += 22.0
+                        "metro" -> tradeIncome += 4.0
+                    }
                 }
             }
         }
-        val bldN = st.resCount + st.comCount + st.indCount
-        val supplyFactor = if (bldN > 0) min(1.0, powerCap.toDouble() / bldN) else 1.0
-        val waterFactor = if (bldN > 0) min(1.0, waterCap.toDouble() / bldN) else 1.0
+        val bldN = max(1, st.resCount + st.comCount + st.indCount)
+        val powerNeed = bldN * policyMul("powerUseMul")
+        val supplyFactor = min(1.0, powerCap.toDouble() / powerNeed)
+        val waterFactor = min(1.0, waterCap.toDouble() / bldN)
         cov = cov.copy(power = cov.power * supplyFactor.toFloat(), water = cov.water * waterFactor.toFloat())
         s.lastCoverage = cov
+        s.education = min(100.0, s.education + (eduScore * 0.08) * (if (cov.education > 0.3f) 1.0 else 0.2) - 0.04)
+        s.health = min(100.0, max(20.0, 50.0 + healthScore * 0.6 - s.pollution * 0.35 + (cov.health * 18)))
+        s.jobs = st.comCap + st.indCap
+        s.congestion = max(0.0, min(1.0, (st.roadCount.coerceAtLeast(1).let { roads ->
+            val flowPressure = (s.population / 18.0 + st.comCount * 1.4 + st.indCount * 1.8) / roads
+            flowPressure * policyMul("trafficMul") * (1.0 - min(0.55, transitScore / 40.0))
+        })))
 
         // 人口 = 各住宅入住人数之和；住宅建好即迁入
         val waterMul: Double = if (cov.water < 0.99f) cov.water.toDouble() else 1.0
@@ -256,22 +333,40 @@ object GameData {
         }
         val powerMul = Config.COVERAGE.powerIncomeFloor +
             (1 - Config.COVERAGE.powerIncomeFloor) * cov.power
-        val bizBase = (bizCom * s.taxCom / 10.0 + bizInd * s.taxInd / 10.0) * powerMul
-        val income = (s.population * E.taxPerPopPerDay + E.baseIncomePerDay) *
-            policyMul("taxMul") * (s.taxRes / 10.0) +
-            bizBase + bizBase * (policyMul("incomeMul") - 1)
+        val eduMul = 0.85 + s.education / 250.0
+        val congMul = 1.0 - s.congestion * 0.35
+        val bizBase = (bizCom * s.taxCom / 10.0 + bizInd * s.taxInd / 10.0) * powerMul * eduMul * congMul
+        val taxIncome = (s.population * E.taxPerPopPerDay + E.baseIncomePerDay) *
+            policyMul("taxMul") * (s.taxRes / 10.0)
+        val bizIncome = bizBase * policyMul("incomeMul")
+        val income = taxIncome + bizIncome + tradeIncome
         var upkeep = st.roadCount * E.upkeepPerRoadDay
         for (e in World.allBuildings()) {
             if (!e.b.isService) continue
             val cfg = World.serviceConfig(e.b.service)
             if (cfg != null) upkeep += cfg.upkeep / 30.0
         }
+        upkeep *= policyMul("upkeepMul")
         val diff = difficultyDef()
         var eventIncomeMul = 1.0
         for (ev in s.activeEvents) eventIncomeMul *= ev.incomeMul
-        val net = (income * diff.incomeMul * eventIncomeMul) - (if (sandbox) 0.0 else upkeep * diff.upkeepMul)
+        val gross = income * diff.incomeMul * eventIncomeMul
+        val spend = if (sandbox) 0.0 else upkeep * diff.upkeepMul
+        val net = gross - spend
+        s.dayIncomeTax = taxIncome
+        s.dayIncomeBiz = bizIncome
+        s.dayIncomeTrade = tradeIncome
+        s.lastIncome = gross
+        s.lastUpkeep = spend
+        s.lastNet = net
         s.funds += net
         if (net >= 0) s.totalIncome += net else s.totalSpent += -net
+        if (s.funds < 0) {
+            s.bankruptDays += 1
+            if (s.bankruptDays == 1) pushNews("财政告急", "金库见底，公共服务将收缩。尽快扩税基或贷款。", "财政")
+        } else {
+            s.bankruptDays = 0
+        }
 
         // 贷款还款
         if (s.loanDebt > 0) {
@@ -293,7 +388,7 @@ object GameData {
         // 火灾：无消防覆盖的建筑有概率起火被烧毁
         val grown = World.allBuildings().filter { !it.b.isService }
         if (grown.isNotEmpty() && kotlin.random.Random.nextDouble() <
-            Config.COVERAGE.fireChancePerDay * diff.eventMul) {
+            Config.COVERAGE.fireChancePerDay * diff.eventMul * policyMul("fireMul")) {
             val victim = grown[kotlin.random.Random.nextInt(grown.size)]
             if (!World.isCoveredBy(victim.x, victim.y, Config.ServiceCat.SAFETY)) {
                 World.bulldoze(victim.x, victim.y)
@@ -414,6 +509,7 @@ object GameData {
     fun tick(dt: Float) {
         val s = current ?: return
         val simDt = dt * speed()
+        s.playSeconds += dt.toDouble()
         // 昼夜循环独立于游戏速度：固定 120 秒一轮（避免闪烁）
         timeOfDay = (timeOfDay + dt / 120f) % 1f
         if (simDt <= 0) return
@@ -494,19 +590,24 @@ object GameData {
 
     fun activatePolicy(pid: String): Pair<Boolean, String?> {
         val s = current ?: return false to "未开始"
-        if ((s.policyCooldowns[pid] ?: 0) > 0) return false to "冷却中"
         if (s.activePolicies.any { it.id == pid }) return false to "已生效"
-        val p = Config.POLICIES.firstOrNull { it.id == pid } ?: return false to "未知政策"
-        if (p.effect.cost > 0 && s.funds < p.effect.cost) return false to "资金不足"
-        // 与 Lua 一致：effect 内无 days 字段，实际取 cooldown
-        s.activePolicies.add(PolicyActive(pid, p.cooldown))
-        s.policyCooldowns[pid] = p.cooldown
-        if (p.effect.happy != 0) {
-            s.happiness = max(0.0, min(100.0, s.happiness + p.effect.happy))
+        if ((s.policyCooldowns[pid] ?: 0) > 0) {
+            return false to ("冷却中，还需 " + (s.policyCooldowns[pid] ?: 0) + " 天")
         }
-        if (p.effect.cost > 0) s.funds -= p.effect.cost
-        pushNews("新政发布：" + p.name, p.desc, "政策")
-        return true to null
+        val p = Config.POLICIES.firstOrNull { it.id == pid } ?: return false to "未知政策"
+        if (p.effect.cost > 0 && !sandbox && s.funds < p.effect.cost) return false to "资金不足"
+        s.activePolicies.add(PolicyActive(pid, p.days))
+        s.policyCooldowns[pid] = p.days + p.cooldown
+        if (p.effect.cost > 0 && !sandbox) {
+            s.funds -= p.effect.cost
+            s.totalSpent += p.effect.cost
+        }
+        pushNews(
+            "新政发布：" + p.name,
+            p.desc + " 生效 " + p.days + " 天。今日起税收/需求/污染按政策结算。",
+            "政策"
+        )
+        return true to ("已启用：" + p.name + " · 生效 " + p.days + " 天")
     }
 
     /** 市政贷款：借入 LOAN.amount，按日自动还款 */

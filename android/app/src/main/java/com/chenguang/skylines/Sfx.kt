@@ -17,7 +17,10 @@ object Sfx {
     private val ids = mutableMapOf<String, Int>()
     private var enabled = false
 
-    private val NAMES = listOf("sfx_build", "sfx_click", "sfx_demolish", "sfx_levelup", "sfx_month")
+    private val NAMES = listOf(
+        "sfx_build", "sfx_click", "sfx_demolish", "sfx_levelup", "sfx_month",
+        "sfx_policy", "sfx_save", "sfx_engine", "sfx_cash"
+    )
 
     fun init(context: Context) {
         try {

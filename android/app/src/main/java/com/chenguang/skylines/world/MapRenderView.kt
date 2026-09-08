@@ -268,7 +268,7 @@ class MapRenderView @JvmOverloads constructor(
         RGBA(234, 194, 88), RGBA(134, 170, 134), RGBA(96, 98, 104)
     )
     private val dirs = arrayOf(intArrayOf(1, 0), intArrayOf(0, 1), intArrayOf(-1, 0), intArrayOf(0, -1))
-    private val CARS_TARGET = 26
+    private val CARS_TARGET = 42
 
     private fun isRoadCell(x: Int, y: Int) = World.tile(x, y)?.road != null
 
@@ -380,17 +380,27 @@ class MapRenderView @JvmOverloads constructor(
             val ny = c.y + dirs[c.dir][1]
             // 红绿灯拦停：下一格是路口且红灯，且已接近路口
             val atCross = isCrossroad(nx, ny)
-            // 车距：前方同向有车则停（防穿模）
+            // 车距：同车道前后车保持间距，红灯在停止线排队
             var blocked = false
+            var followGap = 1f
             for (o in cars) {
-                if (o !== c && o.dir == c.dir && o.x == nx && o.y == ny && o.prog > c.prog) {
+                if (o === c) continue
+                if (o.dir != c.dir) continue
+                val sameCell = o.x == c.x && o.y == c.y && o.prog > c.prog
+                val nextCell = o.x == nx && o.y == ny && o.prog < 0.45f
+                if (sameCell || nextCell) {
                     blocked = true
+                    followGap = min(followGap, if (sameCell) o.prog - c.prog else 0.2f)
                     break
                 }
             }
-            c.stopped = (atCross && redNow && c.prog > 0.6f) || blocked
+            val rainSlow = if (GameData.weather == 1) 0.72f else 1f
+            val cong = GameData.current?.congestion?.toFloat() ?: 0f
+            c.stopped = (atCross && redNow && c.prog > 0.55f) || blocked
             if (!c.stopped) {
-                c.prog += c.speed * dt
+                c.prog += c.speed * dt * rainSlow * (0.55f + 0.45f * (1f - cong))
+            } else if (followGap < 0.35f) {
+                c.prog = max(0f, c.prog - dt * 0.4f)
             }
             while (c.prog >= 1) {
                 c.prog -= 1
@@ -879,49 +889,54 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // ---- 3.5) 车辆 ----
-        if (cell >= 9) {
+        // ---- 3.5) 车辆（车身+侧面+车顶，右行车道） ----
+        if (cell >= 8) {
             for (c in cars) {
                 val v = dirs[c.dir]
                 var sx = worldToScreenX(c.x - 1 + v[0] * c.prog + 0.5f)
                 var sy = worldToScreenY(c.y - 1 + v[1] * c.prog + 0.5f)
-                // 右行车道偏移（沿前进方向靠右）
-                val lane = cell * 0.12f
+                val kind = World.tile(c.x, c.y)?.road
+                val lane = cell * if (kind == "avenue") 0.18f else 0.12f
                 when (c.dir) {
-                    0 -> sy += lane   // 东行靠南
-                    2 -> sy -= lane   // 西行靠北
-                    1 -> sx -= lane   // 南行靠西
-                    3 -> sx += lane   // 北行靠东
+                    0 -> sy += lane
+                    2 -> sy -= lane
+                    1 -> sx -= lane
+                    3 -> sx += lane
                 }
                 if (sx > -cell && sy > -cell && sx < viewW + cell && sy < viewH + cell) {
                     val horiz = (c.dir == 0 || c.dir == 2)
-                    val L = cell * 0.46f
-                    val W = cell * 0.30f
+                    val L = cell * if (c.isFreight) 0.62f else 0.48f
+                    val W = cell * if (c.isFreight) 0.34f else 0.26f
+                    val lift = cell * 0.10f
                     val rx: Float; val ry: Float; val rw: Float; val rh: Float
                     if (horiz) {
                         rx = sx - L / 2f; ry = sy - W / 2f; rw = L; rh = W
                     } else {
                         rx = sx - W / 2f; ry = sy - L / 2f; rw = W; rh = L
                     }
-                    val rad = max(1.5f, cell * 0.08f)
-                    // 阴影
-                    fillRoundRect(canvas, rx + 1, ry + 1.5f, rw, rh, rad, RGBA(60, 70, 60, 60))
-                    // 车身
-                    fillRoundRect(canvas, rx, ry, rw, rh, rad, c.color)
-                    // 车窗
+                    val rad = max(1.4f, cell * 0.06f)
+                    fillRoundRect(canvas, rx + 1.4f, ry + 2.2f, rw, rh, rad, RGBA(40, 48, 40, 70))
+                    fillRoundRect(canvas, rx, ry - lift * 0.15f, rw, rh, rad, c.color.shade(0.72))
+                    fillRoundRect(canvas, rx, ry - lift, rw, rh * 0.78f, rad, c.color)
+                    val glass = if (nightLevel > 0.35f) RGBA(255, 220, 140) else RGBA(70, 92, 112)
                     if (horiz) {
-                        val wx = if (c.dir == 0) rx + rw * 0.55f else rx + rw * 0.18f
-                        fillRect(canvas, wx, ry + rh * 0.18f, rw * 0.27f, rh * 0.64f, RGBA(70, 84, 96))
+                        val wx = if (c.dir == 0) rx + rw * 0.52f else rx + rw * 0.16f
+                        fillRect(canvas, wx, ry - lift + rh * 0.16f, rw * 0.28f, rh * 0.42f, glass)
                     } else {
-                        val wy = if (c.dir == 1) ry + rh * 0.55f else ry + rh * 0.18f
-                        fillRect(canvas, rx + rw * 0.18f, wy, rw * 0.64f, rh * 0.27f, RGBA(70, 84, 96))
+                        val wy = if (c.dir == 1) ry - lift + rh * 0.50f else ry - lift + rh * 0.14f
+                        fillRect(canvas, rx + rw * 0.18f, wy, rw * 0.64f, rh * 0.22f, glass)
+                    }
+                    if (nightLevel > 0.4f) {
+                        val hx = if (c.dir == 0) rx + rw else if (c.dir == 2) rx else sx
+                        val hy = if (c.dir == 1) ry + rh else if (c.dir == 3) ry - lift else sy
+                        fillCircle(canvas, hx, hy, cell * 0.06f, RGBA(255, 236, 170, 180))
                     }
                 }
             }
         }
 
-        // ---- 4) 建筑 ----
-        val grownH = floatArrayOf(0.5f, 0.9f, 1.4f)
+        // ---- 4) 建筑（顶面+左右侧面+投影，按等级长高） ----
+        val grownH = floatArrayOf(0.62f, 1.15f, 1.95f)
         for (ty in y0..y1) {
             for (tx in x0..x1) {
                 val t = w.grid[ty - 1][tx - 1]
@@ -1263,53 +1278,84 @@ class MapRenderView @JvmOverloads constructor(
         val ry = ry0 + pad
         val rw = rw0 - pad * 2
         val rh = rh0 - pad * 2
+        val skew = min(hpx * 0.28f, cell * 0.42f)
         if (hpx > 1.5 && cell >= 6) {
-            // 侧面
+            // 地面投影（右下，统一太阳方向）
+            fillRect(
+                canvas, rx + skew * 0.6f + 2f, ry + rh - 1f,
+                rw + 2f, max(2f, cell * 0.10f), RGBA(40, 48, 40, 55)
+            )
+            // 左侧面（更暗）
+            path.reset()
+            path.moveTo(rx, ry + rh)
+            path.lineTo(rx - skew * 0.15f, ry + rh * 0.15f - hpx * 0.15f)
+            path.lineTo(rx, ry - hpx)
+            path.lineTo(rx, ry + rh)
+            path.close()
+            fillPath(canvas, path, base.shade(Config.BUILD.sideShade.toDouble() * 0.82))
+            // 右侧面
+            path.reset()
+            path.moveTo(rx + rw, ry + rh)
+            path.lineTo(rx + rw + skew, ry + rh * 0.35f - hpx * 0.12f)
+            path.lineTo(rx + rw + skew, ry - hpx + rh * 0.18f)
+            path.lineTo(rx + rw, ry - hpx)
+            path.close()
+            fillPath(canvas, path, base.shade(Config.BUILD.sideShade.toDouble()))
+            // 正立面
             path.reset()
             path.moveTo(rx, ry + rh)
             path.lineTo(rx, ry - hpx)
             path.lineTo(rx + rw, ry - hpx)
             path.lineTo(rx + rw, ry + rh)
             path.close()
-            fillPath(canvas, path, base.shade(Config.BUILD.sideShade.toDouble()))
-            // 楼层横线（强化立体层次）
-            if (hpx >= cell * 0.35f && cell >= 12) {
-                strokeColor(base.shade(0.45), 255, max(0.5f, cell * 0.015f))
-                var fy = ry + rh - cell * 0.3f
-                while (fy > ry - hpx + cell * 0.05f) {
-                    canvas.drawLine(rx, fy, rx + rw, fy, paint)
-                    fy -= cell * 0.3f
+            fillPath(canvas, path, base.shade(0.82))
+            // 楼层横线
+            if (hpx >= cell * 0.28f && cell >= 10) {
+                strokeColor(base.shade(0.48), 180, max(0.5f, cell * 0.012f))
+                var fy = ry + rh - cell * 0.26f
+                while (fy > ry - hpx + cell * 0.04f) {
+                    canvas.drawLine(rx + 1, fy, rx + rw - 1, fy, paint)
+                    fy -= cell * 0.26f
                 }
             }
-            // 窗户
-            if (cell >= 14 && hpx >= cell * 0.35f) {
-                val cols = max(1, floor(rw / (cell * 0.26f)).toInt())
-                val rows = max(1, floor((hpx + rh) / (cell * 0.26f)).toInt() - 1)
-                fillColor(if (nightLevel > 0.3f) RGBA(255, 218, 120) else base.shade(0.48))
+            // 窗户点阵
+            if (cell >= 11 && hpx >= cell * 0.28f) {
+                val cols = max(1, floor(rw / (cell * 0.22f)).toInt())
+                val rows = max(1, floor((hpx + rh) / (cell * 0.22f)).toInt() - 1)
+                val lit = nightLevel > 0.3f
                 for (wi in 0 until cols) {
                     for (wj in 0 until rows) {
-                        val wx = rx + (rw - cols * cell * 0.26f) * 0.5f + wi * cell * 0.26f + cell * 0.05f
-                        val wy = ry + rh - cell * 0.20f - wj * cell * 0.26f
-                        if (wy > ry - hpx + cell * 0.05f) {
-                            canvas.drawRect(wx, wy - cell * 0.09f, wx + cell * 0.12f, wy - cell * 0.09f + cell * 0.15f, paint)
+                        val wx = rx + (rw - cols * cell * 0.22f) * 0.5f + wi * cell * 0.22f + cell * 0.04f
+                        val wy = ry + rh - cell * 0.18f - wj * cell * 0.22f
+                        if (wy > ry - hpx + cell * 0.04f) {
+                            val on = !lit || ((wi * 7 + wj * 13) % 5 != 0)
+                            fillColor(
+                                if (lit && on) RGBA(255, 214, 118, 230)
+                                else if (lit) RGBA(48, 56, 70, 200)
+                                else base.shade(0.42)
+                            )
+                            canvas.drawRect(
+                                wx, wy - cell * 0.08f,
+                                wx + cell * 0.11f, wy - cell * 0.08f + cell * 0.13f, paint
+                            )
                         }
                     }
                 }
             }
-            // 顶面
+            // 顶面（提亮 + 屋檐）
             fillRoundRect(
-                canvas, rx, ry - hpx, rw, rh, min(2.5f, cell * 0.1f),
+                canvas, rx - 0.6f, ry - hpx - 1.2f, rw + 1.2f, rh * 0.92f,
+                min(2.8f, cell * 0.12f),
                 base.shade(Config.BUILD.roofLight.toDouble())
             )
             strokeRoundRect(
-                canvas, rx, ry - hpx, rw, rh, min(2.5f, cell * 0.1f),
-                base.shade(0.55), 255, max(0.5f, cell * 0.02f)
+                canvas, rx - 0.6f, ry - hpx - 1.2f, rw + 1.2f, rh * 0.92f,
+                min(2.8f, cell * 0.12f),
+                base.shade(0.50), 255, max(0.6f, cell * 0.025f)
             )
         } else {
             fillRoundRect(canvas, rx, ry, rw, rh, min(2.5f, cell * 0.12f), base)
         }
-        // 地面投影
-        fillRect(canvas, rx + 1, ry + rh - 1, rw - 2, max(1.5f, cell * 0.08f), RGBA(60, 70, 60, 46))
     }
 
     /** 基础设施/交通设施的单字符号（模型标识） */
@@ -1317,13 +1363,18 @@ class MapRenderView @JvmOverloads constructor(
         "wind_farm" -> "风"
         "solar_plant" -> "阳"
         "coal_plant" -> "煤"
+        "nuclear_plant" -> "核"
         "water_tower" -> "水"
         "pump_station" -> "泵"
         "landfill" -> "垃"
+        "incinerator" -> "焚"
         "bus_stop" -> "公"
+        "metro" -> "地"
         "rail_station" -> "铁"
         "harbor" -> "港"
         "airport" -> "机"
+        "police" -> "警"
+        "university" -> "大"
         else -> ""
     }
 

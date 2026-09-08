@@ -19,7 +19,9 @@ data class SlotMeta(
     val population: Int,
     val funds: Double,
     val dateLabel: String,
-    val lastSaved: Long
+    val lastSaved: Long,
+    val levelName: String = "",
+    val playMinutes: Int = 0
 )
 
 object SaveManager {
@@ -49,7 +51,9 @@ object SaveManager {
                 j.optInt("population", 0),
                 j.optDouble("funds", 0.0),
                 j.optString("dateLabel", ""),
-                f.lastModified()
+                f.lastModified(),
+                j.optString("levelName", "村庄"),
+                j.optInt("playMinutes", 0)
             )
         } catch (t: Throwable) {
             SlotMeta(false, "", 0, 0.0, "", 0L)
@@ -70,6 +74,13 @@ object SaveManager {
         json.put("population", s.population.toInt())
         json.put("funds", s.funds)
         json.put("dateLabel", GameData.dateLabel())
+        json.put("levelName", World.cityLevel().name)
+        json.put("playMinutes", (s.playSeconds / 60.0).toInt())
+        json.put("education", s.education)
+        json.put("health", s.health)
+        json.put("jobs", s.jobs)
+        json.put("congestion", s.congestion)
+        json.put("playSeconds", s.playSeconds)
         json.put("year", s.year)
         json.put("month", s.month)
         json.put("day", s.day)
@@ -148,6 +159,7 @@ object SaveManager {
         json.put("tiles", tiles)
 
         path(slot).writeText(json.toString())
+        s.lastSavedLabel = GameData.dateLabel() + " · 槽位 " + (slot + 1)
     }
 
     fun load(slot: Int): Boolean {
@@ -214,6 +226,12 @@ object SaveManager {
         s.taxInd = json.optInt("taxInd", Config.TAX.default)
         s.loanDebt = json.optDouble("loanDebt", 0.0)
         s.loanCooldown = json.optInt("loanCooldown", 0)
+        s.education = json.optDouble("education", 18.0)
+        s.health = json.optDouble("health", 62.0)
+        s.jobs = json.optInt("jobs", 0)
+        s.congestion = json.optDouble("congestion", 0.0)
+        s.playSeconds = json.optDouble("playSeconds", 0.0)
+        s.lastSavedLabel = json.optString("dateLabel", "") + " · 槽位 " + (slot + 1)
 
         s.activePolicies.clear()
         val ap = json.optJSONArray("activePolicies")

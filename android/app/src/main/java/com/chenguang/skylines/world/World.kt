@@ -453,7 +453,10 @@ class World {
                     if (t.road != null) s.roadCount++
                     val b = t.building ?: continue
                     if (b.isService) {
-                        s.serviceCount++
+                        if (b.ax == x && b.ay == y) {
+                            s.serviceCount++
+                            s.pollution += serviceConfig(b.service)?.pollution ?: 0
+                        }
                     } else {
                         val lv = Config.GROWN[b.zone]?.levels?.getOrNull(b.level - 1) ?: continue
                         when (b.zone) {
@@ -477,6 +480,27 @@ class World {
                 if (pop >= Config.CITY_LEVELS[i].popReq) return Config.CITY_LEVELS[i]
             }
             return Config.CITY_LEVELS[0]
+        }
+
+        /** 地价：滨水/绿地/教育抬升，工业/污染拉低（建筑升级门槛） */
+        fun landValue(x: Int, y: Int): Int {
+            var v = 4
+            for (dy in -3..3) {
+                for (dx in -3..3) {
+                    val t = tile(x + dx, y + dy) ?: continue
+                    if (t.terrain == "water") v += 2
+                    if (t.terrain == "forest") v += 1
+                    val b = t.building ?: continue
+                    if (b.isService) {
+                        val cfg = serviceConfig(b.service)
+                        if (cfg?.landValue == true) v += 2
+                        if ((cfg?.pollution ?: 0) > 0) v -= 2
+                    } else if (b.zone == "industrial") {
+                        v -= 1
+                    }
+                }
+            }
+            return v
         }
 
         // -------------------------------------------------------------------

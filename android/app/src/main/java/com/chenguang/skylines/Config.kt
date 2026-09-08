@@ -184,52 +184,64 @@ object Config {
         val desc: String,
         val category: String = ServiceCat.AMENITY,
         val unlockPop: Int = 0,           // 人口达到后解锁（里程碑）
-        val pollution: Int = 0            // 设施自身污染（燃煤电厂等）
+        val pollution: Int = 0,           // 设施自身污染（燃煤电厂等）
+        val powerCap: Int = 0,            // 发电容量（建筑数）
+        val waterCap: Int = 0             // 供水容量
     )
 
     val SERVICES: List<ServiceDef> = listOf(
-        // ---- 生活品质（开局可用） ----
+        // ---- 生活品质 ----
         ServiceDef("park", "公园", 260, 4, 4, 5, true, 1, 1,
-            "小绿地，提升周边满意度与地价。", ServiceCat.AMENITY, 0),
+            "绿地吸收污染，抬升周边地价与满意度。", ServiceCat.AMENITY, 0),
         ServiceDef("plaza", "广场", 900, 8, 5, 8, true, 2, 2,
-            "市民广场，显著提升满意度。", ServiceCat.AMENITY, 500),
-        // ---- 电力 ----
+            "市民广场，显著提升满意度与地价。", ServiceCat.AMENITY, 500),
+        // ---- 电力（容量决定能否撑住全城） ----
         ServiceDef("wind_farm", "风电场", 500, 6, 6, 0, false, 1, 1,
-            "清洁风电，覆盖周边供电。", ServiceCat.POWER, 0),
+            "清洁风电。容量 18，适合前期。", ServiceCat.POWER, 0, 0, 18, 0),
         ServiceDef("solar_plant", "太阳能电站", 800, 5, 7, 0, false, 2, 2,
-            "大面积光伏，供电半径更大。", ServiceCat.POWER, 300),
+            "光伏电站。容量 36，无污染。", ServiceCat.POWER, 300, 0, 36, 0),
         ServiceDef("coal_plant", "燃煤电厂", 1200, 18, 10, -3, false, 2, 2,
-            "供电半径大，但产生污染。", ServiceCat.POWER, 0, 8),
+            "容量 70，稳定但污染重。", ServiceCat.POWER, 0, 8, 70, 0),
+        ServiceDef("nuclear_plant", "核电站", 4200, 45, 14, 0, false, 3, 3,
+            "容量 180，维护昂贵，污染极低。", ServiceCat.POWER, 4000, 1, 180, 0),
         // ---- 供水 ----
         ServiceDef("water_tower", "水塔", 300, 4, 5, 0, false, 1, 1,
-            "为周边城区供水。", ServiceCat.WATER, 0),
+            "抽取净水。容量 18。", ServiceCat.WATER, 0, 0, 0, 18),
         ServiceDef("pump_station", "水泵站", 600, 7, 8, 0, false, 1, 1,
-            "大范围供水。", ServiceCat.WATER, 150),
+            "大范围供水。容量 40。", ServiceCat.WATER, 150, 0, 0, 40),
         // ---- 垃圾 ----
         ServiceDef("landfill", "垃圾场", 350, 7, 6, 0, false, 1, 1,
-            "收集周边生活垃圾，防止堆积。", ServiceCat.GARBAGE, 100),
+            "填埋生活垃圾，满载后污染加重。", ServiceCat.GARBAGE, 100, 3),
+        ServiceDef("incinerator", "焚烧厂", 900, 16, 8, -2, false, 2, 2,
+            "烧掉垃圾并发电，有空气污染。", ServiceCat.GARBAGE, 300, 5, 12, 0),
         // ---- 医疗 ----
         ServiceDef("clinic", "诊所", 640, 12, 7, 5, false, 1, 1,
-            "基础医疗，覆盖区满意度提升。", ServiceCat.HEALTH, 0),
+            "基础医疗，覆盖区健康与满意度提升。", ServiceCat.HEALTH, 0),
         ServiceDef("hospital", "医院", 900, 15, 8, 6, true, 2, 2,
-            "大型医疗，覆盖更广、满意度更高。", ServiceCat.HEALTH, 700),
-        // ---- 教育 ----
-        ServiceDef("school", "学校", 520, 10, 7, 4, true, 2, 2,
-            "教育覆盖，满意度与地价提升。", ServiceCat.EDUCATION, 0),
+            "大型医疗，覆盖更广。", ServiceCat.HEALTH, 700),
+        // ---- 教育（驱动产业升级） ----
+        ServiceDef("school", "小学", 520, 10, 7, 4, true, 2, 2,
+            "基础教育，缓慢提升受教育人口。", ServiceCat.EDUCATION, 0),
         ServiceDef("middle_school", "中学", 700, 9, 8, 4, true, 2, 2,
-            "进阶教育，提升商业与工业效益。", ServiceCat.EDUCATION, 300),
+            "中等教育，商业与制造业需要。", ServiceCat.EDUCATION, 300),
+        ServiceDef("university", "大学", 1800, 22, 10, 6, true, 3, 3,
+            "高等教育，解锁高科技工厂。", ServiceCat.EDUCATION, 600),
         // ---- 安全 ----
         ServiceDef("fire_station", "消防站", 600, 10, 7, 0, false, 1, 1,
-            "扑灭火灾，保护城区。", ServiceCat.SAFETY, 300),
+            "扑灭火灾，无覆盖则建筑会烧毁。", ServiceCat.SAFETY, 100),
+        ServiceDef("police", "警察局", 700, 12, 8, 3, false, 1, 1,
+            "降低犯罪，提升安全感与地价。", ServiceCat.SAFETY, 100),
         // ---- 公交 ----
         ServiceDef("bus_stop", "公交站", 220, 3, 6, 4, false, 1, 1,
-            "公共交通，缓解拥堵、提升满意度。", ServiceCat.TRANSIT, 150),
+            "缓解拥堵，缩短通勤。", ServiceCat.TRANSIT, 150),
+        ServiceDef("metro", "地铁站", 1600, 18, 10, 6, true, 2, 2,
+            "大运量，显著降低拥堵。", ServiceCat.TRANSIT, 600),
         ServiceDef("rail_station", "火车站", 2000, 20, 10, 8, true, 2, 2,
-            "铁路枢纽，连接城外、大运量。", ServiceCat.TRANSIT, 1500),
+            "连接城外，货运与游客。", ServiceCat.TRANSIT, 1500),
         ServiceDef("harbor", "港口", 1800, 15, 8, 6, true, 2, 2,
-            "滨水货运码头。", ServiceCat.TRANSIT, 1500),
+            "滨水货运码头，工业出口加成。", ServiceCat.TRANSIT, 1500),
         ServiceDef("airport", "机场", 5000, 40, 12, 10, true, 3, 3,
-            "航空枢纽，带来旅游收入。", ServiceCat.TRANSIT, 4000)
+            "航空枢纽，旅游收入与满意度。", ServiceCat.TRANSIT, 4000)
     )
 
     // -----------------------------------------------------------------------
@@ -243,10 +255,13 @@ object Config {
     }
 
     object GROWTH {
-        const val tickSeconds = 1.6
-        const val spawnChance = 0.55
-        const val upgradeChance = 0.30
-        const val demandMin = 0.15
+        const val tickSeconds = 1.4
+        const val spawnChance = 0.62
+        const val upgradeChance = 0.34
+        const val demandMin = 0.12
+        const val abandonHappy = 28.0
+        const val upgradeAgeDays = 12
+        const val landValueUpgrade = 8
     }
 
     // -----------------------------------------------------------------------
@@ -362,13 +377,22 @@ object Config {
     )
 
     // -----------------------------------------------------------------------
-    // 政策
+    // 政策（对照《详细拆解文档》：启用后必须持续改数值，不能只弹一次新闻）
     // -----------------------------------------------------------------------
     data class PolicyEffect(
-        val happy: Int = 0,
-        val taxMul: Double = 1.0,
-        val incomeMul: Double = 1.0,
-        val cost: Int = 0
+        val happy: Int = 0,                 // 生效期内每日叠加到满意度目标
+        val taxMul: Double = 1.0,           // 税收倍率
+        val incomeMul: Double = 1.0,        // 产业收入倍率
+        val cost: Int = 0,                  // 一次性财政支出
+        val pollutionMul: Double = 1.0,     // 污染倍率
+        val demandR: Double = 1.0,          // 住宅需求倍率
+        val demandC: Double = 1.0,
+        val demandI: Double = 1.0,
+        val powerUseMul: Double = 1.0,      // 用电倍率
+        val trafficMul: Double = 1.0,       // 拥堵倍率
+        val fireMul: Double = 1.0,          // 火灾概率倍率
+        val upgradeMul: Double = 1.0,       // 升级速度倍率
+        val upkeepMul: Double = 1.0         // 维护费倍率
     )
 
     data class PolicyDef(
@@ -381,16 +405,30 @@ object Config {
     )
 
     val POLICIES: List<PolicyDef> = listOf(
-        PolicyDef("cut_tax", "减负降税", "满意度 +12，30 日内税收 -25%",
-            PolicyEffect(happy = 12, taxMul = 0.75), 30, 60),
-        PolicyDef("raise_tax", "增收节支", "30 日内税收 +30%，满意度 -10",
-            PolicyEffect(happy = -10, taxMul = 1.30), 30, 60),
-        PolicyDef("greening", "绿化行动", "满意度 +8，支出 200 万",
-            PolicyEffect(happy = 8, cost = 200), 1, 45),
-        PolicyDef("bizboost", "营商激励", "45 日内商业/工业收入 +25%",
-            PolicyEffect(incomeMul = 1.25), 45, 90),
-        PolicyDef("welfare", "民生改善", "满意度 +15，支出 400 万",
-            PolicyEffect(happy = 15, cost = 400), 1, 60)
+        PolicyDef("cut_tax", "减负降税", "30 日：税率收入 -25%，满意度目标 +12，住宅需求 +15%",
+            PolicyEffect(happy = 12, taxMul = 0.75, demandR = 1.15), 30, 45),
+        PolicyDef("raise_tax", "增收节支", "30 日：税收 +30%，满意度 -10，三项需求 -12%",
+            PolicyEffect(happy = -10, taxMul = 1.30, demandR = 0.88, demandC = 0.88, demandI = 0.88), 30, 45),
+        PolicyDef("greening", "绿化行动", "30 日：污染 -40%，满意度 +8。一次性支出 200 万",
+            PolicyEffect(happy = 8, cost = 200, pollutionMul = 0.60), 30, 40),
+        PolicyDef("bizboost", "营商激励", "45 日：商/工收入 +25%，商业需求 +20%",
+            PolicyEffect(incomeMul = 1.25, demandC = 1.20, demandI = 1.10), 45, 70),
+        PolicyDef("welfare", "民生改善", "30 日：满意度 +15。一次性支出 400 万",
+            PolicyEffect(happy = 15, cost = 400), 30, 50),
+        PolicyDef("smoke_alarm", "烟雾检测", "60 日：火灾风险 -70%。一次性支出 180 万",
+            PolicyEffect(cost = 180, fireMul = 0.30), 60, 50),
+        PolicyDef("free_transit", "免费公交", "40 日：拥堵 -35%，满意度 +6，维护费 +18%",
+            PolicyEffect(happy = 6, trafficMul = 0.65, upkeepMul = 1.18), 40, 55),
+        PolicyDef("power_save", "电力节约", "40 日：用电 -15%，满意度 -4",
+            PolicyEffect(happy = -4, powerUseMul = 0.85), 40, 40),
+        PolicyDef("ev_boost", "电动车鼓励", "45 日：污染 -20%，拥堵 -10%，维护费 +12%",
+            PolicyEffect(pollutionMul = 0.80, trafficMul = 0.90, upkeepMul = 1.12), 45, 50),
+        PolicyDef("high_density", "高密住宅鼓励", "40 日：住宅升级 +80%，住宅需求 +25%，拥堵 +20%",
+            PolicyEffect(demandR = 1.25, upgradeMul = 1.80, trafficMul = 1.20), 40, 60),
+        PolicyDef("industry_plan", "工业空间规划", "40 日：工业产出 +20%，工业需求 +15%，污染 +25%",
+            PolicyEffect(incomeMul = 1.12, demandI = 1.15, pollutionMul = 1.25), 40, 55),
+        PolicyDef("night_econ", "夜间经济", "30 日：商业收入 +18%，满意度 -5",
+            PolicyEffect(happy = -5, incomeMul = 1.18, demandC = 1.15), 30, 45)
     )
 
     // -----------------------------------------------------------------------
