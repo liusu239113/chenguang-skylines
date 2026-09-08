@@ -120,9 +120,9 @@ class MapRenderView @JvmOverloads constructor(
     }
 
     fun resetCamera() {
-        camScale = 1.3f
+        camScale = 1.55f
         val w = World.current
-        setCenterTile((w?.spawnX ?: 8) + 1.5f, (w?.spawnY ?: 8) + 1f)
+        setCenterTile((w?.spawnX ?: 8).toFloat(), (w?.spawnY ?: 8).toFloat())
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -233,7 +233,10 @@ class MapRenderView @JvmOverloads constructor(
 
     fun clearSelection() {
         hasSelection = false
+        selectedX = -1
+        selectedY = -1
         Traffic.clearSelection()
+        onTileChanged?.invoke()
     }
 
     fun setToast(msg: String) {
@@ -665,6 +668,9 @@ class MapRenderView @JvmOverloads constructor(
                 val sx = worldToScreenX((tx - 1).toFloat())
                 val sy = worldToScreenY((ty - 1).toFloat())
                 fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, zoneBaseColor(t, tx, ty))
+                if (!World.isUnlocked(tx, ty) && t.road != "highway") {
+                    fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, RGBA(28, 36, 42, 150))
+                }
             }
         }
 

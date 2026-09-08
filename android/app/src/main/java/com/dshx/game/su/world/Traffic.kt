@@ -27,7 +27,7 @@ data class DriverCard(
 )
 
 class TrafficCar(
-    var kind: String,                 // local | visitor | freight
+    var kind: String,                 // local | visitor | freight | through
     var x: Int,
     var y: Int,
     var dir: Int,
@@ -115,6 +115,7 @@ object Traffic {
         World.refreshHighwayLink()
         syncHouseholdCars()
         syncVisitors()
+        syncThroughTraffic()
         syncTrains()
         syncPlanes()
         driveCars(dt)
@@ -158,7 +159,8 @@ object Traffic {
         val commute = tod in 0.08f..0.20f || tod in 0.50f..0.80f
         for (c in cars) {
             if (c.kind != "local") continue
-            if (commute) {
+            val samePlace = abs(c.driver.workX - c.homeX) + abs(c.driver.workY - c.homeY) <= 1
+            if (commute && !samePlace) {
                 if (c.parked && tod < 0.50f) {
                     c.parked = false
                     c.destX = c.driver.workX
@@ -175,18 +177,17 @@ object Traffic {
                     } else {
                         c.destX = c.homeX; c.destY = c.homeY
                     }
-                    val road = Citizens.nearestRoad(c.x, c.y) ?: Citizens.nearestRoad(c.homeX, c.homeY)
+                    val road = Citizens.nearestRoad(c.homeX, c.homeY)
                     if (road != null) {
-                        c.x = road.first; c.y = road.second
+                        c.x = road.first; c.y = road.second; c.prog = 0.15f
                     }
                 }
-            } else {
-                if (!c.parked && abs(c.x - c.homeX) + abs(c.y - c.homeY) <= 3) {
+            } else if (!c.parked) {
+                c.destX = c.homeX
+                c.destY = c.homeY
+                if (abs(c.x - c.homeX) + abs(c.y - c.homeY) <= 2) {
                     c.parked = true
                     c.cruise = 0f
-                } else if (!c.parked) {
-                    c.destX = c.homeX
-                    c.destY = c.homeY
                 }
             }
         }
@@ -288,7 +289,7 @@ object Traffic {
         val ramps = World.highwayRamps()
         if (!w.highwayConnected || ramps.isEmpty()) {
             cars.removeAll { it.kind == "visitor" || it.kind == "freight" }
-            visitorsToday = 0
+            visitorsToday = cars.count { it.kind == "through" }
             return
         }
         val wantVisitors = min(10, max(0, score / 90))
@@ -297,7 +298,58 @@ object Traffic {
         val haveF = cars.count { it.kind == "freight" }
         if (haveV < wantVisitors) spawnVisitor(ramps, freight = false)
         if (haveF < wantFreight) spawnVisitor(ramps, freight = true)
-        visitorsToday = cars.count { it.kind == "visitor" || it.kind == "freight" }
+        visitorsToday = cars.count { it.kind == "visitor" || it.kind == "freight" || it.kind == "through" }
+    }
+
+    private fun highwayLoop(): List<Pair<Int, Int>> {
+        val w = World.current ?: return emptyList()
+        val out = mutableListOf<Pair<Int, Int>>()
+        for (y in 1..w.rows) for (x in 1..w.cols) {
+            if (w.grid[y - 1][x - 1].road == "highway") out.add(x to y)
+        }
+        return out
+    }
+
+    private fun syncThroughTraffic() {
+        val loop = highwayLoop()
+        if (loop.size < 8) {
+            cars.removeAll { it.kind == "through" }
+            return
+        }
+        val want = 8
+        val have = cars.count { it.kind == "through" }
+        if (have > want) {
+            val extra = cars.filter { it.kind == "through" }.drop(want)
+            cars.removeAll(extra.toSet())
+            return
+        }
+        repeat(want - have) {
+            val start = loop[Random.nextInt(loop.size)]
+            var dest = loop[Random.nextInt(loop.size)]
+            var guard = 0
+            while (abs(dest.first - start.first) + abs(dest.second - start.second) < 8 && guard++ < 8) {
+                dest = loop[Random.nextInt(loop.size)]
+            }
+            val from = VISITOR_FROM[Random.nextInt(VISITOR_FROM.size)]
+            val driver = makeDriver(start.first, start.second, "过路司机", dest.first, dest.second, "外环高速", local = false)
+                .copy(from = from, homeName = from, carType = if (Random.nextFloat() < 0.25f) "厢式货车" else "过路轿车")
+            cars.add(
+                TrafficCar(
+                    kind = "through",
+                    x = start.first, y = start.second,
+                    dir = pickDir(start.first, start.second, "through"),
+                    prog = Random.nextFloat() * 0.8f,
+                    cruise = 2.0f,
+                    maxSpeed = 2.4f,
+                    color = carColors[Random.nextInt(carColors.size)],
+                    destX = dest.first, destY = dest.second,
+                    homeX = dest.first, homeY = dest.second,
+                    parked = false,
+                    driver = driver,
+                    houseKey = ""
+                )
+            )
+        }
     }
 
     private fun spawnVisitor(ramps: List<Pair<Int, Int>>, freight: Boolean) {
@@ -341,24 +393,42 @@ object Traffic {
         localMoving = moving.count { it.kind == "local" }
         val gone = mutableListOf<TrafficCar>()
         for (c in moving) {
-            if (!isRoad(c.x, c.y)) {
-                val nr = Citizens.nearestRoad(c.x, c.y)
-                if (nr == null) {
-                    if (c.kind != "local") gone.add(c)
-                    else c.parked = true
-                    continue
+            if (!isRoad(c.x, c.y, c.kind)) {
+                if (c.kind == "through") {
+                    val loop = highwayLoop()
+                    if (loop.isEmpty()) {
+                        gone.add(c)
+                        continue
+                    }
+                    val n = loop[Random.nextInt(loop.size)]
+                    c.x = n.first; c.y = n.second; c.prog = 0.2f
+                } else {
+                    val nr = Citizens.nearestRoad(c.x, c.y)
+                    if (nr == null) {
+                        if (c.kind != "local") gone.add(c)
+                        else c.parked = true
+                        continue
+                    }
+                    c.x = nr.first; c.y = nr.second; c.prog = 0.2f
                 }
-                c.x = nr.first; c.y = nr.second; c.prog = 0.2f
             }
             if (abs(c.x - c.destX) + abs(c.y - c.destY) <= 2) {
                 when (c.kind) {
+                    "through" -> {
+                        val loop = highwayLoop()
+                        if (loop.isNotEmpty()) {
+                            val n = loop[Random.nextInt(loop.size)]
+                            c.destX = n.first; c.destY = n.second
+                            c.homeX = n.first; c.homeY = n.second
+                        }
+                    }
                     "visitor", "freight" -> {
                         if (c.destX == c.homeX && c.destY == c.homeY) {
                             gone.add(c)
                             continue
                         } else {
                             c.wait += dt
-                            if (c.wait > 2.4f) {
+                            if (c.wait > 1.2f) {
                                 c.wait = 0f
                                 val ramps = World.highwayRamps()
                                 if (ramps.isNotEmpty()) {
@@ -378,9 +448,23 @@ object Traffic {
                     }
                 }
             }
+            if (c.kind == "local" && c.cruise < 0.04f &&
+                c.destX == c.homeX && c.destY == c.homeY &&
+                !isCrossroad(c.x, c.y)
+            ) {
+                c.wait += dt
+                if (c.wait > 4f) {
+                    c.parked = true
+                    c.cruise = 0f
+                    c.wait = 0f
+                    continue
+                }
+            } else if (c.kind == "local" && c.cruise > 0.04f) {
+                c.wait = 0f
+            }
             val nx = c.x + dirs[c.dir][0]
             val ny = c.y + dirs[c.dir][1]
-            val atLight = isCrossroad(nx, ny) && c.prog > 0.52f && redNow &&
+            val atLight = c.kind != "through" && isCrossroad(nx, ny) && c.prog > 0.52f && redNow &&
                 World.tile(c.x, c.y)?.road != "highway"
             val lead = nearestAhead(c, moving)
             val gap = lead?.first ?: 8f
@@ -406,7 +490,7 @@ object Traffic {
                 val v = dirs[c.dir]
                 val tx = c.x + v[0]
                 val ty = c.y + v[1]
-                if (!isRoad(tx, ty)) {
+                if (!isRoad(tx, ty, c.kind)) {
                     c.prog = 0.92f
                     turnToward(c)
                     break
@@ -456,7 +540,7 @@ object Traffic {
     private fun turnToward(c: TrafficCar) {
         fun ok(d: Int): Boolean {
             val v = dirs[d]
-            return isRoad(c.x + v[0], c.y + v[1])
+            return isRoad(c.x + v[0], c.y + v[1], c.kind)
         }
         val rev = (c.dir + 2) % 4
         if (ok(c.dir) && Random.nextFloat() > 0.22f) {
@@ -482,12 +566,17 @@ object Traffic {
         }
     }
 
-    private fun isRoad(x: Int, y: Int) = World.tile(x, y)?.road != null
+    private fun isRoad(x: Int, y: Int, kind: String? = null): Boolean {
+        val t = World.tile(x, y) ?: return false
+        if (t.road == null) return false
+        if (kind == "through") return t.road == "highway"
+        return true
+    }
 
-    private fun pickDir(x: Int, y: Int): Int {
+    private fun pickDir(x: Int, y: Int, kind: String? = null): Int {
         val opts = mutableListOf<Int>()
         for (d in dirs.indices) {
-            if (isRoad(x + dirs[d][0], y + dirs[d][1])) opts.add(d)
+            if (isRoad(x + dirs[d][0], y + dirs[d][1], kind)) opts.add(d)
         }
         return if (opts.isNotEmpty()) opts[Random.nextInt(opts.size)] else 0
     }

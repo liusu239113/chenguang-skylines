@@ -1,5 +1,6 @@
 package com.dshx.game.su
 
+import com.dshx.game.su.world.World
 import kotlin.math.max
 import kotlin.random.Random
 
@@ -56,10 +57,42 @@ object Civic {
         val target = 0.28 + edu * 0.42 + health * 0.12 + happy * 0.12 + (if (s.lastCoverage?.education ?: 0f > 0.4f) 0.08 else 0.0)
         schoolRate += (target.coerceIn(0.15, 0.96) - schoolRate) * 0.18
         s.merit += schoolRate * 1.2 + s.education * 0.01
-        if (pending == null && Random.nextDouble() < 0.22) {
-            pending = COMPLAINTS[Random.nextInt(COMPLAINTS.size)]
-            AppState.complaintOpen = true
+        if (pending == null && Random.nextDouble() < 0.28) {
+            val real = realComplaints()
+            if (real.isNotEmpty()) {
+                pending = real[Random.nextInt(real.size)]
+                AppState.complaintOpen = true
+            }
         }
+    }
+
+    private fun realComplaints(): List<Complaint> {
+        val homes = World.allBuildings().filter { !it.b.isService && it.b.zone == "residential" && !it.b.abandoned }
+        val shops = World.allBuildings().filter { !it.b.isService && it.b.zone == "commercial" && !it.b.abandoned }
+        val factories = World.allBuildings().filter { !it.b.isService && it.b.zone == "industrial" && !it.b.abandoned }
+        val hasSchool = World.allBuildings().any {
+            it.b.service == "school" || it.b.service == "middle_school" || it.b.service == "university"
+        }
+        val hasClinic = World.allBuildings().any { it.b.service == "clinic" || it.b.service == "hospital" }
+        val out = mutableListOf<Complaint>()
+        if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }) {
+            out.add(COMPLAINTS.first { it.id == "power" })
+        }
+        if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.WATER) }) {
+            out.add(COMPLAINTS.first { it.id == "water" })
+        }
+        if (homes.isNotEmpty() && !hasSchool) out.add(COMPLAINTS.first { it.id == "school" })
+        if (homes.isNotEmpty() && !hasClinic) out.add(COMPLAINTS.first { it.id == "clinic" })
+        if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.GARBAGE) }) {
+            out.add(COMPLAINTS.first { it.id == "trash" })
+        }
+        if (shops.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }) {
+            out.add(COMPLAINTS.first { it.id == "shop" })
+        }
+        if (factories.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }) {
+            out.add(COMPLAINTS.first { it.id == "factory" })
+        }
+        return out
     }
 
     fun canTakeExam(): Boolean {
@@ -135,15 +168,12 @@ object Civic {
     )
 
     val COMPLAINTS: List<Complaint> = listOf(
-        Complaint("noise", "梧桐小区业主", "夜里太吵睡不着", "工厂夜班轰鸣传到住宅。", "补贴隔音窗（-80万，满意+4）", "限夜班（满意+2，工业收入略降）", 4.0, -80.0, 0.0, 2.0, -20.0, 0.0),
-        Complaint("school", "晨曦家长会", "学位好挤", "小学班额太大，升学焦虑上升。", "加教育预算（-120万，教育+6）", "错峰招生（满意+2）", 3.0, -120.0, 6.0, 2.0, -10.0, 1.0),
-        Complaint("bus", "通勤乘客", "上班挤成沙丁鱼", "高峰公交运力不够。", "加密班次（-90万，满意+3）", "鼓励错峰（满意+1）", 3.0, -90.0, 0.0, 1.0, 0.0, 0.0),
-        Complaint("trash", "沿河商户", "垃圾堆到店门口", "清运不及时影响生意。", "加开清运（-70万，满意+3）", "先清主干道（满意+1）", 3.0, -70.0, 0.0, 1.0, -15.0, 0.0),
-        Complaint("clinic", "社区医生", "发热门诊排长队", "医疗覆盖跟不上人口。", "临时医疗点（-150万，健康+）", "预约分流（满意+1）", 2.0, -150.0, 0.0, 1.0, 0.0, 0.0),
-        Complaint("park", "退休协会", "想要散步的地方", "附近缺少公园。", "答应规划公园（满意+4）", "先发健身券（-40万，满意+2）", 4.0, 0.0, 0.0, 2.0, -40.0, 0.0),
-        Complaint("flood", "望江里居民", "暴雨积水", "低洼路段一下雨就淹。", "应急抽排（-100万，满意+3）", "发通知绕行（满意-2）", 3.0, -100.0, 0.0, -2.0, 0.0, 0.0),
-        Complaint("shop", "金源超市", "周末没人气", "商业区停车和人流不足。", "周末市集（-60万，商收+）", "减商税一天（税收略降）", 2.0, -60.0, 0.0, 1.0, -30.0, 0.0),
-        Complaint("exam", "高三教师", "晚自习灯光不够", "学校夜间照明差。", "改造灯光（-50万，教育+3）", "缩短晚自习（满意+1，教育-1）", 2.0, -50.0, 3.0, 1.0, 0.0, -1.0),
-        Complaint("odor", "沿河渔排", "河有味道", "污水没接好。", "应急清淤（-110万，满意+3）", "先发口罩（满意-1）", 3.0, -110.0, 0.0, -1.0, -5.0, 0.0)
+        Complaint("power", "梧桐小区业主", "家里没电", "住宅还没接上电缆，晚上黑灯瞎火。", "立刻铺电缆（-80万，满意+4）", "先发应急灯（满意+1）", 4.0, -80.0, 0.0, 1.0, -10.0, 0.0),
+        Complaint("water", "望江里居民", "水龙头没水", "水管没接到小区，做饭洗衣都难。", "铺设水管（-90万，满意+4）", "先送桶装水（满意+1）", 4.0, -90.0, 0.0, 1.0, -15.0, 0.0),
+        Complaint("school", "晨曦家长会", "附近没有学校", "孩子没处上学，家长很着急。", "答应规划小学（满意+3）", "先发接送补贴（-40万，满意+1）", 3.0, 0.0, 2.0, 1.0, -40.0, 0.0),
+        Complaint("clinic", "社区居民", "看病要跑很远", "附近没有诊所，发烧都没处看。", "答应规划诊所（满意+3）", "先设巡诊点（-50万，满意+1）", 3.0, 0.0, 0.0, 1.0, -50.0, 0.0),
+        Complaint("trash", "沿街住户", "垃圾堆到门口", "清运覆盖不到，生活垃圾堆路边。", "加开清运（-70万，满意+3）", "先发垃圾袋（满意+1）", 3.0, -70.0, 0.0, 1.0, -10.0, 0.0),
+        Complaint("shop", "金源超市", "店里没电开不了门", "商业区断电，客人进不来。", "给商铺接电（-60万，满意+2）", "先减一天商税（税收略降）", 2.0, -60.0, 0.0, 1.0, -25.0, 0.0),
+        Complaint("factory", "联华车间", "车间没电停工", "工业区断电，工人没法开工。", "给厂房接电（-80万）", "先放假一天（满意-1）", 1.0, -80.0, 0.0, -1.0, 0.0, 0.0)
     )
 }

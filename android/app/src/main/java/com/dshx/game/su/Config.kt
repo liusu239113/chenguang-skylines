@@ -75,7 +75,7 @@ object Config {
     // -----------------------------------------------------------------------
     object TIME {
         const val daySeconds = 8.0f          // 1x 下一天的现实秒数（缓慢推进）
-        val speeds = intArrayOf(0, 1, 2, 4)   // 暂停 / 1x / 2x / 4x
+        val speeds = intArrayOf(0, 1, 2, 3)   // 暂停 / 1x / 2x / 3x
     }
 
     // -----------------------------------------------------------------------
@@ -99,10 +99,10 @@ object Config {
     data class ZoneDef(val key: String, val name: String, val cost: Int, val color: RGBA?)
 
     enum class ZoneKey(val key: String, val label: String, val cost: Int) {
-        RESIDENTIAL("residential", "住宅区", 3),
-        COMMERCIAL("commercial", "商业区", 4),
-        INDUSTRIAL("industrial", "工业区", 3),
-        OFFICE("office", "办公区", 5),
+        RESIDENTIAL("residential", "住宅区", 6),
+        COMMERCIAL("commercial", "商业区", 8),
+        INDUSTRIAL("industrial", "工业区", 7),
+        OFFICE("office", "办公区", 10),
         NONE("none", "清除分区", 0);
 
         companion object {
@@ -111,10 +111,10 @@ object Config {
     }
 
     val ZONE: Map<String, ZoneDef> = mapOf(
-        "residential" to ZoneDef("residential", "住宅区", 3, COLORS.zoneResidential),
-        "commercial" to ZoneDef("commercial", "商业区", 4, COLORS.zoneCommercial),
-        "industrial" to ZoneDef("industrial", "工业区", 3, COLORS.zoneIndustrial),
-        "office" to ZoneDef("office", "办公区", 5, COLORS.zoneOffice),
+        "residential" to ZoneDef("residential", "住宅区", 6, COLORS.zoneResidential),
+        "commercial" to ZoneDef("commercial", "商业区", 8, COLORS.zoneCommercial),
+        "industrial" to ZoneDef("industrial", "工业区", 7, COLORS.zoneIndustrial),
+        "office" to ZoneDef("office", "办公区", 10, COLORS.zoneOffice),
         "none" to ZoneDef("none", "清除分区", 0, null)
     )
 
@@ -283,7 +283,7 @@ object Config {
     // 资源 / 成长参数
     // -----------------------------------------------------------------------
     object RESOURCES {
-        const val fundsStart = 5000.0
+        const val fundsStart = 1500.0
         const val happinessStart = 60.0
         const val happinessMin = 0.0
         const val happinessMax = 100.0
@@ -303,9 +303,9 @@ object Config {
     // 财政
     // -----------------------------------------------------------------------
     object ECONOMY {
-        const val taxPerPopPerDay = 0.04
-        const val baseIncomePerDay = 2.5
-        const val upkeepPerRoadDay = 0.006
+        const val taxPerPopPerDay = 0.10
+        const val baseIncomePerDay = 0.6
+        const val upkeepPerRoadDay = 0.012
         const val happinessDecayDay = 0.10
         const val pollutionHappy = 0.045
         const val occupancyPerDay = 0.06
@@ -336,8 +336,8 @@ object Config {
     // 市政贷款
     // -----------------------------------------------------------------------
     object LOAN {
-        const val amount = 800.0      // 借款额（万）
-        const val dailyRepay = 30.0   // 每日自动还款（万）
+        const val amount = 400.0      // 借款额（万）
+        const val dailyRepay = 18.0   // 每日自动还款（万）
         const val cooldown = 90       // 还清后冷却天数
     }
 
@@ -395,12 +395,13 @@ object Config {
     )
 
     val EVENTS: List<EventDef> = listOf(
-        EventDef("blackout", "停电事故", "供电不足，部分城区断电。", 3, -12.0, 0.85, "power"),
-        EventDef("pipe", "水管爆裂", "供水不足，生活受影响。", 3, -10.0, 1.0, "water"),
-        EventDef("flu", "流感疫情", "医疗覆盖不足，疫情蔓延。", 5, -8.0, 1.0, "health"),
-        EventDef("strike", "工人罢工", "满意度长期低迷，工厂停工。", 4, -8.0, 0.80, "happy"),
-        EventDef("boom", "投资热潮", "商业需求旺盛，消费激增。", 8, 6.0, 1.20, "boom"),
-        EventDef("festival", "城市节日", "全城欢庆，消费与满意度上升。", 3, 10.0, 1.10, "random")
+        EventDef("blackout", "居民断电", "住宅没通电，居民来信要求接电缆。", 3, -8.0, 0.92, "power"),
+        EventDef("pipe", "居民缺水", "住宅没通水，生活用水告急。", 3, -8.0, 0.95, "water"),
+        EventDef("clinic", "看病排队", "附近没有诊所/医院，居民看病困难。", 4, -6.0, 1.0, "health"),
+        EventDef("school", "学位告急", "附近没有学校，家长反映孩子没处上学。", 4, -5.0, 1.0, "school"),
+        EventDef("trash", "垃圾堆门前", "清运覆盖不足，生活垃圾堆到路边。", 3, -5.0, 0.98, "garbage"),
+        EventDef("shop", "商铺没人气", "商业区缺电或缺水，店门冷清。", 4, -3.0, 0.90, "shop"),
+        EventDef("factory", "工厂停工", "工业区缺电，车间开不了工。", 4, -4.0, 0.82, "factory")
     )
 
     // -----------------------------------------------------------------------

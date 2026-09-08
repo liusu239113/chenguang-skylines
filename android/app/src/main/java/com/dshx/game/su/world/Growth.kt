@@ -92,7 +92,7 @@ object Growth {
         for (y in 2 until w.rows) {
             for (x in 2 until w.cols) {
                 val t = w.grid[y - 1][x - 1]
-                if (t.zone in want && t.building == null && t.road == null && t.terrain != "water") {
+                if (t.zone in want && t.building == null && t.road == null && t.terrain != "water" && World.isUnlocked(x, y)) {
                     if (World.isRoad(x + 1, y) || World.isRoad(x - 1, y) ||
                         World.isRoad(x, y + 1) || World.isRoad(x, y - 1)
                     ) {

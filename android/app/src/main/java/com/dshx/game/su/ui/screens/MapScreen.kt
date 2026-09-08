@@ -287,7 +287,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val speeds = listOf("‖" to 0, "▶" to 1, "▶▶" to 2, "▶▶▶" to 3)
+                    val speeds = listOf("‖" to 0, "1x" to 1, "2x" to 2, "3x" to 3)
                     val act = LocalContext.current as? Activity
                     for (sp in speeds) {
                         val active = GameData.speedIdx == sp.second
@@ -330,50 +330,30 @@ fun MapScreenContent(mapView: MapRenderView) {
             }
         }
 
-        // 详情/抽屉/弹层打开时藏左侧按钮，避免挡住信息卡
         val overlayOpen = AppState.policyOpen || AppState.helpOpen || AppState.dataOpen || AppState.paused ||
             AppState.settingsOpen || AppState.civicOpen || AppState.complaintOpen || AppState.achievementOpen ||
             AppState.adOfferOpen
-        val infoOpen = AppState.mode == "view" && mapView.selectedX > 0
-        val drawerOpen = (AppState.mode == "service" && AppState.serviceOpen) ||
-            (AppState.mode == "road" && AppState.roadOpen) ||
-            AppState.planOpen
-        if (!overlayOpen && !infoOpen && !drawerOpen) {
-        // ---------------- 政策按钮 ----------------
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 14.dp, bottom = 84.dp)
-        ) {
-            UIHelper.RoundButton("策", size = 40.dp, fontSize = 15.sp) {
-                Sfx.play("sfx_click", 0.6f)
-                AppState.policyOpen = !AppState.policyOpen
+        if (!overlayOpen) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(start = 10.dp, top = 168.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                UIHelper.RoundButton("数", size = 40.dp, fontSize = 16.sp) {
+                    Sfx.play("sfx_click", 0.6f)
+                    AppState.dataOpen = !AppState.dataOpen
+                }
+                UIHelper.RoundButton("?", size = 40.dp, fontSize = 20.sp) {
+                    Sfx.play("sfx_click", 0.6f)
+                    AppState.helpOpen = !AppState.helpOpen
+                }
+                UIHelper.RoundButton("策", size = 40.dp, fontSize = 15.sp) {
+                    Sfx.play("sfx_click", 0.6f)
+                    AppState.policyOpen = !AppState.policyOpen
+                }
             }
-        }
-
-        // ---------------- 帮助按钮 ----------------
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 14.dp, bottom = 134.dp)
-        ) {
-            UIHelper.RoundButton("?", size = 40.dp, fontSize = 20.sp) {
-                Sfx.play("sfx_click", 0.6f)
-                AppState.helpOpen = !AppState.helpOpen
-            }
-        }
-
-        // ---------------- 数据按钮 ----------------
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 14.dp, bottom = 184.dp)
-        ) {
-            UIHelper.RoundButton("数", size = 40.dp, fontSize = 16.sp) {
-                Sfx.play("sfx_click", 0.6f)
-                AppState.dataOpen = !AppState.dataOpen
-            }
-        }
         }
 
         // ---------------- 信息卡（查看模式） ----------------
@@ -392,6 +372,21 @@ fun MapScreenContent(mapView: MapRenderView) {
                     paddingBottom = 10.dp,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            "×",
+                            fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                            color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .clickable {
+                                    Sfx.play("sfx_click", 0.5f)
+                                    mapView.clearSelection()
+                                    AppState.bumpMap()
+                                }
+                                .padding(4.dp)
+                        )
+                    }
                     val sel = mapView.selectedX to mapView.selectedY
                     val car = Traffic.selected
                     val train = Traffic.selectedTrain
@@ -415,6 +410,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 when (car.kind) {
                                     "visitor" -> "外地游客（高速接入）"
                                     "freight" -> "城际货运"
+                                    "through" -> "外环过路车"
                                     else -> "本市住户 · 一户一车"
                                 }
                             )
@@ -683,6 +679,18 @@ private fun DrawerContent(mapView: MapRenderView) {
         paddingBottom = 12.dp,
         horizontalAlignment = Alignment.Start
     ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                modifier = Modifier.align(Alignment.CenterEnd).clickable {
+                    AppState.serviceOpen = false
+                    AppState.roadOpen = false
+                    AppState.planOpen = false
+                    MapScreen.cancelTool()
+                }.padding(4.dp)
+            )
+        }
         if (AppState.mode == "service") {
             Column(
                 modifier = Modifier
@@ -937,11 +945,18 @@ private fun PolicyPanel() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val live = AppState.liveTick
-            Text(
-                "营造政策", fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
-                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "营造政策", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.policyOpen = false }.padding(4.dp)
+                )
+            }
             Text(
                 GameData.policyStatusLine(),
                 fontSize = 11.sp, color = C.accentGreen.toColor(),
@@ -1074,20 +1089,27 @@ private fun HelpPanel() {
                 .noRippleClickable { },
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                "新手指引 · 设身其中，经营一座虚构都市", fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
-                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "新手指引 · 设身其中，经营一座虚构都市", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.helpOpen = false }.padding(4.dp)
+                )
+            }
             HelpRow("手", "右下角手掌图标=退出建造并拖地图。修完路一定要点它，否则会继续铺路。")
             HelpRow("职", "点顶栏营造职级打开营造档案。人口、满意度和测评都达标才会晋升，不是现实官职。")
-            HelpRow("路", "地图外环已有高速。把城区路接到高速，外地车才会按繁荣度进城。本地车一户一辆，点车可看住户。")
+            HelpRow("路", "开局只解锁高速旁一小块。人口增加后向外扩。外环高速全天有过路车；接进城后才会进游客。本地车回家就进车库，不堵路。")
             HelpRow("铁", "先建火车站再【规划】铺铁轨才会跑火车；机场建好会有飞机进出。公交站连成线路才发公交车。")
             HelpRow("区", "【住宅/商业/工业/办公】在路旁涂色，邻路才会长楼。房子建好就会迁入人口。")
             HelpRow("电", "先【服务】放风电/煤电（必须靠路）。再【规划】→电缆把电接到分区，数据面板开「电力」看绿/红色块。")
             HelpRow("水", "抽水站必须靠河。水塔可随处放。再用【规划】→水管接到房子，开「供水」热力图检查。")
             HelpRow("污", "污水处理厂 + 污水管。不接污水，水源会脏、健康下降。")
-            HelpRow("策", "【策】里税率滑条可拖；政策启用后持续改税/需求/污染。点【数】看覆盖色块。")
+            HelpRow("策", "【数/?/策】在状态栏左下。详情卡右上角 × 可关。1x 免费，2x/3x 看一次广告解锁 20 分钟。")
             HelpRow("存", "右上【≡】保存到当前槽位。主菜单「存档管理」能看到城市名、人口、日期。")
             Box(
                 modifier = Modifier
@@ -1161,11 +1183,18 @@ private fun DataPanel() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val live = AppState.liveTick
-            Text(
-                "城市数据", fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
-                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "城市数据", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.dataOpen = false }.padding(4.dp)
+                )
+            }
 
             // 覆盖率
             if (cov != null) {
@@ -1421,6 +1450,13 @@ private fun PausePanel() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.paused = false }.padding(4.dp)
+                )
+            }
             Text(
                 s.cityName + " · " + World.cityLevel().name,
                 fontSize = 17.sp, fontWeight = FontWeight.Bold,

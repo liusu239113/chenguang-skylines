@@ -145,7 +145,7 @@ object GameData {
         pushNews(
             "城市奠基",
             s.cityName + "迎来新任" + Config.World.playerRole +
-                "。沿大道修路、划分区，城市将随时间自然生长。",
+                "。开局资金 1500 万，先在高速旁已解锁区域修路划区，人口增加后向外扩展。",
             "头条"
         )
         ensureQuest()
@@ -573,25 +573,41 @@ object GameData {
             }
         }
 
-        // 事件触发（由城市状态触发，不是无脑随机）
+        // 事件只跟真实缺电/缺水/缺设施挂钩，没有对应建筑就不弹
         if (eventCooldown <= 0) {
+            val homes = World.allBuildings().filter { !it.b.isService && it.b.zone == "residential" && !it.b.abandoned }
+            val shops = World.allBuildings().filter { !it.b.isService && it.b.zone == "commercial" && !it.b.abandoned }
+            val factories = World.allBuildings().filter { !it.b.isService && it.b.zone == "industrial" && !it.b.abandoned }
+            val hasSchool = World.allBuildings().any {
+                it.b.service == "school" || it.b.service == "middle_school" || it.b.service == "university"
+            }
+            val hasClinic = World.allBuildings().any { it.b.service == "clinic" || it.b.service == "hospital" }
             val candidates = mutableListOf<Config.EventDef>()
             for (ev in Config.EVENTS) {
                 val trigger = when (ev.cond) {
-                    "power" -> cov.power < 0.5
-                    "water" -> cov.water < 0.5
-                    "health" -> cov.health < 0.5
-                    "happy" -> s.happiness < 45
-                    "boom" -> Growth.lastDemand.c > 0.75
-                    else -> true
+                    "power" -> homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }
+                    "water" -> homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.WATER) }
+                    "health" -> homes.isNotEmpty() && !hasClinic
+                    "school" -> homes.isNotEmpty() && !hasSchool
+                    "garbage" -> homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.GARBAGE) }
+                    "shop" -> shops.any {
+                        !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) ||
+                            !World.isCoveredBy(it.x, it.y, Config.ServiceCat.WATER)
+                    }
+                    "factory" -> factories.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }
+                    else -> false
                 }
                 if (trigger) candidates.add(ev)
             }
-            if (candidates.isNotEmpty() && kotlin.random.Random.nextDouble() < 0.25) {
+            if (candidates.isNotEmpty()) {
                 val ev = candidates[kotlin.random.Random.nextInt(candidates.size)]
-                s.activeEvents.add(ActiveEvent(ev.id, ev.name, ev.duration, ev.happy, ev.incomeMul))
-                pushNews("事件：" + ev.name, ev.desc, "事件")
-                eventCooldown = 15 + kotlin.random.Random.nextInt(15)
+                if (s.activeEvents.none { it.id == ev.id }) {
+                    s.activeEvents.add(ActiveEvent(ev.id, ev.name, ev.duration, ev.happy, ev.incomeMul))
+                    pushNews("居民反馈：" + ev.name, ev.desc, "来信")
+                    eventCooldown = 10 + kotlin.random.Random.nextInt(8)
+                }
+            } else {
+                eventCooldown = 6
             }
         } else {
             eventCooldown -= 1
@@ -790,6 +806,7 @@ object GameData {
     }
 
     fun paintPipe(x: Int, y: Int): Pair<Boolean, String?> {
+        if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         val (ok, msg) = Networks.canPipe(x, y)
         if (!ok) return false to msg
         val t = World.tile(x, y) ?: return false to "越界"
@@ -805,6 +822,7 @@ object GameData {
 
     fun paintCable(x: Int, y: Int): Pair<Boolean, String?> {
         val t = World.tile(x, y) ?: return false to "越界"
+        if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (t.terrain == "water") return false to "水域无法铺电缆"
         if (t.cable) return true to null
         val s = current ?: return false to null
@@ -826,6 +844,7 @@ object GameData {
 
     fun paintSewer(x: Int, y: Int): Pair<Boolean, String?> {
         val t = World.tile(x, y) ?: return false to "越界"
+        if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (t.sewer) return true to null
         val s = current ?: return false to null
         if (!sandbox && s.funds < 2) return false to "资金不足（污水管 2 万/格）"
@@ -837,6 +856,7 @@ object GameData {
 
     fun paintMetro(x: Int, y: Int): Pair<Boolean, String?> {
         val t = World.tile(x, y) ?: return false to "越界"
+        if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (t.terrain == "water") return false to "水域无法挖地铁"
         if (t.metro) return true to null
         val s = current ?: return false to null
@@ -849,6 +869,7 @@ object GameData {
 
     fun paintRail(x: Int, y: Int): Pair<Boolean, String?> {
         val t = World.tile(x, y) ?: return false to "越界"
+        if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (t.terrain == "water") return false to "水域无法铺铁轨"
         if (t.rail) return true to null
         val s = current ?: return false to null
@@ -864,6 +885,7 @@ object GameData {
 
     fun plantTree(x: Int, y: Int): Pair<Boolean, String?> {
         val s = current ?: return false to null
+        if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (!sandbox && s.funds < 1) return false to "资金不足"
         if (!World.plantTree(x, y)) return false to "这里不能种树"
         if (!sandbox) s.funds -= 1
@@ -872,6 +894,7 @@ object GameData {
 
     fun raiseLand(x: Int, y: Int): Pair<Boolean, String?> {
         val s = current ?: return false to null
+        if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (!sandbox && s.funds < 3) return false to "资金不足"
         if (!World.raiseLand(x, y)) return false to "不能抬升占用格"
         if (!sandbox) s.funds -= 3
@@ -880,6 +903,7 @@ object GameData {
 
     fun lowerLand(x: Int, y: Int): Pair<Boolean, String?> {
         val s = current ?: return false to null
+        if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (!sandbox && s.funds < 3) return false to "资金不足"
         if (!World.lowerLand(x, y)) return false to "不能降低占用格"
         if (!sandbox) s.funds -= 3

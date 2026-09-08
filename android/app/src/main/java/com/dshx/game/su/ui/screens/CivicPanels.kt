@@ -70,11 +70,18 @@ fun CivicPanel() {
                 .clickable(enabled = false) {},
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                "营造档案", fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
-                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "营造档案", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.civicOpen = false }.padding(4.dp)
+                )
+            }
             Text(
                 s.mayorName + " · " + Config.World.playerRole,
                 fontSize = 13.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
@@ -227,7 +234,17 @@ fun ComplaintPanel() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("市民来信", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text("市民来信", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable {
+                        Civic.pending = null
+                        AppState.complaintOpen = false
+                    }.padding(4.dp)
+                )
+            }
             Text("来自 " + c.from, fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
             Text(c.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
             Text(c.body, fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
@@ -270,7 +287,14 @@ fun AchievementPanel() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text("营造成就 ${s.achievements.size}/${Config.ACHIEVEMENTS.size}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text("营造成就 ${s.achievements.size}/${Config.ACHIEVEMENTS.size}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.achievementOpen = false }.padding(4.dp)
+                )
+            }
             for (a in Config.ACHIEVEMENTS) {
                 val done = a.id in s.achievements
                 Row(
@@ -396,7 +420,14 @@ fun SettingsPanel() {
                 .clickable(enabled = false) {},
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("设置", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text("设置", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.settingsOpen = false }.padding(4.dp)
+                )
+            }
             var bgm by remember { mutableStateOf(Prefs.bgmVolume) }
             var sfx by remember { mutableStateOf(Prefs.sfxVolume) }
             Text("背景音乐 ${(bgm * 100).roundToInt()}%", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)

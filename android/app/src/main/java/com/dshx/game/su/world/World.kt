@@ -1,6 +1,7 @@
 package com.dshx.game.su.world
 
 import com.dshx.game.su.Config
+import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
@@ -89,6 +90,9 @@ class World {
     var spawnY: Int = 1
     var highwayConnected: Boolean = false
     var prosperity: Int = 0
+    var unlockCx: Int = 8
+    var unlockCy: Int = 8
+    var unlockR: Int = 9
 
     class Label(val x: Float, val y: Float, val text: String, val kind: String)
 
@@ -206,69 +210,59 @@ class World {
                 }
             }
 
-            // 大道骨架（3 纵 3 横，免费，跨河直铺）
+            // 大道骨架：开局只在高速旁一小块，其余靠解锁后自己修
             fun setRoad(x: Int, y: Int, kind: String) {
                 val t = w.grid[y - 1][x - 1]
                 t.road = kind
                 t.zone = "none"
             }
 
-            val colAve = intArrayOf(
-                floor(w.cols * 0.22).toInt(),
-                floor(w.cols * 0.5).toInt(),
-                floor(w.cols * 0.78).toInt()
-            )
-            val rowAve = intArrayOf(
-                floor(w.rows * 0.20).toInt(),
-                floor(w.rows * 0.55).toInt(),
-                floor(w.rows * 0.82).toInt()
-            )
+            val startX = 8
+            val startY = 10
+            w.unlockCx = startX
+            w.unlockCy = startY
+            w.unlockR = 8
+            w.spawnX = startX
+            w.spawnY = startY
 
-            for (i in colAve.indices) {
-                val cx = colAve[i]
-                val xs = IntArray(w.rows)
-                val ys = IntArray(w.rows)
-                for (y in 4 until w.rows - 2) {
-                    setRoad(cx, y, "avenue")
-                    xs[y - 1] = cx
-                    ys[y - 1] = y
-                }
-                w.roadLines.add(
-                    RoadLine(
-                        name = pickName(seed, 10 + (i + 1) * 3),
-                        kind = "avenue",
-                        segX = xs,
-                        segY = ys,
-                        dir = "v",
-                        labelX = 0,
-                        labelY = floor(w.rows * (0.15 + (i + 1) * 0.25)).toInt()
-                    )
-                )
+            val xsV = IntArray(7)
+            val ysV = IntArray(7)
+            for (i in 0..6) {
+                val y = startY - 3 + i
+                setRoad(startX, y, "avenue")
+                xsV[i] = startX
+                ysV[i] = y
             }
-            for (i in rowAve.indices) {
-                val ry = rowAve[i]
-                val xs = IntArray(w.cols)
-                val ys = IntArray(w.cols)
-                for (x in 4 until w.cols - 2) {
-                    setRoad(x, ry, "avenue")
-                    xs[x - 1] = x
-                    ys[x - 1] = ry
-                }
-                w.roadLines.add(
-                    RoadLine(
-                        name = pickName(seed, 40 + (i + 1) * 5),
-                        kind = "avenue",
-                        segX = xs,
-                        segY = ys,
-                        dir = "h",
-                        labelX = floor(w.cols * (0.2 + (i + 1) * 0.28)).toInt(),
-                        labelY = 0
-                    )
+            w.roadLines.add(
+                RoadLine(
+                    name = pickName(seed, 13),
+                    kind = "avenue",
+                    segX = xsV,
+                    segY = ysV,
+                    dir = "v",
+                    labelX = 0,
+                    labelY = startY
                 )
+            )
+            val xsH = IntArray(7)
+            val ysH = IntArray(7)
+            for (i in 0..6) {
+                val x = startX - 3 + i
+                setRoad(x, startY, "avenue")
+                xsH[i] = x
+                ysH[i] = startY
             }
-
-            w.spawnX = colAve[0]
-            w.spawnY = rowAve[0]
+            w.roadLines.add(
+                RoadLine(
+                    name = pickName(seed, 45),
+                    kind = "avenue",
+                    segX = xsH,
+                    segY = ysH,
+                    dir = "h",
+                    labelX = startX,
+                    labelY = 0
+                )
+            )
 
             // 外环高速：贴地图边缘，不直接进城区。玩家把城区路接到高速后才会进外地车。
             fun setHwy(x: Int, y: Int) {
@@ -357,6 +351,23 @@ class World {
             return x >= 1 && x <= w.cols && y >= 1 && y <= w.rows
         }
 
+        fun unlockRadius(): Int {
+            val w = current ?: return 9
+            val extra = (w._pop / 60).coerceIn(0, 36)
+            return (w.unlockR + extra).coerceAtMost(max(w.cols, w.rows))
+        }
+
+        fun isUnlocked(x: Int, y: Int): Boolean {
+            val w = current ?: return false
+            return abs(x - w.unlockCx) + abs(y - w.unlockCy) <= unlockRadius()
+        }
+
+        fun lockedHint(): String {
+            val r = unlockRadius()
+            val next = ((r - 7).coerceAtLeast(1)) * 60
+            return "先建设高速旁已解锁区域。人口达到 $next 后会向外扩一圈。"
+        }
+
         fun tile(x: Int, y: Int): Tile? {
             val w = current ?: return null
             if (x < 1 || x > w.cols || y < 1 || y > w.rows) return null
@@ -400,6 +411,7 @@ class World {
 
         fun canRoad(x: Int, y: Int, kind: String = "local"): Pair<Boolean, String?> {
             val t = tile(x, y) ?: return false to "越界"
+            if (!isUnlocked(x, y) && kind != "highway") return false to lockedHint()
             if (t.terrain == "water") return false to "不能铺在水上"
             if (t.building != null) return false to "先拆除这里的建筑"
             val exist = t.road
@@ -435,6 +447,7 @@ class World {
         // -------------------------------------------------------------------
         fun canZone(x: Int, y: Int): Pair<Boolean, String?> {
             val t = tile(x, y) ?: return false to "越界"
+            if (!isUnlocked(x, y)) return false to lockedHint()
             if (t.terrain == "water") return false to "水域无法划区"
             if (t.road != null) return false to null
             if (t.building != null) return false to null
@@ -443,6 +456,7 @@ class World {
 
         fun setZone(x: Int, y: Int, zone: String): Boolean {
             val t = tile(x, y) ?: return false
+            if (!isUnlocked(x, y)) return false
             if (t.terrain == "water" || t.road != null || t.building != null) return false
             t.zone = zone
             return true
@@ -453,6 +467,7 @@ class World {
         // -------------------------------------------------------------------
         fun canPlaceService(id: String, x: Int, y: Int): Pair<Boolean, String?> {
             val s = serviceConfig(id) ?: return false to "未知设施"
+            if (!isUnlocked(x, y)) return false to lockedHint()
             for (yy in y until y + s.sizeH) {
                 for (xx in x until x + s.sizeW) {
                     val t = tile(xx, yy) ?: return false to "超出地图"
@@ -515,6 +530,7 @@ class World {
         // -------------------------------------------------------------------
         fun growBuilding(zone: String, x: Int, y: Int, level: Int, born: Double): Boolean {
             val t = tile(x, y) ?: return false
+            if (!isUnlocked(x, y)) return false
             if (t.building != null || t.road != null || t.terrain == "water") return false
             val b = Building()
             b.zone = zone
@@ -724,6 +740,7 @@ class World {
 
         fun plantTree(x: Int, y: Int): Boolean {
             val t = tile(x, y) ?: return false
+            if (!isUnlocked(x, y)) return false
             if (t.terrain == "water" || t.road != null || t.building != null) return false
             t.terrain = "forest"
             t.groundPol = max(0, t.groundPol - 18)
@@ -732,7 +749,7 @@ class World {
 
         fun raiseLand(x: Int, y: Int): Boolean {
             val w = current ?: return false
-            if (!inBounds(x, y)) return false
+            if (!inBounds(x, y) || !isUnlocked(x, y)) return false
             val t = w.grid[y - 1][x - 1]
             if (t.building != null || t.road != null) return false
             w.elev[y - 1][x - 1] = min(280, w.elev[y - 1][x - 1] + 18)
@@ -743,7 +760,7 @@ class World {
 
         fun lowerLand(x: Int, y: Int): Boolean {
             val w = current ?: return false
-            if (!inBounds(x, y)) return false
+            if (!inBounds(x, y) || !isUnlocked(x, y)) return false
             val t = w.grid[y - 1][x - 1]
             if (t.building != null || t.road != null) return false
             w.elev[y - 1][x - 1] = max(4, w.elev[y - 1][x - 1] - 18)

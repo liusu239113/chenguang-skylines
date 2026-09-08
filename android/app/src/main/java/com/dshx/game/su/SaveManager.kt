@@ -115,6 +115,9 @@ object SaveManager {
         json.put("examCooldown", Civic.examCooldown)
         json.put("schoolRate", Civic.schoolRate)
         json.put("complaintsHandled", Civic.complaintsHandled)
+        json.put("unlockCx", w.unlockCx)
+        json.put("unlockCy", w.unlockCy)
+        json.put("unlockR", w.unlockR)
 
         val ap = JSONArray()
         for (p in s.activePolicies) {
@@ -286,6 +289,9 @@ object SaveManager {
         Civic.examCooldown = json.optInt("examCooldown", 0)
         Civic.schoolRate = json.optDouble("schoolRate", 0.42)
         Civic.complaintsHandled = json.optInt("complaintsHandled", 0)
+        World.current?.unlockCx = json.optInt("unlockCx", World.current?.unlockCx ?: 8)
+        World.current?.unlockCy = json.optInt("unlockCy", World.current?.unlockCy ?: 10)
+        World.current?.unlockR = json.optInt("unlockR", World.current?.unlockR ?: 8)
         s.education = json.optDouble("education", 18.0)
         s.health = json.optDouble("health", 62.0)
         s.jobs = json.optInt("jobs", 0)
