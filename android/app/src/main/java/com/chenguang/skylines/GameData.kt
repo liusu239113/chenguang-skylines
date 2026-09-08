@@ -4,6 +4,7 @@ import com.chenguang.skylines.world.World
 import com.chenguang.skylines.world.Growth
 import com.chenguang.skylines.world.Citizens
 import com.chenguang.skylines.world.Transit
+import com.chenguang.skylines.world.CitySystems
 import com.chenguang.skylines.world.Networks
 import kotlin.math.floor
 import kotlin.math.max
@@ -69,6 +70,16 @@ class CityState {
     var bankruptDays: Int = 0
     var playSeconds: Double = 0.0
     var lastSavedLabel: String = ""
+    var crime: Double = 8.0
+    var deathsPending: Int = 0
+    var prisonUsed: Int = 0
+    var cemeteryUsed: Int = 0
+    var garbageBacklog: Int = 0
+    var sewerCoverage: Double = 1.0
+    var budgetHealth: Int = 100
+    var budgetEdu: Int = 100
+    var budgetSafety: Int = 100
+    var budgetTransit: Int = 100
 }
 
 object GameData {
@@ -108,6 +119,7 @@ object GameData {
         Citizens.reset()
         Transit.reset()
         Networks.reset()
+        CitySystems.reset()
         current = createState()
         val s = current!!
         s.cityName = cityName
@@ -243,7 +255,9 @@ object GameData {
         val commute = -s.congestion * 8.0 - Citizens.avgCommute * 12.0 + Transit.coverageBoost() * 8.0
         val labor = max(1.0, s.population * 0.62)
         val jobRate = min(1.2, s.jobs / labor)
-        val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06
+        val crimePen = -s.crime * 0.12
+        val sewerPen = -(1.0 - s.sewerCoverage) * 8.0
+        val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06 + crimePen + sewerPen
         val target = max(
             Config.RESOURCES.happinessMin,
             min(
@@ -316,12 +330,10 @@ object GameData {
             )
         )
         if (s.day % 3 == 1) Citizens.rebuild()
+        CitySystems.daily(s, st, cov)
 
         // 人口 / 岗位：住宅迁入，商工办入驻；缺服务或低满意则废弃
-        val waterMul: Double = if (cov.water < 0.99f) cov.water.toDouble() else 1.0
-        val satisMul = max(0.3, min(1.2, s.happiness / 60.0))
-        val labor = max(1.0, s.population * 0.62)
-        val jobRate = min(1.2, s.jobs / labor)
+        val satisMul = max(0.35, min(1.2, s.happiness / 55.0))
         var totalRes = 0
         for (e in World.allBuildings()) {
             val b = e.b
@@ -331,27 +343,35 @@ object GameData {
             val powered = World.isCoveredBy(e.x, e.y, Config.ServiceCat.POWER)
             val watered = World.isCoveredBy(e.x, e.y, Config.ServiceCat.WATER)
             val land = World.landValue(e.x, e.y)
-            val shouldAbandon = (!powered && b.ageDays > 8) ||
-                (!watered && b.zone == "residential" && b.ageDays > 10) ||
-                (s.happiness < Config.GROWTH.abandonHappy && b.ageDays > 20 && land < 4)
+            val shouldAbandon = (!powered && b.ageDays > 45) ||
+                (!watered && b.zone == "residential" && b.ageDays > 50) ||
+                (s.happiness < Config.GROWTH.abandonHappy && b.ageDays > 60 && land < 4 && b.residents == 0)
             if (shouldAbandon && !b.abandoned) {
                 b.abandoned = true
                 b.residents = 0
                 b.workers = 0
-                pushNews("建筑废弃", "一处" + (Config.GROWN[b.zone]?.name ?: "建筑") + "因缺服务或低满意被弃置。", "城建")
+                pushNews("建筑废弃", "一处" + (Config.GROWN[b.zone]?.name ?: "建筑") + "因长期断电/缺水被弃置。", "城建")
             }
             if (b.abandoned) {
-                if (powered && watered && s.happiness > 45 && land >= 6) {
+                if (powered || watered || s.happiness > 35 || b.ageDays < 45) {
                     b.abandoned = false
+                    if (b.zone == "residential" && b.residents == 0) {
+                        b.residents = max(2, lv.cap / 6)
+                    }
                 } else continue
             }
             when (b.zone) {
                 "residential" -> {
+                    val powerMulLocal = if (powered) 1.0 else 0.35
+                    val waterMulLocal = if (watered) 1.0 else 0.45
                     if (b.residents < lv.cap) {
-                        val migrate = max(1, (lv.cap * 0.18 * satisMul * waterMul * jobRate).toInt())
+                        val migrate = max(1, (lv.cap * 0.22 * satisMul * powerMulLocal * waterMulLocal).toInt())
                         b.residents = min(lv.cap, b.residents + migrate)
                     }
-                    if (s.happiness < 32 && b.residents > 0) b.residents = max(0, b.residents - 1)
+                    if (!powered && b.residents > 2 && b.ageDays > 20) {
+                        b.residents = max(1, b.residents - 1)
+                    }
+                    if (s.happiness < 22 && b.residents > 1) b.residents = max(1, b.residents - 1)
                     totalRes += b.residents
                 }
                 else -> {
@@ -362,6 +382,7 @@ object GameData {
         }
         s.population = totalRes.toDouble()
         World.current?._pop = totalRes
+        if (s.population > 0 && Citizens.agents.isEmpty()) Citizens.rebuild()
 
         val occRatio = if (st.resCap > 0) s.population / st.resCap else 0.0
         var bizCom = 0.0
@@ -382,12 +403,15 @@ object GameData {
             (1 - Config.COVERAGE.powerIncomeFloor) * cov.power
         val eduMul = 0.85 + s.education / 250.0
         val congMul = 1.0 - s.congestion * 0.35
-        val bizBase = (bizCom * s.taxCom / 10.0 + bizInd * s.taxInd / 10.0 + bizOff * s.taxOff / 10.0) *
+        val landmarkCom = if (World.hasLandmark("stock_exchange")) 1.12 else 1.0
+        val landmarkTour = (if (World.hasLandmark("tv_tower")) 10.0 else 0.0) +
+            (if (World.hasLandmark("stadium")) 8.0 else 0.0)
+        val bizBase = (bizCom * s.taxCom / 10.0 * landmarkCom + bizInd * s.taxInd / 10.0 + bizOff * s.taxOff / 10.0) *
             powerMul * eduMul * congMul
         val taxIncome = (s.population * E.taxPerPopPerDay + E.baseIncomePerDay) *
             policyMul("taxMul") * (s.taxRes / 10.0)
         val bizIncome = bizBase * policyMul("incomeMul")
-        val income = taxIncome + bizIncome + tradeIncome
+        val income = taxIncome + bizIncome + tradeIncome + landmarkTour
         var upkeep = 0.0
         val ww = World.current
         if (ww != null) {
@@ -399,9 +423,18 @@ object GameData {
         for (e in World.allBuildings()) {
             if (!e.b.isService) continue
             val cfg = World.serviceConfig(e.b.service)
-            if (cfg != null) upkeep += cfg.upkeep / 30.0
+            if (cfg != null) {
+                val budget = when (cfg.category) {
+                    Config.ServiceCat.HEALTH -> s.budgetHealth
+                    Config.ServiceCat.EDUCATION -> s.budgetEdu
+                    Config.ServiceCat.SAFETY -> s.budgetSafety
+                    Config.ServiceCat.TRANSIT -> s.budgetTransit
+                    else -> 100
+                }
+                upkeep += cfg.upkeep / 30.0 * (budget / 100.0)
+            }
         }
-        upkeep *= policyMul("upkeepMul")
+        upkeep *= policyMul("upkeepMul") * (0.9 + Networks.districts.count { it.policy == "ev" } * 0.04)
         val diff = difficultyDef()
         var eventIncomeMul = 1.0
         for (ev in s.activeEvents) eventIncomeMul *= ev.incomeMul
@@ -436,9 +469,9 @@ object GameData {
         }
         if (s.loanCooldown > 0) s.loanCooldown -= 1
 
-        // 满意度向目标靠拢
-        val target = computeHappinessTarget(st)
-        s.happiness += (target - s.happiness) * 0.10
+        // 满意度向目标靠拢（没人时回到中性，不为空城硬扣）
+        val target = if (s.population < 1) 52.0 else computeHappinessTarget(st)
+        s.happiness += (target - s.happiness) * 0.12
 
         // 火灾：无消防覆盖的建筑有概率起火被烧毁
         val grown = World.allBuildings().filter { !it.b.isService }
@@ -575,6 +608,7 @@ object GameData {
         }
         Citizens.tick(simDt)
         Transit.tick(simDt)
+        CitySystems.tick(simDt)
     }
 
     // -----------------------------------------------------------------------
@@ -704,6 +738,53 @@ object GameData {
     }
 
     fun tapBusStop(x: Int, y: Int): Pair<Boolean, String?> = Transit.addDraftStop(x, y)
+
+    fun paintSewer(x: Int, y: Int): Pair<Boolean, String?> {
+        val t = World.tile(x, y) ?: return false to "越界"
+        if (t.sewer) return true to null
+        val s = current ?: return false to null
+        if (!sandbox && s.funds < 2) return false to "资金不足（污水管 2 万/格）"
+        Networks.setSewer(x, y, true)
+        if (!sandbox) s.funds -= 2
+        Networks.recount()
+        return true to null
+    }
+
+    fun paintMetro(x: Int, y: Int): Pair<Boolean, String?> {
+        val t = World.tile(x, y) ?: return false to "越界"
+        if (t.terrain == "water") return false to "水域无法挖地铁"
+        if (t.metro) return true to null
+        val s = current ?: return false to null
+        if (!sandbox && s.funds < 6) return false to "资金不足（地铁隧道 6 万/格）"
+        Networks.setMetro(x, y, true)
+        if (!sandbox) s.funds -= 6
+        Networks.recount()
+        return true to null
+    }
+
+    fun plantTree(x: Int, y: Int): Pair<Boolean, String?> {
+        val s = current ?: return false to null
+        if (!sandbox && s.funds < 1) return false to "资金不足"
+        if (!World.plantTree(x, y)) return false to "这里不能种树"
+        if (!sandbox) s.funds -= 1
+        return true to null
+    }
+
+    fun raiseLand(x: Int, y: Int): Pair<Boolean, String?> {
+        val s = current ?: return false to null
+        if (!sandbox && s.funds < 3) return false to "资金不足"
+        if (!World.raiseLand(x, y)) return false to "不能抬升占用格"
+        if (!sandbox) s.funds -= 3
+        return true to null
+    }
+
+    fun lowerLand(x: Int, y: Int): Pair<Boolean, String?> {
+        val s = current ?: return false to null
+        if (!sandbox && s.funds < 3) return false to "资金不足"
+        if (!World.lowerLand(x, y)) return false to "不能降低占用格"
+        if (!sandbox) s.funds -= 3
+        return true to null
+    }
 
     /** 市政贷款：借入 LOAN.amount，按日自动还款 */
     fun borrow(): Pair<Boolean, String?> {

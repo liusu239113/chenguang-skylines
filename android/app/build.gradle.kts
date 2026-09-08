@@ -11,13 +11,23 @@ android {
         applicationId = "com.chenguang.skylines"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("../keystore/chenguang.jks")
+            storePassword = "chenguang123"
+            keyAlias = "chenguang"
+            keyPassword = "chenguang123"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -25,6 +35,7 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

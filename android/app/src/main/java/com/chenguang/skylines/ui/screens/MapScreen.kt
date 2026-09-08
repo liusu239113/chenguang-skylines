@@ -50,6 +50,7 @@ import com.chenguang.skylines.world.Tool
 import com.chenguang.skylines.world.Transit
 import com.chenguang.skylines.world.World
 import kotlin.math.floor
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 // ============================================================================
@@ -72,6 +73,11 @@ object MapScreen {
             "cable" -> Tool("cable")
             "bus" -> Tool("bus")
             "district" -> Tool("district")
+            "sewer" -> Tool("sewer")
+            "metro" -> Tool("metro")
+            "tree" -> Tool("tree")
+            "raise" -> Tool("raise")
+            "lower" -> Tool("lower")
             else -> null
         }
         MapRef.view?.tool = t
@@ -126,7 +132,7 @@ object MapScreen {
     }
 
     fun onShow(view: MapRenderView, wDp: Float, hDp: Float) {
-        view.setViewport(wDp, hDp, 70f, 88f)
+        view.setViewport(wDp, hDp, 108f, 96f)
         if (!AppState.tutShown) {
             AppState.helpOpen = true
             AppState.tutShown = true
@@ -176,7 +182,7 @@ fun MapScreenContent(mapView: MapRenderView) {
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
-                .padding(top = 10.dp, start = 10.dp, end = 10.dp)
+                .padding(top = 36.dp, start = 10.dp, end = 10.dp)
                 .fillMaxWidth()
                 .noRippleClickable { }
         ) {
@@ -378,7 +384,7 @@ fun MapScreenContent(mapView: MapRenderView) {
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 120.dp, end = 12.dp)
+                .padding(top = 168.dp, end = 12.dp)
         ) {
             UIHelper.RoundButton("≡", size = 40.dp, fontSize = 20.sp) {
                 Sfx.play("sfx_click", 0.6f)
@@ -391,7 +397,7 @@ fun MapScreenContent(mapView: MapRenderView) {
             Row(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 128.dp)
+                    .padding(top = 176.dp)
                     .background(C.panelWhite.toColor(), RoundedCornerShape(16.dp))
                     .noRippleClickable { }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -422,7 +428,7 @@ fun MapScreenContent(mapView: MapRenderView) {
             Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 166.dp)
+                    .padding(top = 214.dp)
                     .noRippleClickable { },
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -457,7 +463,8 @@ fun MapScreenContent(mapView: MapRenderView) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             val items = listOf(
-                Triple("road", "道路", null as String?),
+                Triple("view", "手", null as String?),
+                Triple("road", "道路", null),
                 Triple("zone", "住宅", "residential"),
                 Triple("zone", "商业", "commercial"),
                 Triple("zone", "工业", "industrial"),
@@ -470,12 +477,13 @@ fun MapScreenContent(mapView: MapRenderView) {
                 val active = when {
                     it.first == "zone" -> AppState.mode == "zone" && AppState.zoneKey == it.third
                     it.first == "plan" -> AppState.planOpen ||
-                        AppState.mode == "pipe" || AppState.mode == "cable" ||
-                        AppState.mode == "bus" || AppState.mode == "district"
+                        AppState.mode in listOf("pipe", "cable", "bus", "district", "sewer", "metro", "tree", "raise", "lower")
                     else -> AppState.mode == it.first
                 }
-                UIHelper.ToolItem(it.second, active, width = 40.dp) {
-                    if (it.first == "zone") {
+                UIHelper.ToolItem(it.second, active, width = 36.dp) {
+                    if (it.first == "view") {
+                        MapScreen.cancelTool()
+                    } else if (it.first == "zone") {
                         if (AppState.mode == "zone" && AppState.zoneKey == it.third) {
                             MapScreen.selectMode("view")
                         } else {
@@ -567,7 +575,9 @@ private fun DrawerContent(mapView: MapRenderView) {
                     "医疗" to Config.ServiceCat.HEALTH,
                     "教育" to Config.ServiceCat.EDUCATION,
                     "消防" to Config.ServiceCat.SAFETY,
-                    "交通" to Config.ServiceCat.TRANSIT
+                    "交通" to Config.ServiceCat.TRANSIT,
+                    "殡葬" to Config.ServiceCat.DEATH,
+                    "地标" to Config.ServiceCat.LANDMARK
                 )
                 for ((title, cat) in groups) {
                     val items = Config.SERVICES.filter { it.category == cat }
@@ -668,6 +678,18 @@ private fun PlanDrawer(mapView: MapRenderView) {
                 AppState.overlay = "cable"
                 MapScreen.syncTool()
             }
+            UIHelper.PickChip("污水管", "2万/格", AppState.mode == "sewer", width = 86.dp) {
+                AppState.mode = "sewer"
+                AppState.overlay = "sewer"
+                MapScreen.syncTool()
+            }
+            UIHelper.PickChip("地铁隧", "6万/格", AppState.mode == "metro", width = 86.dp) {
+                AppState.mode = "metro"
+                AppState.overlay = "metro"
+                MapScreen.syncTool()
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             UIHelper.PickChip("公交线", "${Transit.draft.size}站", AppState.mode == "bus", width = 86.dp) {
                 AppState.mode = "bus"
                 MapScreen.syncTool()
@@ -736,8 +758,25 @@ private fun PlanDrawer(mapView: MapRenderView) {
             AppState.bumpLive()
         }
         Text(
-            "市民采样 " + Citizens.agents.size + " · 在岗 " + Citizens.employed +
-                " · 通勤指数 " + (Citizens.avgCommute * 100).toInt() + "%",
+            "美化 / 地形",
+            fontSize = 11.sp, fontWeight = FontWeight.Bold,
+            color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            UIHelper.PickChip("种树", "1万/格", AppState.mode == "tree", width = 86.dp) {
+                AppState.mode = "tree"; MapScreen.syncTool()
+            }
+            UIHelper.PickChip("抬升", "3万/格", AppState.mode == "raise", width = 86.dp) {
+                AppState.mode = "raise"; MapScreen.syncTool()
+            }
+            UIHelper.PickChip("降低", "3万/格", AppState.mode == "lower", width = 86.dp) {
+                AppState.mode = "lower"; MapScreen.syncTool()
+            }
+        }
+        Text(
+            "市民 " + Citizens.agents.size + " · 在岗 " + Citizens.employed +
+                " · 通勤 " + (Citizens.avgCommute * 100).toInt() +
+                "% · 污水管 " + Networks.sewerCount + " · 地铁 " + Networks.metroCount,
             fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
         )
         if (live < 0) Text("")
@@ -761,8 +800,7 @@ private fun PolicyPanel() {
                 .heightIn(max = 520.dp)
                 .verticalScroll(rememberScrollState())
                 .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
-                .padding(horizontal = 14.dp, vertical = 16.dp)
-                .noRippleClickable { },
+                .padding(horizontal = 14.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
@@ -906,14 +944,14 @@ private fun HelpPanel() {
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
             )
-            HelpRow("操作", "单指拖动平移；双指捏合或右侧 +/− 缩放；点格子查看信息。")
-            HelpRow("一步", "选【道路】，从大道边按住拖拽修路——分区内只有邻路的格子才会长楼。")
-            HelpRow("二步", "点【住宅/商业/工业/办公】在路旁涂分区。办公需要教育，适合中后期。")
-            HelpRow("三步", "时间自动流动：需求条越高，对应分区越快长楼。市民会按昼夜通勤上班、购物、回家。")
-            HelpRow("四步", "【服务】放电站/水塔/学校；【规划】铺水管电缆、点公交站连线、涂区划政策。")
-            HelpRow("五步", "点【策】启用市政政策：减税/绿化/免费公交会立刻改需求、污染和拥堵，持续到倒计时结束。")
-            HelpRow("六步", "【≡】保存进度会写入当前槽位，主菜单「存档管理」能看到城市名、人口和日期。")
-            HelpRow("七步", "缺电缺水会废弃建筑；公交线路能缩短通勤、降低拥堵。人口晋级解锁设施。")
+            HelpRow("手", "底部最左【手】=退出建造，之后单指拖地图、双指缩放。修完路一定要点它。")
+            HelpRow("路", "【道路】从大道边按住拖。泥土/两车道/四车道/高速可升级覆盖。")
+            HelpRow("区", "【住宅/商业/工业/办公】在路旁涂色，邻路才会长楼。房子建好就会迁入人口。")
+            HelpRow("电", "先【服务】放风电/煤电（必须靠路）。再【规划】→电缆把电接到分区，数据面板开「电力」看绿/红色块。")
+            HelpRow("水", "抽水站必须靠河。水塔可随处放。再用【规划】→水管接到房子，开「供水」热力图检查。")
+            HelpRow("污", "污水处理厂 + 污水管。不接污水，水源会脏、健康下降。")
+            HelpRow("策", "【策】里税率滑条可拖；政策启用后持续改税/需求/污染。点【数】看覆盖色块。")
+            HelpRow("存", "右上【≡】保存到当前槽位。主菜单「存档管理」能看到城市名、人口、日期。")
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -956,6 +994,8 @@ private fun overlayLabel(cat: String): String = when (cat) {
     "landvalue" -> "地价"
     "pipe" -> "水管"
     "cable" -> "电缆"
+    "sewer" -> "污水"
+    "metro" -> "地铁"
     "district" -> "区划"
     else -> cat
 }
@@ -996,7 +1036,17 @@ private fun DataPanel() {
                 CovBar("医疗", cov.health)
                 CovBar("教育", cov.education)
                 CovBar("消防", cov.safety)
+                CovBar("殡葬", cov.death)
             }
+            Text(
+                "犯罪 ${s.crime.toInt()} · 垃圾积压 ${s.garbageBacklog} · 污水覆盖 ${(s.sewerCoverage * 100).toInt()}% · 待安葬 ${s.deathsPending}",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text("服务预算", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+            TaxSlider("医疗预算", s.budgetHealth, 50, 150) { s.budgetHealth = it; AppState.bumpLive() }
+            TaxSlider("教育预算", s.budgetEdu, 50, 150) { s.budgetEdu = it; AppState.bumpLive() }
+            TaxSlider("治安预算", s.budgetSafety, 50, 150) { s.budgetSafety = it; AppState.bumpLive() }
+            TaxSlider("公交预算", s.budgetTransit, 50, 150) { s.budgetTransit = it; AppState.bumpLive() }
 
             // 满意度根因
             val bd = GameData.happinessBreakdown()
@@ -1072,7 +1122,7 @@ private fun DataPanel() {
             val cats = listOf(
                 Config.ServiceCat.POWER, Config.ServiceCat.WATER, Config.ServiceCat.GARBAGE,
                 Config.ServiceCat.HEALTH, Config.ServiceCat.EDUCATION, Config.ServiceCat.SAFETY,
-                "traffic", "landvalue", "pipe", "cable", "district"
+                "traffic", "landvalue", "pipe", "cable", "sewer", "metro", "district"
             )
             cats.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1164,8 +1214,15 @@ private fun CovBar(label: String, ratio: Float) {
 }
 
 @Composable
-private fun TaxSlider(label: String, value: Int, onChange: (Int) -> Unit) {
+private fun TaxSlider(
+    label: String,
+    value: Int,
+    minV: Int = Config.TAX.min,
+    maxV: Int = Config.TAX.max,
+    onChange: (Int) -> Unit
+) {
     val C = Config.COLORS
+    val v = value.coerceIn(minV, maxV)
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1175,16 +1232,19 @@ private fun TaxSlider(label: String, value: Int, onChange: (Int) -> Unit) {
                 label, fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "$value%", fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = if (value > Config.TAX.default) C.accentRed.toColor() else C.textDark.toColor(),
+                "$v%", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = if (v > (minV + maxV) / 2) C.accentRed.toColor() else C.textDark.toColor(),
                 fontFamily = LocalGameFont.current
             )
         }
         Slider(
-            value = value.toFloat(),
-            onValueChange = { onChange(it.roundToInt()) },
-            valueRange = Config.TAX.min.toFloat()..Config.TAX.max.toFloat(),
-            steps = (Config.TAX.max - Config.TAX.min - 1)
+            value = v.toFloat(),
+            onValueChange = { onChange(it.roundToInt().coerceIn(minV, maxV)) },
+            valueRange = minV.toFloat()..maxV.toFloat(),
+            steps = max(0, maxV - minV - 1),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp)
         )
     }
 }

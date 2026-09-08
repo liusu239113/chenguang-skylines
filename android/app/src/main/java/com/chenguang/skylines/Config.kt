@@ -186,6 +186,8 @@ object Config {
         const val EDUCATION = "education" // 教育
         const val SAFETY = "safety"       // 消防/安全
         const val TRANSIT = "transit"     // 公交
+        const val DEATH = "death"         // 殡葬
+        const val LANDMARK = "landmark"   // 独特建筑
     }
 
     data class ServiceDef(
@@ -223,9 +225,9 @@ object Config {
             "容量 180，维护昂贵，污染极低。", ServiceCat.POWER, 4000, 1, 180, 0),
         // ---- 供水 ----
         ServiceDef("water_tower", "水塔", 300, 4, 5, 0, false, 1, 1,
-            "抽取净水。容量 18。", ServiceCat.WATER, 0, 0, 0, 18),
-        ServiceDef("pump_station", "水泵站", 600, 7, 8, 0, false, 1, 1,
-            "大范围供水。容量 40。", ServiceCat.WATER, 150, 0, 0, 40),
+            "抽取地下水。容量 18，可随处放。", ServiceCat.WATER, 0, 0, 0, 18),
+        ServiceDef("pump_station", "抽水站", 600, 7, 8, 0, false, 1, 1,
+            "必须靠河。容量 40，再用水管接到分区。", ServiceCat.WATER, 0, 0, 0, 40),
         // ---- 垃圾 ----
         ServiceDef("landfill", "垃圾场", 350, 7, 6, 0, false, 1, 1,
             "填埋生活垃圾，满载后污染加重。", ServiceCat.GARBAGE, 100, 3),
@@ -258,7 +260,23 @@ object Config {
         ServiceDef("harbor", "港口", 1800, 15, 8, 6, true, 2, 2,
             "滨水货运码头，工业出口加成。", ServiceCat.TRANSIT, 1500),
         ServiceDef("airport", "机场", 5000, 40, 12, 10, true, 3, 3,
-            "航空枢纽，旅游收入与满意度。", ServiceCat.TRANSIT, 4000)
+            "航空枢纽，旅游收入与满意度。", ServiceCat.TRANSIT, 4000),
+        // ---- 排污 / 殡葬 / 监狱 ----
+        ServiceDef("sewage", "污水处理厂", 1100, 16, 8, 0, false, 2, 2,
+            "处理污水。未覆盖则污染水源、市民生病。", ServiceCat.WATER, 150, 2, 0, 0),
+        ServiceDef("cemetery", "墓地", 400, 4, 6, -1, false, 2, 2,
+            "存放遗体。满载后污染周边。", ServiceCat.DEATH, 100),
+        ServiceDef("crematorium", "火葬场", 900, 12, 8, 0, false, 1, 1,
+            "焚化遗体，无堆积。需派出灵车。", ServiceCat.DEATH, 300),
+        ServiceDef("prison", "监狱", 1600, 20, 8, 0, false, 2, 2,
+            "关押罪犯。容量满则犯人被释放。", ServiceCat.SAFETY, 300),
+        // ---- 独特建筑 ----
+        ServiceDef("stock_exchange", "证券交易所", 3500, 18, 10, 8, true, 3, 3,
+            "全城商业税收 +12%，地价上升。", ServiceCat.LANDMARK, 1000),
+        ServiceDef("tv_tower", "电视塔", 2800, 14, 12, 10, true, 2, 2,
+            "地标观光，满意度与旅游收入上升。", ServiceCat.LANDMARK, 1500),
+        ServiceDef("stadium", "体育场", 3200, 22, 10, 8, true, 3, 3,
+            "赛事吸引游客，周末消费加成。", ServiceCat.LANDMARK, 2000)
     )
 
     // -----------------------------------------------------------------------

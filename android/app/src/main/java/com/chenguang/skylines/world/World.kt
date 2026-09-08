@@ -20,7 +20,12 @@ class Tile {
     var building: Building? = null
     var pipe: Boolean = false         // 地下水管
     var cable: Boolean = false        // 地下电缆
+    var sewer: Boolean = false        // 污水管
+    var metro: Boolean = false        // 地铁隧道
     var district: Int = 0             // 区划 id，0=未划
+    var groundPol: Int = 0            // 地面污染 0-100
+    var waterPol: Int = 0             // 水污染 0-100
+    var onFire: Boolean = false
 }
 
 class Building {
@@ -32,6 +37,8 @@ class Building {
     var workers: Int = 0              // 商/工/办公在岗人数
     var abandoned: Boolean = false
     var ageDays: Int = 0
+    var garbage: Int = 0              // 建筑垃圾堆积
+    var crime: Int = 0                // 建筑犯罪热度
     // service
     var service: String? = null
     var ax: Int = 0
@@ -370,7 +377,9 @@ class World {
             for (yy in y until y + s.sizeH) {
                 for (xx in x until x + s.sizeW) {
                     val t = tile(xx, yy) ?: return false to "超出地图"
-                    if (t.terrain == "water") return false to "不能建在水上"
+                    if (t.terrain == "water" && id != "pump_station" && id != "harbor") {
+                        return false to "不能建在水上"
+                    }
                     if (t.road != null || t.building != null) return false to "该位置被占用"
                 }
             }
@@ -386,6 +395,18 @@ class World {
                     }
                 }
                 if (!adjacent) return false to "需建在道路旁（接入电网/管网）"
+            }
+            if (id == "pump_station") {
+                var nearWater = false
+                outerW@ for (yy in y - 2 until y + s.sizeH + 2) {
+                    for (xx in x - 2 until x + s.sizeW + 2) {
+                        if (tile(xx, yy)?.terrain == "water") {
+                            nearWater = true
+                            break@outerW
+                        }
+                    }
+                }
+                if (!nearWater) return false to "抽水站必须建在河边"
             }
             return true to null
         }
@@ -403,7 +424,9 @@ class World {
                 }
             }
             if (s.category == Config.ServiceCat.POWER) Networks.seedCablesAround(x, y, s.sizeW, s.sizeH)
-            if (s.category == Config.ServiceCat.WATER) Networks.seedPipesAround(x, y, s.sizeW, s.sizeH)
+            if (s.category == Config.ServiceCat.WATER && s.id != "sewage") Networks.seedPipesAround(x, y, s.sizeW, s.sizeH)
+            if (s.id == "sewage") Networks.seedSewersAround(x, y, s.sizeW, s.sizeH)
+            if (s.id == "metro") Networks.seedMetroAround(x, y, s.sizeW, s.sizeH)
             return true
         }
 
@@ -417,6 +440,8 @@ class World {
             b.zone = zone
             b.level = level
             b.born = born
+            if (zone == "residential") b.residents = max(2, (Config.GROWN[zone]?.levels?.firstOrNull()?.cap ?: 8) / 6)
+            else b.workers = max(1, (Config.GROWN[zone]?.levels?.firstOrNull()?.cap ?: 8) / 8)
             t.building = b
             return true
         }
@@ -572,7 +597,9 @@ class World {
                     val t = tile(nx, ny) ?: continue
                     val along = t.road != null ||
                         (category == Config.ServiceCat.POWER && t.cable) ||
-                        (category == Config.ServiceCat.WATER && t.pipe)
+                        (category == Config.ServiceCat.WATER && t.pipe) ||
+                        (category == Config.ServiceCat.DEATH && t.road != null) ||
+                        (category == "sewer" && t.sewer)
                     if (along) {
                         val p = nx to ny
                         if (visited.add(p)) queue.addLast(p)
@@ -592,7 +619,7 @@ class World {
 
         /** 各类别的覆盖比例（0..1，无建筑时视为 1） */
         fun coverage(): Coverage {
-            val w = current ?: return Coverage(1f, 1f, 1f, 1f, 1f, 1f)
+            val w = current ?: return Coverage(1f, 1f, 1f, 1f, 1f, 1f, 1f)
             val grown = allBuildings().filter { !it.b.isService }
             fun ratio(cat: String): Float {
                 if (grown.isEmpty()) return 1f
@@ -607,8 +634,41 @@ class World {
                 ratio(Config.ServiceCat.GARBAGE),
                 ratio(Config.ServiceCat.HEALTH),
                 ratio(Config.ServiceCat.EDUCATION),
-                ratio(Config.ServiceCat.SAFETY)
+                ratio(Config.ServiceCat.SAFETY),
+                ratio(Config.ServiceCat.DEATH)
             )
+        }
+
+        fun hasLandmark(id: String): Boolean =
+            allBuildings().any { it.b.service == id }
+
+        fun plantTree(x: Int, y: Int): Boolean {
+            val t = tile(x, y) ?: return false
+            if (t.terrain == "water" || t.road != null || t.building != null) return false
+            t.terrain = "forest"
+            t.groundPol = max(0, t.groundPol - 18)
+            return true
+        }
+
+        fun raiseLand(x: Int, y: Int): Boolean {
+            val w = current ?: return false
+            if (!inBounds(x, y)) return false
+            val t = w.grid[y - 1][x - 1]
+            if (t.building != null || t.road != null) return false
+            w.elev[y - 1][x - 1] = min(280, w.elev[y - 1][x - 1] + 18)
+            if (t.terrain == "water") t.terrain = "plain"
+            if (w.elev[y - 1][x - 1] > 200) t.terrain = "hill"
+            return true
+        }
+
+        fun lowerLand(x: Int, y: Int): Boolean {
+            val w = current ?: return false
+            if (!inBounds(x, y)) return false
+            val t = w.grid[y - 1][x - 1]
+            if (t.building != null || t.road != null) return false
+            w.elev[y - 1][x - 1] = max(4, w.elev[y - 1][x - 1] - 18)
+            if (w.elev[y - 1][x - 1] < 16) t.terrain = "water"
+            return true
         }
     }
 
@@ -625,5 +685,6 @@ data class Coverage(
     val garbage: Float,
     val health: Float,
     val education: Float,
-    val safety: Float
+    val safety: Float,
+    val death: Float = 1f
 )

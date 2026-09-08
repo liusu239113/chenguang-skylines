@@ -160,7 +160,7 @@ object Citizens {
         var spawned = 0
         for (h in homes) {
             if (spawned >= MAX_AGENTS) break
-            val n = max(1, min(3, h.b.residents / 8))
+            val n = max(1, min(4, max(1, h.b.residents / 4)))
             val edu = educationAt(h.x, h.y)
             repeat(n) {
                 if (spawned >= MAX_AGENTS) return@repeat
@@ -238,8 +238,8 @@ object Citizens {
 
     fun tick(dt: Float) {
         if (agents.isEmpty()) {
-            if ((World.current?._pop ?: 0) > 8) rebuild()
-            return
+            rebuild()
+            if (agents.isEmpty()) return
         }
         val want = desiredState(GameData.timeOfDay)
         shopping = 0

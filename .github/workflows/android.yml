@@ -41,32 +41,42 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             "platforms;android-35" "build-tools;35.0.0" "platform-tools" > /dev/null 2>&1 || true
 
-      - name: Build
+      - name: Create signing keystore
         working-directory: android
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: |
+          mkdir -p keystore
+          if [ ! -f keystore/chenguang.jks ]; then
+            keytool -genkeypair -keystore keystore/chenguang.jks -alias chenguang \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass chenguang123 -keypass chenguang123 \
+              -dname "CN=Chenguang Skylines, OU=Game, O=Liusu, L=Hangzhou, ST=Zhejiang, C=CN"
+          fi
+
+      - name: Build signed APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon --stacktrace
 
       - name: Locate APK
         id: apk
         run: |
-          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -n 1)
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n 1)
           echo "path=$APK" >> $GITHUB_OUTPUT
           ls -lh "$APK"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: chenguang-skylines-debug
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: chenguang-skylines-release
+          path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
 
       - name: Publish Release
-        # 需要仓库 Settings → Actions → Workflow permissions = Read and write
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: "晨光天际线 · build ${{ github.run_number }}"
-          body: "自动构建产物（debug APK，可直接安装）"
-          files: android/app/build/outputs/apk/debug/*.apk
+          body: "正式签名 APK，可直接安装"
+          files: android/app/build/outputs/apk/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

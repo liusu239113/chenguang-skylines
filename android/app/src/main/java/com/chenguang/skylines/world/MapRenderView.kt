@@ -246,6 +246,31 @@ class MapRenderView @JvmOverloads constructor(
                 if (msg != null) setToast(msg)
                 return ok
             }
+            "sewer" -> {
+                val (ok, msg) = GameData.paintSewer(tx, ty)
+                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
+                return ok
+            }
+            "metro" -> {
+                val (ok, msg) = GameData.paintMetro(tx, ty)
+                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
+                return ok
+            }
+            "tree" -> {
+                val (ok, msg) = GameData.plantTree(tx, ty)
+                if (ok) Sfx.play("sfx_build", 0.4f) else if (msg != null) setToast(msg)
+                return ok
+            }
+            "raise" -> {
+                val (ok, msg) = GameData.raiseLand(tx, ty)
+                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
+                return ok
+            }
+            "lower" -> {
+                val (ok, msg) = GameData.lowerLand(tx, ty)
+                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
+                return ok
+            }
         }
         return false
     }
@@ -268,6 +293,16 @@ class MapRenderView @JvmOverloads constructor(
             "cable" -> World.tile(tx, ty)?.terrain != "water"
             "district" -> World.tile(tx, ty)?.terrain != "water"
             "bus" -> Transit.isStopCell(tx, ty)
+            "sewer" -> true
+            "metro" -> World.tile(tx, ty)?.terrain != "water"
+            "tree" -> {
+                val tile = World.tile(tx, ty)
+                tile != null && tile.terrain != "water" && tile.road == null && tile.building == null
+            }
+            "raise", "lower" -> {
+                val tile = World.tile(tx, ty)
+                tile != null && tile.road == null && tile.building == null
+            }
             else -> false
         }
     }
@@ -621,7 +656,9 @@ class MapRenderView @JvmOverloads constructor(
         dragLastTile = null
     }
 
-    /** 每帧：toast 计时 + 车辆 */
+    private var ambientAcc = 0f
+
+    /** 每帧：toast 计时 + 车辆 + 环境音 */
     fun update(dt: Float) {
         if (toastMsg != null) {
             toastT += dt
@@ -631,6 +668,18 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
         updateCars(dt)
+        ambientAcc += dt
+        if (ambientAcc > 2.4f && camScale > 1.15f) {
+            ambientAcc = 0f
+            val tx = tileAtX(viewW * 0.5f)
+            val ty = tileAtY(viewH * 0.5f)
+            val t = World.tile(tx, ty)
+            when {
+                t?.building?.zone == "industrial" -> Sfx.play("sfx_engine", 0.18f)
+                t?.building?.zone == "residential" && cars.isNotEmpty() -> Sfx.play("sfx_click", 0.08f)
+                t?.road != null && cars.isNotEmpty() -> Sfx.play("sfx_engine", 0.12f)
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -761,8 +810,9 @@ class MapRenderView @JvmOverloads constructor(
         }
 
         // ---- 1.4) 区划底纹 / 水管 / 电缆 ----
-        val showNet = overlay == "pipe" || overlay == "cable" || tool?.kind == "pipe" || tool?.kind == "cable" || tool?.kind == "district"
-        if (showNet || overlay == "district" || tool?.kind == "district") {
+        val showNet = overlay in listOf("pipe", "cable", "sewer", "metro", "district") ||
+            tool?.kind in listOf("pipe", "cable", "sewer", "metro", "district")
+        if (showNet) {
             for (ty in y0..y1) {
                 for (tx in x0..x1) {
                     val t = w.grid[ty - 1][tx - 1]
@@ -777,6 +827,12 @@ class MapRenderView @JvmOverloads constructor(
                     }
                     if ((overlay == "cable" || tool?.kind == "cable") && t.cable) {
                         fillRect(canvas, sx, sy + cell * 0.35f, cell, cell * 0.3f, RGBA(230, 190, 70, 160))
+                    }
+                    if ((overlay == "sewer" || tool?.kind == "sewer") && t.sewer) {
+                        fillRect(canvas, sx + cell * 0.2f, sy + cell * 0.4f, cell * 0.6f, cell * 0.2f, RGBA(90, 70, 50, 180))
+                    }
+                    if ((overlay == "metro" || tool?.kind == "metro") && t.metro) {
+                        fillRect(canvas, sx + cell * 0.1f, sy + cell * 0.42f, cell * 0.8f, cell * 0.16f, RGBA(40, 80, 160, 190))
                     }
                 }
             }
@@ -1015,21 +1071,34 @@ class MapRenderView @JvmOverloads constructor(
                 fillRoundRect(canvas, sx - cell * 0.28f, sy - cell * 0.16f, cell * 0.56f, cell * 0.32f, 3f, RGBA(40, 90, 170))
                 fillRect(canvas, sx - cell * 0.12f, sy - cell * 0.08f, cell * 0.24f, cell * 0.16f, RGBA(220, 230, 245))
             }
+            for (ev in CitySystems.cars) {
+                val (wx, wy) = CitySystems.screenCell(ev)
+                val sx = worldToScreenX(wx)
+                val sy = worldToScreenY(wy)
+                val col = when (ev.kind) {
+                    "fire" -> RGBA(220, 70, 50)
+                    "ambulance" -> RGBA(240, 240, 245)
+                    "police" -> RGBA(50, 80, 180)
+                    "garbage" -> RGBA(80, 140, 80)
+                    else -> RGBA(40, 40, 40)
+                }
+                fillRoundRect(canvas, sx - cell * 0.22f, sy - cell * 0.12f, cell * 0.44f, cell * 0.24f, 2f, col)
+            }
         }
 
-        // ---- 3.7) 市民（通勤中才画，避免满地图噪点） ----
-        if (cell >= 10) {
+        // ---- 3.7) 市民（拉近可见；在家/上班也在门口露一点） ----
+        if (cell >= 8) {
             val pal = listOf(
                 RGBA(80, 90, 120), RGBA(160, 80, 70), RGBA(70, 120, 90),
                 RGBA(140, 110, 50), RGBA(90, 70, 130), RGBA(50, 90, 140)
             )
             for (c in Citizens.agents) {
-                if (c.state == "home" || c.state == "work" || c.state == "shop") continue
                 val (wx, wy) = Citizens.screenCell(c)
                 val sx = worldToScreenX(wx)
                 val sy = worldToScreenY(wy)
                 if (sx < -cell || sy < -cell || sx > viewW + cell || sy > viewH + cell) continue
-                fillCircle(canvas, sx, sy, max(1.4f, cell * 0.09f), pal[c.color % pal.size])
+                val r = if (c.state == "home" || c.state == "work") cell * 0.07f else cell * 0.11f
+                fillCircle(canvas, sx, sy, max(1.6f, r), pal[c.color % pal.size])
             }
         }
 
@@ -1075,13 +1144,13 @@ class MapRenderView @JvmOverloads constructor(
                 }
                 val hpx = clamp(bw * 0.55f * hFactor * anim, 0f, cell * 2.6f)
                 val shrink = (anim - 1) * bw * 0.5f
-                drawBox(
+                drawBuilding(
                     canvas,
                     sx - shrink,
                     sy - shrink * (bh / bw),
                     bw + shrink * 2,
                     bh + shrink * 2 * (bh / bw),
-                    hpx, base
+                    hpx, base, bl, tx, ty
                 )
             }
         }
@@ -1132,12 +1201,30 @@ class MapRenderView @JvmOverloads constructor(
                     )
                 }
             }
-        } else if (overlay.isNotEmpty() && overlay != "pipe" && overlay != "cable" && overlay != "district") {
-            val green = RGBA(90, 200, 120, 95)
-            val red = RGBA(220, 80, 70, 135)
-            val blue = RGBA(70, 130, 220, 105)
-            val rangeFill = RGBA(96, 200, 140, 22)
-            // 1) 该类设施的覆盖范围圈
+        } else if (overlay.isNotEmpty() && overlay !in listOf("pipe", "cable", "district", "sewer", "metro")) {
+            val green = RGBA(70, 190, 110, 110)
+            val red = RGBA(210, 70, 60, 95)
+            val blue = RGBA(50, 110, 210, 130)
+            val coveredSet = World.bfsCovered(overlay)
+            for (ty in y0..y1) {
+                for (tx in x0..x1) {
+                    val t = w.grid[ty - 1][tx - 1]
+                    val sx = worldToScreenX(tx - 1f)
+                    val sy = worldToScreenY(ty - 1f)
+                    val b = t.building
+                    if (b != null && b.isService) {
+                        val cfg = World.serviceConfig(b.service)
+                        if (cfg != null && cfg.category == overlay && b.ax == tx && b.ay == ty) {
+                            fillRect(canvas, sx, sy, cell * b.w, cell * b.h, blue)
+                        }
+                    } else {
+                        val ok = (ty * w.cols + tx) in coveredSet ||
+                            (overlay == Config.ServiceCat.POWER && t.cable) ||
+                            (overlay == Config.ServiceCat.WATER && t.pipe)
+                        fillRect(canvas, sx, sy, cell, cell, if (ok) green else red)
+                    }
+                }
+            }
             for (e in World.allBuildings()) {
                 if (!e.b.isService) continue
                 val cfg = World.serviceConfig(e.b.service) ?: continue
@@ -1145,27 +1232,7 @@ class MapRenderView @JvmOverloads constructor(
                 val cx = worldToScreenX(e.x - 1 + cfg.sizeW / 2f)
                 val cy = worldToScreenY(e.y - 1 + cfg.sizeH / 2f)
                 val r = cell * (cfg.radius + 0.5f)
-                if (cx + r > 0 && cx - r < viewW && cy + r > 0 && cy - r < viewH) {
-                    fillCircle(canvas, cx, cy, r, rangeFill)
-                    strokeCircle(canvas, cx, cy, r, RGBA(96, 200, 140, 115), 255, 1.5f)
-                }
-            }
-            // 2) 建筑着色（覆盖=绿，缺=红，设施本体=蓝）
-            val coveredSet = World.bfsCovered(overlay)
-            for (e in World.allBuildings()) {
-                val sx = worldToScreenX(e.x - 1f)
-                val sy = worldToScreenY(e.y - 1f)
-                val bw = cell * e.b.w
-                val bh = cell * e.b.h
-                if (e.b.isService) {
-                    val cfg = World.serviceConfig(e.b.service)
-                    if (cfg != null && cfg.category == overlay) {
-                        fillRect(canvas, sx, sy, bw, bh, blue)
-                    }
-                } else {
-                    val ok = (e.y * w.cols + e.x) in coveredSet
-                    fillRect(canvas, sx, sy, bw, bh, if (ok) green else red)
-                }
+                strokeCircle(canvas, cx, cy, r, RGBA(40, 90, 200, 160), 255, 1.6f)
             }
         }
 
@@ -1375,6 +1442,59 @@ class MapRenderView @JvmOverloads constructor(
         return if ((x + y) % 2 == 0) C.grass else C.grassAlt
     }
 
+    private fun drawBuilding(
+        canvas: Canvas, rx0: Float, ry0: Float, rw0: Float, rh0: Float,
+        hpx: Float, base: RGBA, bl: Building, tx: Int, ty: Int
+    ) {
+        drawBox(canvas, rx0, ry0, rw0, rh0, hpx, base)
+        val cell = this.cell
+        if (cell < 10) return
+        val pad = max(1.5f, cell * 0.09f)
+        val rx = rx0 + pad
+        val ry = ry0 + pad
+        val rw = rw0 - pad * 2
+        val rh = rh0 - pad * 2
+        val seed = tx * 17 + ty * 31 + (bl.level * 9)
+        when {
+            bl.service == "park" || bl.service == "plaza" -> {
+                fillCircle(canvas, rx + rw * 0.35f, ry + rh * 0.4f, cell * 0.16f, RGBA(70, 130, 80, 200))
+                fillCircle(canvas, rx + rw * 0.7f, ry + rh * 0.55f, cell * 0.12f, RGBA(90, 150, 90, 200))
+            }
+            bl.service == "wind_farm" -> {
+                strokeColor(RGBA(230, 230, 230), 255, max(1f, cell * 0.04f))
+                canvas.drawLine(rx + rw * 0.5f, ry + rh, rx + rw * 0.5f, ry - hpx, paint)
+                fillCircle(canvas, rx + rw * 0.5f, ry - hpx, cell * 0.08f, RGBA(240, 240, 240))
+            }
+            bl.service == "water_tower" || bl.service == "pump_station" -> {
+                fillCircle(canvas, rx + rw * 0.5f, ry - hpx * 0.2f, min(rw, rh) * 0.28f, RGBA(70, 140, 190))
+            }
+            bl.zone == "industrial" -> {
+                fillRect(canvas, rx + rw * 0.15f, ry - hpx - cell * 0.22f, cell * 0.12f, cell * 0.28f, RGBA(90, 90, 95))
+                fillRect(canvas, rx + rw * 0.55f, ry - hpx - cell * 0.18f, cell * 0.10f, cell * 0.22f, RGBA(110, 80, 70))
+            }
+            bl.zone == "commercial" -> {
+                fillRect(canvas, rx + rw * 0.18f, ry + rh * 0.55f, rw * 0.64f, rh * 0.28f, RGBA(40, 50, 70, 180))
+                if ((seed % 3) == 0) fillRect(canvas, rx + rw * 0.05f, ry - hpx - 2, rw * 0.9f, cell * 0.08f, RGBA(200, 80, 70))
+            }
+            bl.zone == "office" -> {
+                fillRect(canvas, rx + 2, ry - hpx + 2, rw - 4, hpx * 0.55f, RGBA(180, 210, 230, 120))
+            }
+            bl.zone == "residential" -> {
+                if (bl.level == 1) {
+                    path.reset()
+                    path.moveTo(rx - 1, ry - hpx + 2)
+                    path.lineTo(rx + rw * 0.5f, ry - hpx - cell * 0.22f)
+                    path.lineTo(rx + rw + 1, ry - hpx + 2)
+                    path.close()
+                    fillPath(canvas, path, RGBA(150, 70, 60))
+                }
+            }
+        }
+        if (World.tile(tx, ty)?.onFire == true) {
+            fillCircle(canvas, rx + rw * 0.5f, ry - hpx, cell * 0.18f, RGBA(255, 120, 40, 200))
+        }
+    }
+
     private fun drawBox(
         canvas: Canvas, rx0: Float, ry0: Float, rw0: Float, rh0: Float,
         hpx: Float, base: RGBA
@@ -1482,6 +1602,13 @@ class MapRenderView @JvmOverloads constructor(
         "airport" -> "机"
         "police" -> "警"
         "university" -> "大"
+        "sewage" -> "污"
+        "cemetery" -> "墓"
+        "crematorium" -> "葬"
+        "prison" -> "狱"
+        "stock_exchange" -> "证"
+        "tv_tower" -> "塔"
+        "stadium" -> "体"
         else -> ""
     }
 

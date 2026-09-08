@@ -98,6 +98,15 @@ object SaveManager {
         json.put("taxOff", s.taxOff)
         json.put("loanDebt", s.loanDebt)
         json.put("loanCooldown", s.loanCooldown)
+        json.put("crime", s.crime)
+        json.put("deathsPending", s.deathsPending)
+        json.put("prisonUsed", s.prisonUsed)
+        json.put("cemeteryUsed", s.cemeteryUsed)
+        json.put("garbageBacklog", s.garbageBacklog)
+        json.put("budgetHealth", s.budgetHealth)
+        json.put("budgetEdu", s.budgetEdu)
+        json.put("budgetSafety", s.budgetSafety)
+        json.put("budgetTransit", s.budgetTransit)
 
         val ap = JSONArray()
         for (p in s.activePolicies) {
@@ -144,12 +153,16 @@ object SaveManager {
         for (y in 1..w.rows) {
             for (x in 1..w.cols) {
                 val t = w.grid[y - 1][x - 1]
-                if (t.zone == "none" && t.road == null && t.building == null && !t.pipe && !t.cable && t.district == 0) continue
+                if (t.zone == "none" && t.road == null && t.building == null && !t.pipe && !t.cable && !t.sewer && !t.metro && t.district == 0) continue
                 val o = JSONObject().put("x", x).put("y", y).put("zone", t.zone)
                 t.road?.let { o.put("road", it) }
                 if (t.pipe) o.put("pipe", true)
                 if (t.cable) o.put("cable", true)
+                if (t.sewer) o.put("sewer", true)
+                if (t.metro) o.put("metro", true)
                 if (t.district != 0) o.put("district", t.district)
+                if (t.groundPol > 0) o.put("groundPol", t.groundPol)
+                if (t.waterPol > 0) o.put("waterPol", t.waterPol)
                 t.building?.let { b ->
                     val bo = JSONObject().put("level", b.level).put("born", b.born)
                         .put("residents", b.residents).put("workers", b.workers)
@@ -200,7 +213,11 @@ object SaveManager {
                 if (o.has("road")) t.road = o.optString("road") else t.road = null
                 t.pipe = o.optBoolean("pipe", false)
                 t.cable = o.optBoolean("cable", false)
+                t.sewer = o.optBoolean("sewer", false)
+                t.metro = o.optBoolean("metro", false)
                 t.district = o.optInt("district", 0)
+                t.groundPol = o.optInt("groundPol", 0)
+                t.waterPol = o.optInt("waterPol", 0)
                 t.building = null
                 if (o.has("building")) {
                     val bo = o.getJSONObject("building")
@@ -243,6 +260,15 @@ object SaveManager {
         s.taxOff = json.optInt("taxOff", Config.TAX.default)
         s.loanDebt = json.optDouble("loanDebt", 0.0)
         s.loanCooldown = json.optInt("loanCooldown", 0)
+        s.crime = json.optDouble("crime", 8.0)
+        s.deathsPending = json.optInt("deathsPending", 0)
+        s.prisonUsed = json.optInt("prisonUsed", 0)
+        s.cemeteryUsed = json.optInt("cemeteryUsed", 0)
+        s.garbageBacklog = json.optInt("garbageBacklog", 0)
+        s.budgetHealth = json.optInt("budgetHealth", 100)
+        s.budgetEdu = json.optInt("budgetEdu", 100)
+        s.budgetSafety = json.optInt("budgetSafety", 100)
+        s.budgetTransit = json.optInt("budgetTransit", 100)
         s.education = json.optDouble("education", 18.0)
         s.health = json.optDouble("health", 62.0)
         s.jobs = json.optInt("jobs", 0)
