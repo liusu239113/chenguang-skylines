@@ -1,5 +1,6 @@
 package com.dshx.game.su.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,6 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.dshx.game.su.R
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -52,12 +56,11 @@ private fun startGame(
     name: String,
     seed: Int,
     difficulty: String,
-    sandbox: Boolean,
     slot: Int
 ) {
     GameData.seed = seed
     GameData.difficultyKey = difficulty
-    GameData.sandbox = sandbox
+    GameData.sandbox = false
     GameData.init(seed, name)
     AppState.activeSlot = slot
     SaveManager.save(slot)
@@ -85,45 +88,35 @@ private fun MainMenuScreen(mapView: MapRenderView) {
     val saveTick = AppState.saveTick
     val recent = (0..2).firstOrNull { SaveManager.hasSlot(it) }
     val recentMeta = recent?.let { SaveManager.meta(it) }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(C.uiBackdrop.toColor()),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(id = R.drawable.bg_main_menu),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0x66000000))
+        )
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .widthIn(max = 380.dp)
-                .background(C.panelWhite.toColor(), RoundedCornerShape(24.dp))
-                .padding(start = 24.dp, end = 24.dp, top = 30.dp, bottom = 26.dp),
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(start = 22.dp, end = 22.dp, bottom = 36.dp, top = 48.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                Config.World.country + " · 城建日报",
-                fontSize = 10.sp, color = C.textMid.toColor(),
-                fontFamily = LocalGameFont.current, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                Config.TITLE, fontSize = 26.sp, fontWeight = FontWeight.Bold,
-                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
-                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                Config.SUBTITLE, fontSize = 10.sp, color = C.textFaint.toColor(),
-                fontFamily = LocalGameFont.current, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Box(
+            Image(
+                painter = painterResource(id = R.drawable.ic_title_logo),
+                contentDescription = Config.TITLE,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 10.dp)
-                    .height(1.dp)
-                    .background(C.textDark.toColor())
+                    .height(96.dp)
+                    .padding(horizontal = 8.dp),
+                contentScale = ContentScale.Fit
             )
-
             if (recent != null && recentMeta != null && recentMeta.exists) {
                 MenuButton(
                     "继续游戏 · " + recentMeta.cityName,
@@ -142,12 +135,11 @@ private fun MainMenuScreen(mapView: MapRenderView) {
                 Text(
                     recentMeta.levelName + " · 人口 " + recentMeta.population +
                         " · " + recentMeta.dateLabel + " · 槽位 " + (recent + 1),
-                    fontSize = 10.sp, color = C.textMid.toColor(),
+                    fontSize = 10.sp, color = Color.White.copy(alpha = 0.85f),
                     fontFamily = LocalGameFont.current, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-
             MenuButton("新游戏", C.accentBlue.toColor(), true) {
                 Sfx.play("sfx_click")
                 AppState.newCityName = ""
@@ -155,23 +147,10 @@ private fun MainMenuScreen(mapView: MapRenderView) {
                 AppState.newDifficulty = "normal"
                 AppState.menuScreen = "newgame"
             }
-
-            MenuButton("存档管理", C.chipBg.toColor(), false) {
+            MenuButton("存档管理", C.panelWhite.toColor(), false) {
                 Sfx.play("sfx_click")
                 AppState.menuScreen = "slots"
             }
-
-            MenuButton("GM 模式（无限资源）", C.chipBg.toColor(), false) {
-                Sfx.play("sfx_click")
-                val slot = (0..2).firstOrNull { !SaveManager.hasSlot(it) } ?: 0
-                startGame(mapView, "沙盒之城", Random.nextInt(1, 100000), "normal", true, slot)
-            }
-
-            Text(
-                "全虚构世界观 · 玩法模拟经营 · 无现实机构指涉",
-                fontSize = 9.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current,
-                textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp)
-            )
         }
     }
 }
@@ -372,7 +351,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                         Sfx.play("sfx_click")
                         val cityName = if (name.isBlank()) "晨光市" else name.trim()
                         val seed = if (seedText.isBlank()) Random.nextInt(1, 100000) else seedText.toIntOrNull() ?: Random.nextInt(1, 100000)
-                        startGame(mapView, cityName, seed, difficulty, false, slot)
+                        startGame(mapView, cityName, seed, difficulty, slot)
                     },
                 contentAlignment = Alignment.Center
             ) {

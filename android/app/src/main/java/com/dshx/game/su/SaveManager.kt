@@ -107,6 +107,12 @@ object SaveManager {
         json.put("budgetEdu", s.budgetEdu)
         json.put("budgetSafety", s.budgetSafety)
         json.put("budgetTransit", s.budgetTransit)
+        json.put("rankLevel", s.rankLevel)
+        json.put("merit", s.merit)
+        json.put("examPassed", Civic.examPassed)
+        json.put("examCooldown", Civic.examCooldown)
+        json.put("schoolRate", Civic.schoolRate)
+        json.put("complaintsHandled", Civic.complaintsHandled)
 
         val ap = JSONArray()
         for (p in s.activePolicies) {
@@ -196,7 +202,7 @@ object SaveManager {
 
         GameData.seed = json.optInt("seed", 20260408)
         GameData.difficultyKey = json.optString("difficulty", "normal")
-        GameData.sandbox = json.optBoolean("sandbox", false)
+        GameData.sandbox = false
 
         // 重建地形 + 空状态
         GameData.init(GameData.seed)
@@ -269,6 +275,12 @@ object SaveManager {
         s.budgetEdu = json.optInt("budgetEdu", 100)
         s.budgetSafety = json.optInt("budgetSafety", 100)
         s.budgetTransit = json.optInt("budgetTransit", 100)
+        s.rankLevel = json.optInt("rankLevel", 1)
+        s.merit = json.optDouble("merit", 0.0)
+        Civic.examPassed = json.optInt("examPassed", 0)
+        Civic.examCooldown = json.optInt("examCooldown", 0)
+        Civic.schoolRate = json.optDouble("schoolRate", 0.42)
+        Civic.complaintsHandled = json.optInt("complaintsHandled", 0)
         s.education = json.optDouble("education", 18.0)
         s.health = json.optDouble("health", 62.0)
         s.jobs = json.optInt("jobs", 0)
@@ -338,6 +350,7 @@ object SaveManager {
         Networks.fromJson(json.optJSONObject("networks"))
         Networks.recount()
         Citizens.rebuild()
+        GameData.refreshRank()
         return true
     }
 }

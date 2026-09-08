@@ -112,6 +112,12 @@ fun NewspaperContent() {
                         fontFamily = LocalGameFont.current
                     )
                 }
+                Text(
+                    "职级 " + GameData.rankDef().name + " · " + GameData.rankDef().perk,
+                    fontSize = 11.sp, color = C.accentBlue.toColor(),
+                    fontFamily = LocalGameFont.current,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
             }
         }
 

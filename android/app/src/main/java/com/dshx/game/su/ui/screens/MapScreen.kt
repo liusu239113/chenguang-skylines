@@ -3,7 +3,6 @@ package com.dshx.game.su.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,16 +13,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import com.dshx.game.su.R
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -33,12 +34,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import android.app.Activity
+import com.dshx.game.su.Ads
 import com.dshx.game.su.AppState
+import com.dshx.game.su.Civic
 import com.dshx.game.su.Config
 import com.dshx.game.su.GameData
 import com.dshx.game.su.MapRef
 import com.dshx.game.su.SaveManager
 import com.dshx.game.su.Sfx
+import com.dshx.game.su.SpeedBoost
 import com.dshx.game.su.ui.UIHelper
 import com.dshx.game.su.ui.toColor
 import com.dshx.game.su.ui.theme.LocalGameFont
@@ -197,6 +203,7 @@ fun MapScreenContent(mapView: MapRenderView) {
             ) {
                 if (s != null) {
                     UIHelper.Chip("", s.cityName)
+                    ChipValue("职", GameData.rankDef().name, C.accentBlue.toColor(), live)
                     ChipValue("资金", "¥" + UIHelper.fmtMoney(s.funds) + "万", C.accentGold.toColor(), live)
                     ChipValue("人口", UIHelper.fmtPop(floor(s.population).toInt()), C.textDark.toColor(), live)
                     ChipValue(
@@ -250,8 +257,10 @@ fun MapScreenContent(mapView: MapRenderView) {
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     val speeds = listOf("‖" to 0, "▶" to 1, "▶▶" to 2, "▶▶▶" to 3)
+                    val act = LocalContext.current as? Activity
                     for (sp in speeds) {
                         val active = GameData.speedIdx == sp.second
+                        val locked = sp.second >= 2 && !SpeedBoost.isActive()
                         Box(
                             modifier = Modifier
                                 .width(if (sp.second == 0) 34.dp else 44.dp)
@@ -262,13 +271,25 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 )
                                 .clickable {
                                     Sfx.play("sfx_click", 0.5f)
-                                    GameData.setSpeed(sp.second)
-                                    AppState.bumpLive()
+                                    if (locked) {
+                                        if (act != null) {
+                                            Ads.reward(act, {
+                                                SpeedBoost.activate()
+                                                GameData.setSpeed(sp.second)
+                                                MapRef.view?.setToast("加速已解锁 20 分钟")
+                                                AppState.bumpLive()
+                                            })
+                                        }
+                                    } else {
+                                        GameData.setSpeed(sp.second)
+                                        AppState.bumpLive()
+                                    }
                                 },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                sp.first, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                if (locked) sp.first + "锁" else sp.first,
+                                fontSize = 10.sp, fontWeight = FontWeight.Bold,
                                 color = if (active) C.accentRed.toColor() else C.textMid.toColor(),
                                 fontFamily = LocalGameFont.current
                             )
@@ -276,6 +297,51 @@ fun MapScreenContent(mapView: MapRenderView) {
                     }
                 }
             }
+        }
+
+        // 详情/抽屉/弹层打开时藏左侧按钮，避免挡住信息卡
+        val overlayOpen = AppState.policyOpen || AppState.helpOpen || AppState.dataOpen || AppState.paused ||
+            AppState.settingsOpen || AppState.civicOpen || AppState.complaintOpen || AppState.achievementOpen
+        val infoOpen = AppState.mode == "view" && mapView.selectedX > 0
+        val drawerOpen = (AppState.mode == "service" && AppState.serviceOpen) ||
+            (AppState.mode == "road" && AppState.roadOpen) ||
+            AppState.planOpen
+        if (!overlayOpen && !infoOpen && !drawerOpen) {
+        // ---------------- 政策按钮 ----------------
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 14.dp, bottom = 84.dp)
+        ) {
+            UIHelper.RoundButton("策", size = 40.dp, fontSize = 15.sp) {
+                Sfx.play("sfx_click", 0.6f)
+                AppState.policyOpen = !AppState.policyOpen
+            }
+        }
+
+        // ---------------- 帮助按钮 ----------------
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 14.dp, bottom = 134.dp)
+        ) {
+            UIHelper.RoundButton("?", size = 40.dp, fontSize = 20.sp) {
+                Sfx.play("sfx_click", 0.6f)
+                AppState.helpOpen = !AppState.helpOpen
+            }
+        }
+
+        // ---------------- 数据按钮 ----------------
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 14.dp, bottom = 184.dp)
+        ) {
+            UIHelper.RoundButton("数", size = 40.dp, fontSize = 16.sp) {
+                Sfx.play("sfx_click", 0.6f)
+                AppState.dataOpen = !AppState.dataOpen
+            }
+        }
         }
 
         // ---------------- 信息卡（查看模式） ----------------
@@ -341,42 +407,6 @@ fun MapScreenContent(mapView: MapRenderView) {
                     .noRippleClickable { }
             ) {
                 DrawerContent(mapView)
-            }
-        }
-
-        // ---------------- 政策按钮 ----------------
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 14.dp, bottom = 84.dp)
-        ) {
-            UIHelper.RoundButton("策", size = 40.dp, fontSize = 15.sp) {
-                Sfx.play("sfx_click", 0.6f)
-                AppState.policyOpen = !AppState.policyOpen
-            }
-        }
-
-        // ---------------- 帮助按钮 ----------------
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 14.dp, bottom = 134.dp)
-        ) {
-            UIHelper.RoundButton("?", size = 40.dp, fontSize = 20.sp) {
-                Sfx.play("sfx_click", 0.6f)
-                AppState.helpOpen = !AppState.helpOpen
-            }
-        }
-
-        // ---------------- 数据按钮 ----------------
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 14.dp, bottom = 184.dp)
-        ) {
-            UIHelper.RoundButton("数", size = 40.dp, fontSize = 16.sp) {
-                Sfx.play("sfx_click", 0.6f)
-                AppState.dataOpen = !AppState.dataOpen
             }
         }
 
@@ -463,8 +493,7 @@ fun MapScreenContent(mapView: MapRenderView) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             val items = listOf(
-                Triple("view", "手", null as String?),
-                Triple("road", "道路", null),
+                Triple("road", "道路", null as String?),
                 Triple("zone", "住宅", "residential"),
                 Triple("zone", "商业", "commercial"),
                 Triple("zone", "工业", "industrial"),
@@ -480,10 +509,8 @@ fun MapScreenContent(mapView: MapRenderView) {
                         AppState.mode in listOf("pipe", "cable", "bus", "district", "sewer", "metro", "tree", "raise", "lower")
                     else -> AppState.mode == it.first
                 }
-                UIHelper.ToolItem(it.second, active, width = 36.dp) {
-                    if (it.first == "view") {
-                        MapScreen.cancelTool()
-                    } else if (it.first == "zone") {
+                UIHelper.ToolItem(it.second, active, width = 40.dp) {
+                    if (it.first == "zone") {
                         if (AppState.mode == "zone" && AppState.zoneKey == it.third) {
                             MapScreen.selectMode("view")
                         } else {
@@ -496,13 +523,35 @@ fun MapScreenContent(mapView: MapRenderView) {
             }
         }
 
-        // ---------------- 政策面板 ----------------
+        if (AppState.mode != "view" && !overlayOpen) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 78.dp)
+                    .size(56.dp)
+                    .shadow(6.dp, RoundedCornerShape(28.dp))
+                    .background(C.panelWhite.toColor(), RoundedCornerShape(28.dp))
+                    .clickable {
+                        Sfx.play("sfx_click")
+                        MapScreen.cancelTool()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_hand_pan),
+                    contentDescription = "拖动地图",
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+        }
+
         if (AppState.policyOpen) PolicyPanel()
-        // ---------------- 帮助面板 ----------------
         if (AppState.helpOpen) HelpPanel()
-        // ---------------- 数据面板 ----------------
         if (AppState.dataOpen) DataPanel()
-        // ---------------- 暂停面板 ----------------
+        if (AppState.civicOpen) CivicPanel()
+        if (AppState.achievementOpen) AchievementPanel()
+        if (AppState.settingsOpen) SettingsPanel()
+        if (AppState.complaintOpen && Civic.pending != null) ComplaintPanel()
         if (AppState.paused) PausePanel()
     }
 }
@@ -774,8 +823,8 @@ private fun PlanDrawer(mapView: MapRenderView) {
             }
         }
         Text(
-            "市民 " + Citizens.agents.size + " · 在岗 " + Citizens.employed +
-                " · 通勤 " + (Citizens.avgCommute * 100).toInt() +
+            "在岗 " + Citizens.employed +
+                " · 通勤拥堵 " + (Citizens.avgCommute * 100).toInt() +
                 "% · 污水管 " + Networks.sewerCount + " · 地铁 " + Networks.metroCount,
             fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
         )
@@ -940,12 +989,13 @@ private fun HelpPanel() {
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                "新手指引 · 建一座山水之间的都市", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                "新手指引 · 设身其中，经营一座虚构都市", fontSize = 15.sp, fontWeight = FontWeight.Bold,
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
             )
-            HelpRow("手", "底部最左【手】=退出建造，之后单指拖地图、双指缩放。修完路一定要点它。")
-            HelpRow("路", "【道路】从大道边按住拖。泥土/两车道/四车道/高速可升级覆盖。")
+            HelpRow("手", "右下角手掌图标=退出建造并拖地图。修完路一定要点它，否则会继续铺路。")
+            HelpRow("职", "顶栏【职】是虚构市政职级。人口和满意度达标后，还要通过任职测评才能晋升。暂停菜单可考试、处理市民来信。")
+            HelpRow("路", "【道路】从大道边按住拖。泥土/两车道/四车道/高速可升级覆盖。路上只跑车辆，不显示行人。")
             HelpRow("区", "【住宅/商业/工业/办公】在路旁涂色，邻路才会长楼。房子建好就会迁入人口。")
             HelpRow("电", "先【服务】放风电/煤电（必须靠路）。再【规划】→电缆把电接到分区，数据面板开「电力」看绿/红色块。")
             HelpRow("水", "抽水站必须靠河。水塔可随处放。再用【规划】→水管接到房子，开「供水」热力图检查。")
@@ -1039,6 +1089,15 @@ private fun DataPanel() {
                 CovBar("殡葬", cov.death)
             }
             Text(
+                "职级 " + GameData.rankDef().name + " · " + GameData.rankDef().perk +
+                    (GameData.nextRank()?.let { " → 下一级 " + it.name + "（人口" + it.popReq + "/满意" + it.happyReq + "）" } ?: " · 已满级"),
+                fontSize = 11.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "升学率 ${(Civic.schoolRate * 100).toInt()}% · 任职测评通过 ${Civic.examPassed} · 来信 ${Civic.complaintsHandled}",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
                 "犯罪 ${s.crime.toInt()} · 垃圾积压 ${s.garbageBacklog} · 污水覆盖 ${(s.sewerCoverage * 100).toInt()}% · 待安葬 ${s.deathsPending}",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
@@ -1065,8 +1124,8 @@ private fun DataPanel() {
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "市民 " + Citizens.agents.size + " · 在岗 " + Citizens.employed +
-                    " · 通勤 " + (Citizens.avgCommute * 100).toInt() +
+                "在岗 " + Citizens.employed +
+                    " · 通勤拥堵 " + (Citizens.avgCommute * 100).toInt() +
                     "% · 公交 " + Transit.lines.size + " 条/" + Transit.ridership + " 客",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
@@ -1280,6 +1339,10 @@ private fun PausePanel() {
                 fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
+                "职级 " + GameData.rankDef().name + " · " + GameData.rankDef().perk,
+                fontSize = 12.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
                 "当前槽位 " + (AppState.activeSlot + 1) +
                     if (s.lastSavedLabel.isNotEmpty()) " · 上次 " + s.lastSavedLabel else " · 尚未手动保存",
                 fontSize = 11.sp, color = C.accentGold.toColor(), fontFamily = LocalGameFont.current
@@ -1287,6 +1350,21 @@ private fun PausePanel() {
             PauseBtn("继续游戏", C.accentGreen.toColor(), Color.White) {
                 Sfx.play("sfx_click")
                 AppState.paused = false
+            }
+            PauseBtn("设置 · 音量/广告", C.chipBg.toColor(), C.textDark.toColor()) {
+                Sfx.play("sfx_click")
+                AppState.paused = false
+                AppState.settingsOpen = true
+            }
+            PauseBtn("市政任职 / 测评", C.chipBg.toColor(), C.textDark.toColor()) {
+                Sfx.play("sfx_click")
+                AppState.paused = false
+                AppState.civicOpen = true
+            }
+            PauseBtn("市政成就", C.chipBg.toColor(), C.textDark.toColor()) {
+                Sfx.play("sfx_click")
+                AppState.paused = false
+                AppState.achievementOpen = true
             }
             PauseBtn("保存到槽位 " + (AppState.activeSlot + 1), C.chipBg.toColor(), C.textDark.toColor()) {
                 Sfx.play("sfx_save")

@@ -33,13 +33,13 @@ object Config {
     // -----------------------------------------------------------------------
     // 世界信息（纯虚构）
     // -----------------------------------------------------------------------
-    const val TITLE = "都市建设模拟：山水之间"
-    const val SUBTITLE = "山水之间 · 晨光市城建日报"
+    const val TITLE = "都市建设模拟：设身其中"
+    const val SUBTITLE = "设身其中 · 晨光市城建日报"
 
     object World {
         const val country = "星辰联邦"
         const val city = "晨光市"
-        const val playerRole = "规划师"
+        const val playerRole = "市政专员"
     }
 
     // -----------------------------------------------------------------------
@@ -369,7 +369,14 @@ object Config {
         AchievementDef("happy70", "和谐宜居", "满意度达到 70", 600, "happiness", 70.0),
         AchievementDef("happy80", "人间乐土", "满意度达到 80", 1200, "happiness", 80.0),
         AchievementDef("happy85", "安居乐业", "满意度达到 85", 1000, "happiness", 85.0),
-        AchievementDef("happy95", "人间天堂", "满意度达到 95", 2500, "happiness", 95.0)
+        AchievementDef("happy95", "人间天堂", "满意度达到 95", 2500, "happiness", 95.0),
+        AchievementDef("exam1", "持证上岗", "通过 1 次任职测评", 400, "exam", 1.0),
+        AchievementDef("exam3", "考核能手", "累计通过 3 次任职测评", 900, "exam", 3.0),
+        AchievementDef("mail8", "有求必应", "处理 8 封市民来信", 700, "mail", 8.0),
+        AchievementDef("school60", "书香城区", "升学率达到 60%", 800, "school", 60.0),
+        AchievementDef("school80", "学风鼎盛", "升学率达到 80%", 1600, "school", 80.0),
+        AchievementDef("road80", "路网成型", "道路达到 80 格", 600, "roads", 80.0),
+        AchievementDef("svc12", "设施齐全", "建成 12 座服务设施", 900, "services", 12.0)
     )
 
     // -----------------------------------------------------------------------
@@ -479,6 +486,18 @@ object Config {
         CityLevelDef(4, "城区", 1500, 4000),
         CityLevelDef(5, "都市", 4000, 10000),
         CityLevelDef(6, "大都会", 10000, 25000)
+    )
+
+    // 虚构市政职级（全城建设成就，无现实机构）
+    data class RankDef(val level: Int, val name: String, val popReq: Int, val happyReq: Int, val perk: String)
+
+    val RANKS: List<RankDef> = listOf(
+        RankDef(1, "见习专员", 0, 0, "起步权限"),
+        RankDef(2, "街区协调员", 80, 50, "贷款额度提升 · 需通过任职测评"),
+        RankDef(3, "城区规划员", 300, 55, "独特建筑预告 · 需通过任职测评"),
+        RankDef(4, "市政督察", 800, 60, "维护费 -6% · 需通过任职测评"),
+        RankDef(5, "城市总规划", 2000, 65, "贸易收入 +8% · 需通过任职测评"),
+        RankDef(6, "荣誉营造官", 5000, 70, "满意度目标 +4 · 需通过任职测评")
     )
 
     // -----------------------------------------------------------------------

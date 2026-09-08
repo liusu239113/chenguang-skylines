@@ -80,6 +80,8 @@ class CityState {
     var budgetEdu: Int = 100
     var budgetSafety: Int = 100
     var budgetTransit: Int = 100
+    var rankLevel: Int = 1
+    var merit: Double = 0.0
 }
 
 object GameData {
@@ -90,7 +92,7 @@ object GameData {
     var current: CityState? = null
         private set
 
-    var speedIdx: Int = 2          // 默认 1x
+    var speedIdx: Int = 1          // 默认 1x；2x/3x 需广告解锁
     var pendingLevelUp: Boolean = false
     var monthFlash: Boolean = false
 
@@ -120,11 +122,12 @@ object GameData {
         Transit.reset()
         Networks.reset()
         CitySystems.reset()
+        Civic.reset()
         current = createState()
         val s = current!!
         s.cityName = cityName
         World.current?._pop = 0
-        speedIdx = 2
+        speedIdx = 1
         pendingLevelUp = false
         monthFlash = false
         dayAcc = 0.0
@@ -150,7 +153,12 @@ object GameData {
     fun speed(): Int = if (speedIdx in T.speeds.indices) T.speeds[speedIdx] else 1
 
     fun setSpeed(idx: Int) {
-        if (idx in T.speeds.indices) speedIdx = idx
+        if (idx !in T.speeds.indices) return
+        if (!SpeedBoost.allow(idx)) {
+            speedIdx = 1
+            return
+        }
+        speedIdx = idx
     }
 
     fun dateLabel(): String {
@@ -161,6 +169,30 @@ object GameData {
     fun monthLabel(): String {
         val s = current ?: return ""
         return String.format("%04d.%02d", s.year, s.month)
+    }
+
+    fun rankDef(): Config.RankDef {
+        val s = current ?: return Config.RANKS.first()
+        return Config.RANKS.firstOrNull { it.level == s.rankLevel } ?: Config.RANKS.first()
+    }
+
+    fun nextRank(): Config.RankDef? {
+        val s = current ?: return Config.RANKS.getOrNull(1)
+        return Config.RANKS.firstOrNull { it.level == s.rankLevel + 1 }
+    }
+
+    fun refreshRank() {
+        val s = current ?: return
+        var lv = 1
+        for (r in Config.RANKS) {
+            if (s.population >= r.popReq && s.happiness >= r.happyReq) lv = r.level
+        }
+        val examOk = Civic.examPassed >= lv - 1
+        if (lv > s.rankLevel && examOk) {
+            s.rankLevel = lv
+            val r = rankDef()
+            pushNews("职级晋升", "你被星辰联邦市政委员会授予「" + r.name + "」。" + r.perk + "。", "市政")
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -257,7 +289,8 @@ object GameData {
         val jobRate = min(1.2, s.jobs / labor)
         val crimePen = -s.crime * 0.12
         val sewerPen = -(1.0 - s.sewerCoverage) * 8.0
-        val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06 + crimePen + sewerPen
+        val rankHappy = if (s.rankLevel >= 6) 4.0 else 0.0
+        val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06 + crimePen + sewerPen + rankHappy
         val target = max(
             Config.RESOURCES.happinessMin,
             min(
@@ -411,7 +444,8 @@ object GameData {
         val taxIncome = (s.population * E.taxPerPopPerDay + E.baseIncomePerDay) *
             policyMul("taxMul") * (s.taxRes / 10.0)
         val bizIncome = bizBase * policyMul("incomeMul")
-        val income = taxIncome + bizIncome + tradeIncome + landmarkTour
+        val rankTrade = if (s.rankLevel >= 5) 1.08 else 1.0
+        val income = taxIncome + bizIncome + (tradeIncome + landmarkTour) * rankTrade
         var upkeep = 0.0
         val ww = World.current
         if (ww != null) {
@@ -434,7 +468,8 @@ object GameData {
                 upkeep += cfg.upkeep / 30.0 * (budget / 100.0)
             }
         }
-        upkeep *= policyMul("upkeepMul") * (0.9 + Networks.districts.count { it.policy == "ev" } * 0.04)
+        val rankUpkeep = if (s.rankLevel >= 4) 0.94 else 1.0
+        upkeep *= policyMul("upkeepMul") * (0.9 + Networks.districts.count { it.policy == "ev" } * 0.04) * rankUpkeep
         val diff = difficultyDef()
         var eventIncomeMul = 1.0
         for (ev in s.activeEvents) eventIncomeMul *= ev.incomeMul
@@ -468,6 +503,9 @@ object GameData {
             }
         }
         if (s.loanCooldown > 0) s.loanCooldown -= 1
+        s.merit += max(0.0, s.lastNet * 0.02 + s.population * 0.001)
+        Civic.tickDay(s)
+        refreshRank()
 
         // 满意度向目标靠拢（没人时回到中性，不为空城硬扣）
         val target = if (s.population < 1) 52.0 else computeHappinessTarget(st)
@@ -495,6 +533,11 @@ object GameData {
                 "buildings" -> bldCount.toDouble()
                 "funds" -> s.funds
                 "happiness" -> s.happiness
+                "exam" -> Civic.examPassed.toDouble()
+                "mail" -> Civic.complaintsHandled.toDouble()
+                "school" -> Civic.schoolRate * 100.0
+                "roads" -> st.roadCount.toDouble()
+                "services" -> st.serviceCount.toDouble()
                 else -> 0.0
             }
             if (v >= a.threshold) {
@@ -596,6 +639,7 @@ object GameData {
     /** dt = 真实秒；内部乘速度 */
     fun tick(dt: Float) {
         val s = current ?: return
+        if (speedIdx >= 2 && !SpeedBoost.isActive()) speedIdx = 1
         val simDt = dt * speed()
         s.playSeconds += dt.toDouble()
         // 昼夜循环独立于游戏速度：固定 120 秒一轮（避免闪烁）
@@ -791,9 +835,10 @@ object GameData {
         val s = current ?: return false to null
         if (s.loanDebt > 0) return false to "尚有未还贷款"
         if (s.loanCooldown > 0) return false to ("冷却 " + s.loanCooldown + " 天")
-        s.loanDebt = Config.LOAN.amount
-        s.funds += Config.LOAN.amount
-        pushNews("市政贷款", "借入 " + Config.LOAN.amount.toInt() + " 万，将按日自动还款。", "财政")
+        val amount = Config.LOAN.amount * (if (s.rankLevel >= 2) 1.4 else 1.0)
+        s.loanDebt = amount
+        s.funds += amount
+        pushNews("市政贷款", "借入 " + amount.toInt() + " 万，将按日自动还款。", "财政")
         return true to null
     }
 

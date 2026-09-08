@@ -53,7 +53,7 @@ object Sfx {
         if (!enabled) return
         try {
             val sid = ids[name] ?: return
-            val vol = max(0f, min(1f, gain))
+            val vol = max(0f, min(1f, gain * Prefs.sfxVolume))
             sp.play(sid, vol, vol, 1, 0, 1f)
         } catch (t: Throwable) {
             // 忽略

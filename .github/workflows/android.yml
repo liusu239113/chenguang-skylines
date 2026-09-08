@@ -13,7 +13,7 @@ jobs:
   build:
     name: Build Debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
 
     steps:
       - name: Checkout
@@ -55,6 +55,8 @@ jobs:
       - name: Build signed APK
         working-directory: android
         run: gradle assembleRelease --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: -Xmx4g
 
       - name: Locate APK
         id: apk
@@ -75,8 +77,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: "晨光天际线 · build ${{ github.run_number }}"
-          body: "正式签名 APK，可直接安装"
+          name: "都市建设模拟：设身其中 · build ${{ github.run_number }}"
+          body: "正式签名 APK（com.dshx.game.su · 1.0.0），可直接安装。旧包名需先卸载。"
           files: android/app/build/outputs/apk/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

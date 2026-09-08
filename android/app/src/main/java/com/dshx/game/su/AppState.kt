@@ -49,6 +49,14 @@ object AppState {
     var mapVersion by mutableStateOf(0)
 
     var tutShown = false
+    var privacyOk by mutableStateOf(false)
+    var loggedIn by mutableStateOf(false)
+    var settingsOpen by mutableStateOf(false)
+    var civicOpen by mutableStateOf(false)
+    var complaintOpen by mutableStateOf(false)
+    var achievementOpen by mutableStateOf(false)
+    var adLoading by mutableStateOf(false)
+    var toastMsg by mutableStateOf("")
 
     fun bumpLive() {
         liveTick++

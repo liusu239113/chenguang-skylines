@@ -958,21 +958,32 @@ class MapRenderView @JvmOverloads constructor(
                 val cycle = (Growth.simTime * 1.2).toInt() % 4
                 val red = cycle < 2
                 val col = if (red) RGBA(210, 60, 50, 255) else RGBA(70, 180, 90, 255)
+                val box = max(2.4f, cell * 0.11f)
                 for ((cx, cy, _) in cross) {
-                    fillCircle(canvas, cx, cy, max(1.2f, cell * 0.06f), col)
+                    // 路口信号灯做成小方盒，避免被看成路上行人圆点
+                    fillRect(canvas, cx + cell * 0.16f, cy - box, box * 0.62f, box * 1.55f, RGBA(36, 36, 40, 235))
+                    fillRect(
+                        canvas,
+                        cx + cell * 0.16f + box * 0.12f,
+                        cy - box * 0.72f,
+                        box * 0.38f,
+                        box * 0.38f,
+                        col
+                    )
                 }
             }
-            // 路灯：夜晚沿路点亮
+            // 路灯：夜晚只在路边角落发微光，不在车道中央画圆点
             if (nightLevel > 0.3f) {
                 for (ty in y0..y1) {
                     for (tx in x0..x1) {
                         if (w.grid[ty - 1][tx - 1].road != null && (tx + ty) % 2 == 0) {
                             val lx = worldToScreenX(tx - 1f)
                             val ly = worldToScreenY(ty - 1f)
-                            fillCircle(
-                                canvas, lx + cell * 0.5f, ly + cell * 0.5f,
-                                max(1f, cell * 0.09f),
-                                RGBA(255, 230, 150, (nightLevel * 180).toInt())
+                            val glow = max(1.6f, cell * 0.06f)
+                            fillRect(
+                                canvas, lx + cell * 0.06f, ly + cell * 0.08f,
+                                glow, glow * 1.6f,
+                                RGBA(255, 230, 150, (nightLevel * 90).toInt())
                             )
                         }
                     }
@@ -1086,24 +1097,9 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // ---- 3.7) 市民（拉近可见；在家/上班也在门口露一点） ----
-        if (cell >= 8) {
-            val pal = listOf(
-                RGBA(80, 90, 120), RGBA(160, 80, 70), RGBA(70, 120, 90),
-                RGBA(140, 110, 50), RGBA(90, 70, 130), RGBA(50, 90, 140)
-            )
-            for (c in Citizens.agents) {
-                val (wx, wy) = Citizens.screenCell(c)
-                val sx = worldToScreenX(wx)
-                val sy = worldToScreenY(wy)
-                if (sx < -cell || sy < -cell || sx > viewW + cell || sy > viewH + cell) continue
-                val r = if (c.state == "home" || c.state == "work") cell * 0.07f else cell * 0.11f
-                fillCircle(canvas, sx, sy, max(1.6f, r), pal[c.color % pal.size])
-            }
-        }
+        // 市民通勤只体现在车辆上，不画路上行人圆点。
 
-        // ---- 4) 建筑（顶面+左右侧面+投影，按等级长高） ----
-        val grownH = floatArrayOf(0.62f, 1.15f, 1.95f)
+        // ---- 4) 建筑（顶面+左右侧面+投影，按类型/等级/坐标长成不同体量） ----
         for (ty in y0..y1) {
             for (tx in x0..x1) {
                 val t = w.grid[ty - 1][tx - 1]
@@ -1117,11 +1113,22 @@ class MapRenderView @JvmOverloads constructor(
                 val bh = cell * bl.h
                 val base: RGBA
                 val hFactor: Float
+                val seed = tx * 17 + ty * 31 + bl.level * 9
+                val jitter = ((seed % 7) - 3) * 0.045f
                 if (isService) {
                     if (bl.service == "park" || bl.service == "plaza") {
-                        base = C.bService; hFactor = 0.10f
+                        base = C.bService; hFactor = 0.08f
                     } else {
-                        base = C.bCivic; hFactor = 0.75f
+                        base = C.bCivic
+                        hFactor = when (bl.service) {
+                            "water_tower" -> 1.35f
+                            "tv_tower" -> 2.4f
+                            "stadium" -> 0.42f
+                            "university" -> 1.15f
+                            "coal_plant", "nuclear_plant" -> 1.05f
+                            "wind_farm" -> 1.6f
+                            else -> 0.72f
+                        }
                     }
                 } else {
                     base = if (bl.abandoned) C.bAbandoned else when (bl.zone) {
@@ -1131,7 +1138,29 @@ class MapRenderView @JvmOverloads constructor(
                         "office" -> C.bOffice
                         else -> C.bResidential
                     }
-                    hFactor = grownH.getOrElse((bl.level - 1).coerceIn(0, 2)) { 0.3f }
+                    hFactor = when (bl.zone) {
+                        "residential" -> when (bl.level) {
+                            1 -> 0.42f + jitter
+                            2 -> 0.95f + jitter
+                            else -> 1.75f + jitter * 1.4f
+                        }
+                        "commercial" -> when (bl.level) {
+                            1 -> 0.38f + jitter * 0.6f
+                            2 -> 0.78f + jitter
+                            else -> 1.28f + jitter
+                        }
+                        "industrial" -> when (bl.level) {
+                            1 -> 0.36f
+                            2 -> 0.58f + jitter * 0.4f
+                            else -> 0.82f
+                        }
+                        "office" -> when (bl.level) {
+                            1 -> 1.05f + jitter
+                            2 -> 1.7f + jitter
+                            else -> 2.45f + jitter * 1.2f
+                        }
+                        else -> 0.7f
+                    }
                 }
                 // 生长动画：新建建筑从 30% 弹到 100%
                 var anim = 1f
@@ -1142,7 +1171,7 @@ class MapRenderView @JvmOverloads constructor(
                         anim = 0.25f + 0.75f * (k * k * (3 - 2 * k))
                     }
                 }
-                val hpx = clamp(bw * 0.55f * hFactor * anim, 0f, cell * 2.6f)
+                val hpx = clamp(bw * 0.55f * hFactor * anim, 0f, cell * 4.2f)
                 val shrink = (anim - 1) * bw * 0.5f
                 drawBuilding(
                     canvas,
@@ -1457,36 +1486,60 @@ class MapRenderView @JvmOverloads constructor(
         val seed = tx * 17 + ty * 31 + (bl.level * 9)
         when {
             bl.service == "park" || bl.service == "plaza" -> {
-                fillCircle(canvas, rx + rw * 0.35f, ry + rh * 0.4f, cell * 0.16f, RGBA(70, 130, 80, 200))
-                fillCircle(canvas, rx + rw * 0.7f, ry + rh * 0.55f, cell * 0.12f, RGBA(90, 150, 90, 200))
+                fillCircle(canvas, rx + rw * 0.32f, ry + rh * 0.42f, cell * 0.18f, RGBA(70, 130, 80, 200))
+                fillCircle(canvas, rx + rw * 0.68f, ry + rh * 0.58f, cell * 0.13f, RGBA(90, 150, 90, 200))
+                fillRect(canvas, rx + rw * 0.1f, ry + rh * 0.72f, rw * 0.8f, rh * 0.12f, RGBA(210, 200, 160, 180))
             }
             bl.service == "wind_farm" -> {
                 strokeColor(RGBA(230, 230, 230), 255, max(1f, cell * 0.04f))
                 canvas.drawLine(rx + rw * 0.5f, ry + rh, rx + rw * 0.5f, ry - hpx, paint)
                 fillCircle(canvas, rx + rw * 0.5f, ry - hpx, cell * 0.08f, RGBA(240, 240, 240))
             }
-            bl.service == "water_tower" || bl.service == "pump_station" -> {
-                fillCircle(canvas, rx + rw * 0.5f, ry - hpx * 0.2f, min(rw, rh) * 0.28f, RGBA(70, 140, 190))
+            bl.service == "water_tower" -> {
+                fillRect(canvas, rx + rw * 0.42f, ry + rh * 0.2f, rw * 0.16f, rh * 0.7f, RGBA(90, 110, 130))
+                fillCircle(canvas, rx + rw * 0.5f, ry - hpx * 0.15f, min(rw, rh) * 0.32f, RGBA(70, 140, 190))
+            }
+            bl.service == "pump_station" -> {
+                fillRect(canvas, rx + rw * 0.15f, ry + rh * 0.35f, rw * 0.7f, rh * 0.4f, RGBA(80, 120, 150))
+                fillCircle(canvas, rx + rw * 0.5f, ry + rh * 0.3f, cell * 0.12f, RGBA(70, 140, 190))
+            }
+            bl.service == "stadium" -> {
+                fillRoundRect(canvas, rx, ry + rh * 0.15f, rw, rh * 0.7f, cell * 0.18f, RGBA(90, 110, 90))
+                fillRect(canvas, rx + rw * 0.2f, ry + rh * 0.35f, rw * 0.6f, rh * 0.3f, RGBA(70, 90, 70))
+            }
+            bl.service == "tv_tower" -> {
+                fillRect(canvas, rx + rw * 0.46f, ry - hpx, rw * 0.08f, rh + hpx, RGBA(180, 180, 185))
+                fillCircle(canvas, rx + rw * 0.5f, ry - hpx, cell * 0.1f, RGBA(210, 80, 70))
             }
             bl.zone == "industrial" -> {
-                fillRect(canvas, rx + rw * 0.15f, ry - hpx - cell * 0.22f, cell * 0.12f, cell * 0.28f, RGBA(90, 90, 95))
-                fillRect(canvas, rx + rw * 0.55f, ry - hpx - cell * 0.18f, cell * 0.10f, cell * 0.22f, RGBA(110, 80, 70))
+                fillRect(canvas, rx + rw * 0.08f, ry - hpx - cell * 0.34f, cell * 0.14f, cell * 0.42f, RGBA(90, 90, 95))
+                fillRect(canvas, rx + rw * 0.38f, ry - hpx - cell * 0.22f, cell * 0.12f, cell * 0.28f, RGBA(110, 80, 70))
+                fillRect(canvas, rx + rw * 0.62f, ry + rh * 0.18f, rw * 0.3f, rh * 0.55f, RGBA(120, 118, 110))
             }
             bl.zone == "commercial" -> {
-                fillRect(canvas, rx + rw * 0.18f, ry + rh * 0.55f, rw * 0.64f, rh * 0.28f, RGBA(40, 50, 70, 180))
+                fillRect(canvas, rx + rw * 0.12f, ry + rh * 0.52f, rw * 0.76f, rh * 0.32f, RGBA(40, 50, 70, 200))
+                fillRect(canvas, rx + rw * 0.18f, ry + rh * 0.58f, rw * 0.22f, rh * 0.2f, RGBA(230, 210, 160, 180))
                 if ((seed % 3) == 0) fillRect(canvas, rx + rw * 0.05f, ry - hpx - 2, rw * 0.9f, cell * 0.08f, RGBA(200, 80, 70))
+                if ((seed % 2) == 0) fillRect(canvas, rx + rw * 0.7f, ry - hpx + 4, rw * 0.18f, cell * 0.1f, RGBA(70, 90, 140))
             }
             bl.zone == "office" -> {
-                fillRect(canvas, rx + 2, ry - hpx + 2, rw - 4, hpx * 0.55f, RGBA(180, 210, 230, 120))
+                fillRect(canvas, rx + 2, ry - hpx + 2, rw - 4, hpx * 0.72f, RGBA(180, 210, 230, 140))
+                fillRect(canvas, rx + rw * 0.42f, ry + rh * 0.55f, rw * 0.16f, rh * 0.35f, RGBA(40, 50, 70, 180))
             }
             bl.zone == "residential" -> {
                 if (bl.level == 1) {
                     path.reset()
                     path.moveTo(rx - 1, ry - hpx + 2)
-                    path.lineTo(rx + rw * 0.5f, ry - hpx - cell * 0.22f)
+                    path.lineTo(rx + rw * 0.5f, ry - hpx - cell * 0.28f)
                     path.lineTo(rx + rw + 1, ry - hpx + 2)
                     path.close()
-                    fillPath(canvas, path, RGBA(150, 70, 60))
+                    fillPath(canvas, path, if (seed % 2 == 0) RGBA(150, 70, 60) else RGBA(120, 90, 70))
+                    fillRect(canvas, rx + rw * 0.42f, ry + rh * 0.55f, rw * 0.16f, rh * 0.32f, RGBA(90, 70, 50))
+                } else if (bl.level == 2) {
+                    fillRect(canvas, rx + rw * 0.08f, ry - hpx - cell * 0.08f, rw * 0.28f, cell * 0.1f, RGBA(170, 90, 80))
+                    fillRect(canvas, rx + rw * 0.62f, ry + rh * 0.6f, rw * 0.22f, rh * 0.22f, RGBA(80, 90, 70, 160))
+                } else {
+                    fillRect(canvas, rx + rw * 0.2f, ry - hpx - cell * 0.12f, rw * 0.18f, cell * 0.16f, RGBA(200, 80, 70))
                 }
             }
         }

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -20,25 +19,22 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.dshx.game.su.ui.screens.AdLoadingOverlay
 import com.dshx.game.su.ui.screens.MainMenuContent
-import com.dshx.game.su.ui.toColor
 import com.dshx.game.su.ui.screens.MapScreen
 import com.dshx.game.su.ui.screens.MapScreenContent
 import com.dshx.game.su.ui.screens.NewspaperContent
+import com.dshx.game.su.ui.screens.PrivacyGate
+import com.dshx.game.su.ui.screens.TapLoginGate
 import com.dshx.game.su.ui.theme.AppTheme
+import com.dshx.game.su.ui.toColor
 import com.dshx.game.su.world.Growth
 import com.dshx.game.su.world.MapRenderView
-
-// ============================================================================
-// 《都市天际线：晨光》入口，与 scripts/main.lua 对应
-//   渲染管线：原生 Canvas 地图（底层） → Compose UI 叠层（上层）
-// ============================================================================
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 沉浸式全屏：隐藏状态栏，顶部留出刘海安全区（UI 层用 statusBarsPadding 避开）
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.statusBars())
@@ -46,6 +42,10 @@ class MainActivity : ComponentActivity() {
         }
         Sfx.init(this)
         SaveManager.init(this)
+        Prefs.init(this)
+        Bgm.init(this)
+        SpeedBoost.init(this)
+        AppState.privacyOk = Prefs.privacyAccepted
         if (GameData.current == null) {
             GameData.init(20260408)
         }
@@ -56,7 +56,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        Bgm.pause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Bgm.resume()
+    }
+
     override fun onDestroy() {
+        Bgm.stop()
         Sfx.release()
         super.onDestroy()
     }
@@ -66,6 +77,7 @@ class MainActivity : ComponentActivity() {
 fun AppRoot() {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
+    val activity = context as? MainActivity
 
     val mapView = remember {
         MapRenderView(context).apply { initView() }
@@ -76,12 +88,10 @@ fun AppRoot() {
         onDispose { MapRef.view = null }
     }
 
-    // 初始相机：居中到出生城区
     LaunchedEffect(Unit) {
         mapView.resetCamera()
     }
 
-    // 进入地图界面
     LaunchedEffect(AppState.screen) {
         if (AppState.screen == "map") {
             MapScreen.onShow(
@@ -89,17 +99,19 @@ fun AppRoot() {
                 configuration.screenWidthDp.toFloat(),
                 configuration.screenHeightDp.toFloat()
             )
+            Bgm.playCity()
+        } else if (AppState.loggedIn && Prefs.privacyAccepted) {
+            Bgm.playMenu()
         }
     }
 
-    // 主循环：实时模拟 → 城市成长 → 地图输入/动画 → UI 节流刷新
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) {
             withFrameNanos { now ->
                 var dt = if (last == 0L) 0f else (now - last) / 1_000_000_000f
                 last = now
-                if (dt > 0.1f) dt = 0.1f          // 防止切后台回来大跳
+                if (dt > 0.1f) dt = 0.1f
                 if (AppState.screen == "map") {
                     if (!AppState.paused) {
                         GameData.tick(dt)
@@ -115,12 +127,13 @@ fun AppRoot() {
         }
     }
 
-    // 返回键：有工具先收工具，否则回菜单
-    BackHandler(enabled = AppState.screen != "menu") {
+    BackHandler(enabled = AppState.screen != "menu" || AppState.menuScreen != "main") {
         if (AppState.screen == "map" && mapView.tool != null) {
             MapScreen.cancelTool()
-        } else {
-            AppState.screen = "menu"
+        } else if (AppState.screen == "map") {
+            AppState.paused = true
+        } else if (AppState.menuScreen != "main") {
+            AppState.menuScreen = "main"
         }
     }
 
@@ -129,16 +142,32 @@ fun AppRoot() {
             .fillMaxSize()
             .background(Config.COLORS.uiBackdrop.toColor())
     ) {
-        // 地图层（始终在最底）
-        AndroidView(
-            factory = { mapView },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        when (AppState.screen) {
-            "menu" -> MainMenuContent(mapView)
-            "map" -> MapScreenContent(mapView)
-            "newspaper" -> NewspaperContent()
+        when {
+            !AppState.privacyOk -> PrivacyGate(
+                onAccepted = {
+                    AppState.privacyOk = true
+                    TapSdkInitializer.ensureInitialized(context)
+                },
+                onExit = { activity?.finish() }
+            )
+            !AppState.loggedIn -> TapLoginGate(onReady = {
+                AppState.loggedIn = true
+                Bgm.playMenu()
+            })
+            else -> {
+                if (AppState.screen != "menu") {
+                    AndroidView(
+                        factory = { mapView },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                when (AppState.screen) {
+                    "menu" -> MainMenuContent(mapView)
+                    "map" -> MapScreenContent(mapView)
+                    "newspaper" -> NewspaperContent()
+                }
+            }
         }
+        AdLoadingOverlay(AppState.adLoading)
     }
 }
