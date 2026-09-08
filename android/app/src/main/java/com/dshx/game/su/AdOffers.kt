@@ -1,27 +1,31 @@
 package com.dshx.game.su
 
 object AdOffers {
-    var dailyClaimed: Boolean = false
-    var dailyDay: Int = -1
+    var weeklyClaimed: Boolean = false
+    var weeklyKey: Int = -1
+    var lastBailoutDay: Int = -1
 
     fun reset() {
-        dailyClaimed = false
-        dailyDay = -1
+        weeklyClaimed = false
+        weeklyKey = -1
+        lastBailoutDay = -1
         AppState.adOfferOpen = false
         AppState.adOfferKind = ""
     }
 
     fun tickDay(s: CityState) {
-        val key = s.year * 400 + s.month * 32 + s.day
-        if (dailyDay != key) {
-            dailyDay = key
-            dailyClaimed = false
-            if (!AppState.adOfferOpen && s.day % 2 == 1) {
+        val week = s.year * 60 + s.month * 5 + ((s.day - 1) / 7)
+        if (weeklyKey != week) {
+            weeklyKey = week
+            weeklyClaimed = false
+            if (!AppState.adOfferOpen && s.day == 1) {
                 AppState.adOfferKind = "daily"
                 AppState.adOfferOpen = true
             }
         }
-        if (!AppState.adOfferOpen && s.bankruptDays >= 2 && s.funds < 80) {
+        val dayKey = s.year * 400 + s.month * 32 + s.day
+        if (!AppState.adOfferOpen && s.bankruptDays >= 3 && s.funds < 50 && lastBailoutDay != dayKey) {
+            lastBailoutDay = dayKey
             AppState.adOfferKind = "bailout"
             AppState.adOfferOpen = true
         }
@@ -40,8 +44,8 @@ object AdOffers {
         when (kind) {
             "daily" -> {
                 s.funds += 280
-                dailyClaimed = true
-                MapRef.view?.setToast("每日市政礼包 +280 万")
+                weeklyClaimed = true
+                MapRef.view?.setToast("每周市政礼包 +280 万")
             }
             "shortfall" -> {
                 val add = maxOf(220, s.lastShortfall)

@@ -249,7 +249,7 @@ fun AdOfferDialog() {
     val act = LocalContext.current as? Activity
     val kind = AppState.adOfferKind
     val (title, body) = when (kind) {
-        "daily" -> "每日市政礼包" to "看一段广告，金库立刻到账 280 万。"
+        "daily" -> "每周市政礼包" to "每周一次。看广告金库到账 280 万。"
         "shortfall" -> "资金不够" to (s.lastShortAction + "还差钱。看广告可拿到应急拨款。")
         "bailout" -> "财政告急" to "金库见底。看广告可获得纾困拨款 480 万。"
         else -> return
@@ -326,7 +326,7 @@ fun SettingsPanel() {
                 if (SpeedBoost.isActive()) "加速剩余 ${SpeedBoost.remainingSec() / 60} 分 ${SpeedBoost.remainingSec() % 60} 秒" else "2x/3x 加速需看广告解锁 20 分钟",
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
-            AdBtn("每日礼包 +280万", !AdOffers.dailyClaimed, act, "daily")
+            AdBtn("每周礼包 +280万", !AdOffers.weeklyClaimed, act, "daily")
             AdBtn("税收加倍 12 天", true, act, "doubletax")
             AdBtn("民心安抚 满意+8", true, act, "happy")
             AdBtn("市政拨款 +220万", true, act, "grant")

@@ -170,6 +170,20 @@ object GameData {
         return String.format("%04d.%02d.%02d", s.year, s.month, s.day)
     }
 
+    fun clockLabel(): String {
+        val minutes = ((timeOfDay * 24f * 60f) % (24f * 60f)).toInt()
+        val h = minutes / 60
+        val m = minutes % 60
+        val period = when {
+            h < 6 -> "凌晨"
+            h < 11 -> "上午"
+            h < 13 -> "中午"
+            h < 18 -> "下午"
+            else -> "晚上"
+        }
+        return String.format("%s %02d:%02d", period, h, m)
+    }
+
     fun monthLabel(): String {
         val s = current ?: return ""
         return String.format("%04d.%02d", s.year, s.month)

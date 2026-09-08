@@ -210,7 +210,8 @@ fun MapScreenContent(mapView: MapRenderView) {
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            GameData.dateLabel(), fontSize = 11.sp, color = C.textMid.toColor(),
+                            GameData.dateLabel() + "  " + GameData.clockLabel(),
+                            fontSize = 11.sp, color = C.textMid.toColor(),
                             fontFamily = LocalGameFont.current
                         )
                         Box(
