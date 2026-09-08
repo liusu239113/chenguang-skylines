@@ -736,7 +736,7 @@ class MapRenderView @JvmOverloads constructor(
         }
 
         // ---- 4) 建筑 ----
-        val grownH = floatArrayOf(0.30f, 0.55f, 0.95f)
+        val grownH = floatArrayOf(0.5f, 0.9f, 1.4f)
         for (ty in y0..y1) {
             for (tx in x0..x1) {
                 val t = w.grid[ty - 1][tx - 1]
@@ -752,9 +752,9 @@ class MapRenderView @JvmOverloads constructor(
                 val hFactor: Float
                 if (isService) {
                     if (bl.service == "park" || bl.service == "plaza") {
-                        base = C.bService; hFactor = 0.08f
+                        base = C.bService; hFactor = 0.10f
                     } else {
-                        base = C.bCivic; hFactor = 0.5f
+                        base = C.bCivic; hFactor = 0.75f
                     }
                 } else {
                     base = when (bl.zone) {
@@ -774,7 +774,7 @@ class MapRenderView @JvmOverloads constructor(
                         anim = 0.25f + 0.75f * (k * k * (3 - 2 * k))
                     }
                 }
-                val hpx = clamp(bw * 0.4f * hFactor * anim, 0f, cell * 2.6f)
+                val hpx = clamp(bw * 0.55f * hFactor * anim, 0f, cell * 2.6f)
                 val shrink = (anim - 1) * bw * 0.5f
                 drawBox(
                     canvas,
@@ -982,16 +982,16 @@ class MapRenderView @JvmOverloads constructor(
             path.close()
             fillPath(canvas, path, base.shade(Config.BUILD.sideShade.toDouble()))
             // 窗户
-            if (cell >= 18 && hpx >= cell * 0.4f) {
-                val cols = max(1, floor(rw / (cell * 0.30f)).toInt())
-                val rows = max(1, floor((hpx + rh) / (cell * 0.30f)).toInt() - 1)
-                fillColor(base.shade(0.52))
+            if (cell >= 14 && hpx >= cell * 0.35f) {
+                val cols = max(1, floor(rw / (cell * 0.26f)).toInt())
+                val rows = max(1, floor((hpx + rh) / (cell * 0.26f)).toInt() - 1)
+                fillColor(base.shade(0.48))
                 for (wi in 0 until cols) {
                     for (wj in 0 until rows) {
-                        val wx = rx + (rw - cols * cell * 0.30f) * 0.5f + wi * cell * 0.30f + cell * 0.06f
-                        val wy = ry + rh - cell * 0.22f - wj * cell * 0.30f
+                        val wx = rx + (rw - cols * cell * 0.26f) * 0.5f + wi * cell * 0.26f + cell * 0.05f
+                        val wy = ry + rh - cell * 0.20f - wj * cell * 0.26f
                         if (wy > ry - hpx + cell * 0.05f) {
-                            canvas.drawRect(wx, wy - cell * 0.08f, wx + cell * 0.11f, wy - cell * 0.08f + cell * 0.13f, paint)
+                            canvas.drawRect(wx, wy - cell * 0.09f, wx + cell * 0.12f, wy - cell * 0.09f + cell * 0.15f, paint)
                         }
                     }
                 }

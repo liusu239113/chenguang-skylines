@@ -35,6 +35,11 @@ class CityState {
     var taxInd: Int = Config.TAX.default
     // 最近一次覆盖统计（数据面板用）
     var lastCoverage: com.chenguang.skylines.world.Coverage? = null
+    // 贷款
+    var loanDebt: Double = 0.0
+    var loanCooldown: Int = 0
+    // 成就
+    val achievements: MutableSet<String> = mutableSetOf()
 }
 
 object GameData {
@@ -155,7 +160,7 @@ object GameData {
         s.lastCoverage = cov
 
         // 人口向"容量×占用率"靠拢（占用率受满意度驱动；缺水时人口增长停滞）
-        val waterMul = if (cov.water < 0.99f) cov.water else 1.0
+        val waterMul: Double = if (cov.water < 0.99f) cov.water.toDouble() else 1.0
         val occTarget = floor(st.resCap * max(0.25, min(1.0, s.happiness / 100.0)) * waterMul)
         if (s.population < occTarget) {
             s.population = min(
@@ -199,6 +204,19 @@ object GameData {
         s.funds += net
         if (net >= 0) s.totalIncome += net else s.totalSpent += -net
 
+        // 贷款还款
+        if (s.loanDebt > 0) {
+            val repay = min(Config.LOAN.dailyRepay, s.loanDebt)
+            s.loanDebt -= repay
+            s.funds -= repay
+            if (s.loanDebt <= 0) {
+                s.loanDebt = 0.0
+                s.loanCooldown = Config.LOAN.cooldown
+                pushNews("贷款还清", "市政贷款已全部还清。", "财政")
+            }
+        }
+        if (s.loanCooldown > 0) s.loanCooldown -= 1
+
         // 满意度向目标靠拢
         val target = computeHappinessTarget(st)
         s.happiness += (target - s.happiness) * 0.10
@@ -212,6 +230,24 @@ object GameData {
                 pushNews("火灾！", "一处建筑因缺乏消防覆盖被烧毁。", "突发")
             } else {
                 pushNews("火情解除", "消防站及时扑灭了一起火情。", "突发")
+            }
+        }
+
+        // 成就检查
+        val bldCount = st.resCount + st.comCount + st.indCount + st.serviceCount
+        for (a in Config.ACHIEVEMENTS) {
+            if (a.id in s.achievements) continue
+            val v = when (a.type) {
+                "pop" -> s.population
+                "buildings" -> bldCount.toDouble()
+                "funds" -> s.funds
+                "happiness" -> s.happiness
+                else -> 0.0
+            }
+            if (v >= a.threshold) {
+                s.achievements.add(a.id)
+                s.funds += a.reward
+                pushNews("成就解锁：" + a.name, a.desc + "，奖励 " + a.reward + " 万。", "成就")
             }
         }
 
@@ -356,6 +392,17 @@ object GameData {
         }
         if (p.effect.cost > 0) s.funds -= p.effect.cost
         pushNews("新政发布：" + p.name, p.desc, "政策")
+        return true to null
+    }
+
+    /** 市政贷款：借入 LOAN.amount，按日自动还款 */
+    fun borrow(): Pair<Boolean, String?> {
+        val s = current ?: return false to null
+        if (s.loanDebt > 0) return false to "尚有未还贷款"
+        if (s.loanCooldown > 0) return false to ("冷却 " + s.loanCooldown + " 天")
+        s.loanDebt = Config.LOAN.amount
+        s.funds += Config.LOAN.amount
+        pushNews("市政贷款", "借入 " + Config.LOAN.amount.toInt() + " 万，将按日自动还款。", "财政")
         return true to null
     }
 

@@ -33,8 +33,8 @@ object Config {
     // -----------------------------------------------------------------------
     // 世界信息（纯虚构）
     // -----------------------------------------------------------------------
-    const val TITLE = "都市天际线：晨光"
-    const val SUBTITLE = "CHENGUANG SKYLINES · 晨光市城建日报"
+    const val TITLE = "都市建设模拟：山水之间"
+    const val SUBTITLE = "山水之间 · 晨光市城建日报"
 
     object World {
         const val country = "星辰联邦"
@@ -244,6 +244,40 @@ object Config {
     }
 
     // -----------------------------------------------------------------------
+    // 市政贷款
+    // -----------------------------------------------------------------------
+    object LOAN {
+        const val amount = 800.0      // 借款额（万）
+        const val dailyRepay = 30.0   // 每日自动还款（万）
+        const val cooldown = 90       // 还清后冷却天数
+    }
+
+    // -----------------------------------------------------------------------
+    // 成就（长期目标，达成发新闻 + 奖金）
+    // -----------------------------------------------------------------------
+    data class AchievementDef(
+        val id: String,
+        val name: String,
+        val desc: String,
+        val reward: Int,
+        val type: String,           // pop | buildings | funds | happiness
+        val threshold: Double
+    )
+
+    val ACHIEVEMENTS: List<AchievementDef> = listOf(
+        AchievementDef("pop100", "初具规模", "人口达到 100", 300, "pop", 100.0),
+        AchievementDef("pop500", "集镇兴起", "人口达到 500", 800, "pop", 500.0),
+        AchievementDef("pop1000", "千人之城", "人口达到 1000", 1500, "pop", 1000.0),
+        AchievementDef("pop4000", "都市气象", "人口达到 4000", 5000, "pop", 4000.0),
+        AchievementDef("pop10000", "万人大都会", "人口达到 10000", 10000, "pop", 10000.0),
+        AchievementDef("bld50", "拔地而起", "建成 50 栋建筑", 500, "buildings", 50.0),
+        AchievementDef("bld200", "百业兴旺", "建成 200 栋建筑", 1500, "buildings", 200.0),
+        AchievementDef("funds10000", "家底殷实", "资金达到 10000 万", 1000, "funds", 10000.0),
+        AchievementDef("happy85", "安居乐业", "满意度达到 85", 1000, "happiness", 85.0),
+        AchievementDef("happy95", "人间天堂", "满意度达到 95", 2500, "happiness", 95.0)
+    )
+
+    // -----------------------------------------------------------------------
     // 政策
     // -----------------------------------------------------------------------
     data class PolicyEffect(
@@ -342,11 +376,11 @@ object Config {
         val ghostBad = RGBA(200, 70, 70, 120)
     }
 
-    // 微立体
+    // 微立体（建筑伪 3D）
     object BUILD {
-        const val heightScale = 0.16
-        const val sideShade = 0.72
-        const val roofLight = 1.08
+        const val heightScale = 0.20
+        const val sideShade = 0.60        // 侧面明暗（越小越暗，立体感越强）
+        const val roofLight = 1.15        // 顶面提亮
         const val minPx = 3
     }
 

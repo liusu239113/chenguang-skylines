@@ -614,6 +614,33 @@ private fun PolicyPanel() {
             TaxSlider("商业", s.taxCom) { s.taxCom = it; AppState.bumpLive() }
             TaxSlider("工业", s.taxInd) { s.taxInd = it; AppState.bumpLive() }
 
+            // ---- 市政贷款 ----
+            val loanState = when {
+                s.loanDebt > 0 -> "还款中：剩余 " + floor(s.loanDebt).toInt() + " 万"
+                s.loanCooldown > 0 -> "贷款冷却 " + s.loanCooldown + " 天"
+                else -> "市政贷款 · 借 " + Config.LOAN.amount.toInt() + " 万"
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .background(C.chipBg.toColor(), RoundedCornerShape(14.dp))
+                    .border(1.dp, C.border2.toColor(), RoundedCornerShape(14.dp))
+                    .clickable {
+                        val (ok, msg) = GameData.borrow()
+                        if (!ok) MapRef.view?.setToast(msg ?: "无法贷款") else Sfx.play("sfx_click")
+                        AppState.bumpLive()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    loanState, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    color = if (s.loanDebt > 0) C.accentGold.toColor()
+                    else if (s.loanCooldown > 0) C.textFaint.toColor() else C.accentRed.toColor(),
+                    fontFamily = LocalGameFont.current
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -652,7 +679,7 @@ private fun HelpPanel() {
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                "新手指引 · 像都市天际线一样建城", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                "新手指引 · 建一座山水之间的都市", fontSize = 15.sp, fontWeight = FontWeight.Bold,
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
             )
@@ -756,6 +783,13 @@ private fun DataPanel() {
             Text(
                 "本月累计 收入 ¥${UIHelper.fmtMoney(s.totalIncome)}万 · 支出 ¥${UIHelper.fmtMoney(s.totalSpent)}万",
                 fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+            )
+
+            // 贷款 / 成就
+            Text(
+                "贷款 " + (if (s.loanDebt > 0) "剩余 ${floor(s.loanDebt).toInt()} 万" else "无") +
+                    " · 成就 ${s.achievements.size}/${Config.ACHIEVEMENTS.size}",
+                fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
 
             // 热力图切换

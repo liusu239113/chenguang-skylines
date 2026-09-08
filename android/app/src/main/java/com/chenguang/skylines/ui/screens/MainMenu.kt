@@ -104,7 +104,7 @@ fun MainMenuContent(mapView: MapRenderView) {
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
-                "一步步把小城建成你的都市天际线。",
+                "一步步把小城建成山水之间的理想都市。",
                 fontSize = 12.sp, color = C.textDark.toColor(),
                 fontFamily = LocalGameFont.current, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
