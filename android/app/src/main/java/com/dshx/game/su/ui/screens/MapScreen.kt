@@ -460,15 +460,38 @@ fun MapScreenContent(mapView: MapRenderView) {
                     val tb = World.tile(sel.first, sel.second)?.building
                     if (tb != null && !tb.isService) {
                         val cap = tb.cap()
+                        val name = Traffic.grownName(tb.zone ?: "residential", sel.first, sel.second)
+                        UIHelper.InfoRow("名称", name, C.accentGold.toColor())
                         if (tb.abandoned) {
                             UIHelper.InfoRow("状态", "废弃", C.accentRed.toColor())
                         } else if (tb.zone == "residential") {
-                            UIHelper.InfoRow("入住", tb.residents.toString() + "/" + cap)
+                            UIHelper.InfoRow("入住", tb.residents.toString() + "/" + cap + " 人")
+                            val folks = Traffic.cars.filter { it.kind == "local" && it.houseKey == "${sel.first},${sel.second}" }
+                            if (folks.isNotEmpty()) {
+                                val d = folks.first().driver
+                                UIHelper.InfoRow("住户", d.name + " " + d.age + "岁")
+                                UIHelper.InfoRow("职业", d.job + " · " + d.workplace)
+                                UIHelper.InfoRow("车牌", d.plate)
+                            } else if (tb.residents > 0) {
+                                UIHelper.InfoRow("住户", "有人在家，车停在车库")
+                            }
                         } else {
                             UIHelper.InfoRow("在岗", tb.workers.toString() + "/" + cap)
+                            val staff = Traffic.cars.filter { it.kind == "local" && it.driver.workX == sel.first && it.driver.workY == sel.second }
+                            if (staff.isNotEmpty()) {
+                                UIHelper.InfoRow("店员/员工", staff.take(2).joinToString("、") { it.driver.name })
+                            }
                         }
-                        UIHelper.InfoRow("供电", if (World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.POWER)) "已通" else "断电")
-                        UIHelper.InfoRow("供水", if (World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.WATER)) "已通" else "缺水")
+                        UIHelper.InfoRow("供电", if (World.tile(sel.first, sel.second)?.cable == true && World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.POWER)) "已通电缆" else "未铺电缆/断电", if (World.tile(sel.first, sel.second)?.cable == true) C.accentGreen.toColor() else C.accentRed.toColor())
+                        UIHelper.InfoRow("供水", if (World.tile(sel.first, sel.second)?.pipe == true && World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.WATER)) "已通水管" else "未铺水管/缺水")
+                    } else if (tb != null && tb.isService) {
+                        val cfg = World.serviceConfig(tb.service)
+                        UIHelper.InfoRow("设施", cfg?.name ?: tb.service ?: "-")
+                        UIHelper.InfoRow("说明", cfg?.desc ?: "")
+                        if (tb.service == "clinic") UIHelper.InfoRow("救护车", "2 辆 · 有人病了会出车")
+                        if (tb.service == "hospital") UIHelper.InfoRow("救护车", "5 辆")
+                        if (tb.service == "crematorium" || tb.service == "cemetery") UIHelper.InfoRow("灵车", "有人去世会出车接人")
+                        if (tb.service == "wind_farm" || tb.service == "coal_plant") UIHelper.InfoRow("供电", "需铺电缆接到房子才有电")
                     }
                     val tile = World.tile(sel.first, sel.second)
                     if (tile?.pipe == true) UIHelper.InfoRow("水管", "已铺")
@@ -1120,8 +1143,8 @@ private fun HelpPanel() {
             HelpRow("路", "黑色地块不用点。在亮处划住宅引人，人口每满 60 人自动向外扩一圈。外环高速全天有过路车；接进城后才会进游客。")
             HelpRow("铁", "先建火车站再【规划】铺铁轨才会跑火车；机场建好会有飞机进出。公交站连成线路才发公交车。")
             HelpRow("区", "【住宅/商业/工业/办公】在路旁涂色，邻路才会长楼。房子建好就会迁入人口。")
-            HelpRow("电", "先【服务】放风电/煤电（必须靠路）。再【规划】→电缆把电接到分区，数据面板开「电力」看绿/红色块。")
-            HelpRow("水", "抽水站必须靠河。水塔可随处放。再用【规划】→水管接到房子，开「供水」热力图检查。")
+            HelpRow("电", "发电厂只产出功率。必须【规划】铺电缆接到房子才有电，不是画个圈覆盖。风车叶片会转。")
+            HelpRow("水", "抽水站必须靠河。水塔可随处放。必须铺水管接到房子才有水。诊所人口 25 解锁，垃圾场 40 解锁。")
             HelpRow("污", "污水处理厂 + 污水管。不接污水，水源会脏、健康下降。")
             HelpRow("策", "【数/?/策】在状态栏左下。详情卡右上角 × 可关。1x 免费，2x/3x 看一次广告解锁 20 分钟。")
             HelpRow("存", "右上【≡】保存到当前槽位。主菜单「存档管理」能看到城市名、人口、日期。")

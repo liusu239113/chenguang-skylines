@@ -38,7 +38,6 @@ object CitySystems {
     fun daily(s: CityState, st: WorldStats, cov: Coverage) {
         val w = World.current ?: return
         val sewageN = World.allBuildings().count { it.b.service == "sewage" }
-        val prisonCap = World.allBuildings().count { it.b.service == "prison" } * 40
         val cemeteryCap = World.allBuildings().count { it.b.service == "cemetery" } * 80 +
             World.allBuildings().count { it.b.service == "crematorium" } * 200
         val policeN = World.allBuildings().count { it.b.service == "police" }
@@ -93,7 +92,8 @@ object CitySystems {
         var trash = 0
         for (e in World.allBuildings()) if (!e.b.isService) trash += e.b.garbage
         s.garbageBacklog = trash
-        dispatch("garbage", 4)
+        val dumpN = World.allBuildings().count { it.b.service == "landfill" || it.b.service == "incinerator" }
+        if (dumpN > 0 && trash > 20) dispatch("garbage", min(3, dumpN * 2))
 
         // 死亡 / 殡葬
         val deaths = max(0, (s.population * 0.004 * (1.3 - s.health / 140.0)).toInt())
@@ -106,27 +106,23 @@ object CitySystems {
             s.health = max(20.0, s.health - 1.5)
             if (s.day % 7 == 0) GameData.pushNews("遗体堆积", "殡葬能力不足，健康下降。", "民生")
         }
-        if (s.deathsPending > 0) dispatch("hearse", 2)
+        val hearseCap = World.allBuildings().count { it.b.service == "cemetery" } * 1 +
+            World.allBuildings().count { it.b.service == "crematorium" } * 2
+        if (s.deathsPending > 0 && hearseCap > 0) dispatch("hearse", hearseCap)
 
-        // 犯罪 / 监狱
         var crimeSum = 0
         var crimeN = 0
+        val hasPolice = World.allBuildings().any { it.b.service == "police" }
         for (e in World.allBuildings()) if (!e.b.isService) {
             crimeSum += e.b.crime
             crimeN++
-            if (e.b.crime > 70 && Random.nextDouble() < 0.08) {
-                if (s.prisonUsed < prisonCap) {
-                    s.prisonUsed++
-                    e.b.crime = max(0, e.b.crime - 30)
-                    dispatchTo("police", e.x, e.y)
-                } else if (s.day % 5 == 0) {
-                    GameData.pushNews("监狱爆满", "犯人被释放，治安恶化。", "治安")
-                    e.b.crime = min(100, e.b.crime + 10)
-                }
+            if (e.b.crime > 70 && Random.nextDouble() < 0.08 && hasPolice) {
+                e.b.crime = max(0, e.b.crime - 30)
+                dispatchTo("police", e.x, e.y)
             }
         }
         s.crime = if (crimeN == 0) 8.0 else crimeSum.toDouble() / crimeN
-        s.prisonUsed = max(0, s.prisonUsed - 1)
+        s.prisonUsed = 0
 
         // 健康：污水 / 水污染 / 医疗预算
         val waterHit = waterPolAvg / 12.0
@@ -138,7 +134,9 @@ object CitySystems {
                 s.health + clinicN * 0.4 * healthBudget - waterHit - (1.0 - s.sewerCoverage) * 3.0
             )
         )
-        if (s.health < 40 && clinicN > 0) dispatch("ambulance", 2)
+        val ambCap = World.allBuildings().count { it.b.service == "clinic" } * 2 +
+            World.allBuildings().count { it.b.service == "hospital" } * 5
+        if (s.health < 55 && ambCap > 0) dispatch("ambulance", min(ambCap, 6))
 
         // 火灾：无消防覆盖的老建筑
         fires = 0

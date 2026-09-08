@@ -166,8 +166,9 @@ class World {
                 }
             }
 
-            // 河流（靠地图右边缘，不穿市中心）
-            val riverX = w.cols - 2
+            // 河流位置随种子变化
+            val riverOnRight = seed % 2 == 0
+            val riverX = if (riverOnRight) w.cols - 3 else 4
             for (y in 1..w.rows) {
                 val rx = riverX + floor(nz.noise(y * 0.12, 5.5) * 6 - 3).toInt()
                 val width = 2 + floor(nz.noise(y * 0.08, 9.1) * 2).toInt()
@@ -180,10 +181,9 @@ class World {
                 }
             }
 
-            // 湖泊（左上角角落，不占用市中心建设用地）
-            val lakeX = 5
-            val lakeY = 4
-            val lakeR = 4
+            val lakeX = 6 + abs(seed * 7) % (w.cols - 12)
+            val lakeY = 5 + abs(seed * 11) % 18
+            val lakeR = 3 + abs(seed) % 3
             for (y in max(1, lakeY - lakeR)..min(w.rows, lakeY + lakeR)) {
                 for (x in max(1, lakeX - lakeR)..min(w.cols, lakeX + lakeR)) {
                     if ((x - lakeX) * (x - lakeX) + (y - lakeY) * (y - lakeY) <= lakeR * lakeR) {
@@ -212,13 +212,24 @@ class World {
 
             // 大道骨架：开局只在高速旁一小块，其余靠解锁后自己修
             fun setRoad(x: Int, y: Int, kind: String) {
+                if (x !in 1..w.cols || y !in 1..w.rows) return
                 val t = w.grid[y - 1][x - 1]
+                if (t.terrain == "water") return
                 t.road = kind
                 t.zone = "none"
             }
 
-            val startX = 8
-            val startY = 10
+            var startX = 8 + abs(seed * 3) % 10
+            var startY = 10 + abs(seed * 5) % 12
+            fun landOk(x: Int, y: Int): Boolean {
+                if (x !in 4..w.cols - 4 || y !in 6..w.rows - 6) return false
+                return w.grid[y - 1][x - 1].terrain != "water"
+            }
+            var tries = 0
+            while (!landOk(startX, startY) && tries++ < 40) {
+                startX = 6 + (startX * 7 + seed + tries) % (w.cols - 12)
+                startY = 8 + (startY * 5 + seed + tries * 3) % (w.rows - 16)
+            }
             w.unlockCx = startX
             w.unlockCy = startY
             w.unlockR = 8
@@ -699,11 +710,12 @@ class World {
                     val nx = cx + dx[k]
                     val ny = cy + dy[k]
                     val t = tile(nx, ny) ?: continue
-                    val along = t.road != null ||
-                        (category == Config.ServiceCat.POWER && t.cable) ||
-                        (category == Config.ServiceCat.WATER && t.pipe) ||
-                        (category == Config.ServiceCat.DEATH && t.road != null) ||
-                        (category == "sewer" && t.sewer)
+                    val along = when (category) {
+                        Config.ServiceCat.POWER -> t.cable
+                        Config.ServiceCat.WATER -> t.pipe
+                        "sewer" -> t.sewer
+                        else -> t.road != null
+                    }
                     if (along) {
                         val p = nx to ny
                         if (visited.add(p)) queue.addLast(p)

@@ -230,26 +230,26 @@ object Config {
             "必须靠河。容量 40，再用水管接到分区。", ServiceCat.WATER, 0, 0, 0, 40),
         // ---- 垃圾 ----
         ServiceDef("landfill", "垃圾场", 350, 22, 6, 0, false, 1, 1,
-            "填埋生活垃圾，满载后污染加重。", ServiceCat.GARBAGE, 100, 3),
+            "填埋生活垃圾，满载后污染加重。", ServiceCat.GARBAGE, 40, 3),
         ServiceDef("incinerator", "焚烧厂", 900, 36, 8, -2, false, 2, 2,
             "烧掉垃圾并发电，有空气污染。", ServiceCat.GARBAGE, 300, 5, 12, 0),
         // ---- 医疗 ----
         ServiceDef("clinic", "诊所", 640, 28, 7, 5, false, 1, 1,
-            "基础医疗，覆盖区健康与满意度提升。", ServiceCat.HEALTH, 0),
+            "基础医疗，覆盖区健康与满意度提升。", ServiceCat.HEALTH, 25),
         ServiceDef("hospital", "医院", 900, 36, 8, 6, true, 2, 2,
             "大型医疗，覆盖更广。", ServiceCat.HEALTH, 700),
         // ---- 教育（驱动产业升级） ----
         ServiceDef("school", "小学", 520, 32, 7, 4, true, 2, 2,
-            "基础教育，缓慢提升受教育人口。", ServiceCat.EDUCATION, 0),
+            "基础教育，缓慢提升受教育人口。", ServiceCat.EDUCATION, 20),
         ServiceDef("middle_school", "中学", 700, 28, 8, 4, true, 2, 2,
             "中等教育，商业与制造业需要。", ServiceCat.EDUCATION, 300),
         ServiceDef("university", "大学", 1800, 48, 10, 6, true, 3, 3,
             "高等教育，解锁高科技工厂。", ServiceCat.EDUCATION, 600),
         // ---- 安全 ----
         ServiceDef("fire_station", "消防站", 600, 24, 7, 0, false, 1, 1,
-            "扑灭火灾，无覆盖则建筑会烧毁。", ServiceCat.SAFETY, 100),
+            "扑灭火灾，无覆盖则建筑会烧毁。", ServiceCat.SAFETY, 50),
         ServiceDef("police", "警察局", 700, 28, 8, 3, false, 1, 1,
-            "降低犯罪，提升安全感与地价。", ServiceCat.SAFETY, 100),
+            "降低犯罪，提升安全感与地价。", ServiceCat.SAFETY, 80),
         // ---- 公交 ----
         ServiceDef("bus_stop", "公交站", 220, 10, 6, 4, false, 1, 1,
             "缓解拥堵，缩短通勤。", ServiceCat.TRANSIT, 150),
@@ -263,13 +263,13 @@ object Config {
             "航空枢纽，旅游收入与满意度。", ServiceCat.TRANSIT, 4000),
         // ---- 排污 / 殡葬 / 监狱 ----
         ServiceDef("sewage", "污水处理厂", 1100, 36, 8, 0, false, 2, 2,
-            "处理污水。未覆盖则污染水源、市民生病。", ServiceCat.WATER, 150, 2, 0, 0),
+            "处理污水。未覆盖则污染水源、市民生病。", ServiceCat.WATER, 60, 2, 0, 0),
         ServiceDef("cemetery", "墓地", 400, 4, 6, -1, false, 2, 2,
-            "存放遗体。满载后污染周边。", ServiceCat.DEATH, 100),
+            "存放遗体。满载后污染周边。", ServiceCat.DEATH, 80),
         ServiceDef("crematorium", "火葬场", 900, 12, 8, 0, false, 1, 1,
             "焚化遗体，无堆积。需派出灵车。", ServiceCat.DEATH, 300),
         ServiceDef("prison", "监狱", 1600, 20, 8, 0, false, 2, 2,
-            "关押罪犯。容量满则犯人被释放。", ServiceCat.SAFETY, 300),
+            "关押罪犯。容量满则犯人被释放。", ServiceCat.SAFETY, 400),
         // ---- 独特建筑 ----
         ServiceDef("stock_exchange", "证券交易所", 3500, 18, 10, 8, true, 3, 3,
             "全城商业税收 +12%，地价上升。", ServiceCat.LANDMARK, 1000),

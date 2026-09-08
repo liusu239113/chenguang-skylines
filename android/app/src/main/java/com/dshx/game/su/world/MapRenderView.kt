@@ -14,9 +14,11 @@ import com.dshx.game.su.GameData
 import com.dshx.game.su.RGBA
 import com.dshx.game.su.Sfx
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 // ============================================================================
@@ -75,6 +77,7 @@ class MapRenderView @JvmOverloads constructor(
 
     /** 夜晚因子 0=白天 1=深夜（由 GameData.timeOfDay 计算） */
     private var nightLevel = 0f
+    private var rainPhase = 0f
 
     private val cell: Float get() = Config.MAP.baseCell * camScale
 
@@ -530,6 +533,8 @@ class MapRenderView @JvmOverloads constructor(
                 toastT = 0f
             }
         }
+        rainPhase += dt * 1.8f
+        if (rainPhase > 1000f) rainPhase -= 1000f
         ambientAcc += dt
         if (ambientAcc > 2.4f && camScale > 1.15f) {
             ambientAcc = 0f
@@ -716,39 +721,16 @@ class MapRenderView @JvmOverloads constructor(
                     val sy = worldToScreenY((ty - 1).toFloat())
                     when {
                         t.terrain == "forest" -> {
-                            val n = 2 + ((tx * 7 + ty * 13) % 2)
-                            for (k in 0 until n) {
-                                val ox = ((tx * 31 + ty * 17 + k * 37) % 100) / 100f
-                                val oy = ((tx * 13 + ty * 29 + k * 53) % 100) / 100f
-                                val r = cell * (0.10f + ((tx + k * 5 + ty) % 3) * 0.025f)
-                                fillCircle(
-                                    canvas,
-                                    sx + cell * (0.20f + ox * 0.60f),
-                                    sy + cell * (0.20f + oy * 0.60f),
-                                    r, RGBA(96, 138, 94, 235)
-                                )
-                            }
+                            val lift = cell * 0.18f
+                            fillRoundRect(canvas, sx + cell * 0.22f, sy + cell * 0.38f, cell * 0.16f, cell * 0.28f, 2f, RGBA(92, 70, 48))
+                            fillCircle(canvas, sx + cell * 0.30f, sy + cell * 0.28f - lift * 0.2f, cell * 0.22f, RGBA(70, 118, 78))
+                            fillCircle(canvas, sx + cell * 0.62f, sy + cell * 0.42f, cell * 0.16f, RGBA(86, 132, 88))
                         }
-                        t.terrain == "hill" && cell >= 10 -> {
-                            val cxp = sx + cell * 0.5f
-                            val cyp = sy + cell * 0.64f
-                            path.reset()
-                            path.moveTo(cxp - cell * 0.28f, cyp)
-                            path.lineTo(cxp, cyp - cell * 0.36f)
-                            path.lineTo(cxp + cell * 0.28f, cyp)
-                            path.close()
-                            fillPath(canvas, path, RGBA(142, 152, 124, 255))
-                        }
-                        t.terrain == "water" && cell >= 8 -> {
-                            strokeColor(RGBA(255, 255, 255, 70), 255, max(1f, cell * 0.045f))
-                            canvas.drawLine(
-                                sx + cell * 0.2f, sy + cell * 0.35f,
-                                sx + cell * 0.8f, sy + cell * 0.35f, paint
-                            )
-                            canvas.drawLine(
-                                sx + cell * 0.15f, sy + cell * 0.65f,
-                                sx + cell * 0.85f, sy + cell * 0.65f, paint
-                            )
+                        t.terrain == "hill" && cell >= 8 -> {
+                            val h = cell * (0.22f + (World.elevation(tx, ty) % 80) / 180f)
+                            fillRoundRect(canvas, sx + cell * 0.12f, sy + cell * 0.28f, cell * 0.76f, cell * 0.58f, 3f, RGBA(120, 128, 102, 70))
+                            fillRoundRect(canvas, sx + cell * 0.16f, sy + cell * 0.22f - h * 0.15f, cell * 0.68f, cell * 0.52f, 3f, RGBA(138, 148, 118))
+                            fillRoundRect(canvas, sx + cell * 0.22f, sy + cell * 0.12f - h, cell * 0.56f, cell * 0.36f, 3f, RGBA(158, 168, 132))
                         }
                     }
                 }
@@ -1342,11 +1324,13 @@ class MapRenderView @JvmOverloads constructor(
         // ---- 6.6) 天气（雨/雾） ----
         when (GameData.weather) {
             1 -> {
-                strokeColor(RGBA(180, 200, 225, 70), 255, max(1f, cell * 0.02f))
-                for (i in 0 until 36) {
-                    val rx = ((i * 37 + 13) % 100) / 100f * viewW
-                    val ry = ((i * 53 + 7) % 100) / 100f * viewH
-                    canvas.drawLine(rx, ry, rx - cell * 0.35f, ry + cell * 0.7f, paint)
+                strokeColor(RGBA(200, 220, 240, 140), 255, max(1.2f, cell * 0.03f))
+                val n = 90
+                for (i in 0 until n) {
+                    val drift = (rainPhase * 220f + i * 47f)
+                    val rx = ((i * 73 + 19).toFloat() + drift * 0.35f).mod(viewW + 40f) - 20f
+                    val ry = ((i * 91 + 7).toFloat() + drift).mod(viewH + 60f) - 30f
+                    canvas.drawLine(rx, ry, rx - 7f, ry + 18f, paint)
                 }
             }
             2 -> {
@@ -1418,9 +1402,31 @@ class MapRenderView @JvmOverloads constructor(
             }
             bl.service == "wind_farm" -> {
                 drawSolidBox(canvas, bx + bw * 0.3f, by + bh * 0.45f, bw * 0.4f, bh * 0.4f, hpx * 0.35f, base)
-                strokeColor(RGBA(230, 230, 230), 255, max(1f, cell * 0.04f))
-                canvas.drawLine(bx + bw * 0.5f, by + bh, bx + bw * 0.5f, by - hpx, paint)
-                fillCircle(canvas, bx + bw * 0.5f, by - hpx, cell * 0.07f, RGBA(240, 240, 240))
+                val cxp = bx + bw * 0.5f
+                val cyp = by - hpx
+                strokeColor(RGBA(230, 230, 230), 255, max(1.2f, cell * 0.045f))
+                canvas.drawLine(cxp, by + bh * 0.2f, cxp, cyp, paint)
+                fillCircle(canvas, cxp, cyp, cell * 0.07f, RGBA(240, 240, 240))
+                val ang = rainPhase * 4.2f
+                for (k in 0..2) {
+                    val a = ang + k * 2.094f
+                    canvas.drawLine(
+                        cxp, cyp,
+                        cxp + kotlin.math.cos(a) * cell * 0.28f,
+                        cyp + kotlin.math.sin(a) * cell * 0.28f,
+                        paint
+                    )
+                }
+            }
+            bl.service == "clinic" -> {
+                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.18f, bw * 0.84f, bh * 0.64f, hpx * 0.7f, RGBA(236, 236, 240))
+                fillRect(canvas, bx + bw * 0.38f, by + bh * 0.32f - hpx * 0.2f, bw * 0.24f, bh * 0.12f, RGBA(210, 70, 70))
+                fillRect(canvas, bx + bw * 0.46f, by + bh * 0.22f - hpx * 0.2f, bw * 0.08f, bh * 0.32f, RGBA(210, 70, 70))
+            }
+            bl.service == "pump_station" -> {
+                drawSolidBox(canvas, bx + bw * 0.12f, by + bh * 0.28f, bw * 0.76f, bh * 0.52f, hpx * 0.5f, RGBA(70, 130, 170))
+                fillCircle(canvas, bx + bw * 0.32f, by + bh * 0.4f, cell * 0.12f, RGBA(50, 90, 130))
+                fillCircle(canvas, bx + bw * 0.68f, by + bh * 0.48f, cell * 0.10f, RGBA(50, 90, 130))
             }
             bl.service == "water_tower" -> {
                 drawSolidBox(canvas, bx + bw * 0.38f, by + bh * 0.35f, bw * 0.24f, bh * 0.5f, hpx * 0.7f, RGBA(90, 120, 140))
@@ -1439,11 +1445,24 @@ class MapRenderView @JvmOverloads constructor(
                 drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.35f, bw * 0.64f, bh * 0.4f, hpx * 0.4f, RGBA(40, 90, 170))
             }
             bl.zone == "residential" && bl.level == 1 -> {
-                // 小院：主屋 + 侧屋 + 院子
+                val roof = when (variant) {
+                    0 -> RGBA(150, 78, 62)
+                    1 -> RGBA(120, 88, 64)
+                    else -> RGBA(168, 92, 70)
+                }
                 fillRect(canvas, bx, by, bw, bh, RGBA(150, 170, 130, 180))
-                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.18f, bw * 0.58f, bh * 0.64f, hpx, base)
-                drawPitchedRoof(canvas, bx + bw * 0.08f, by + bh * 0.18f, bw * 0.58f, bh * 0.64f, hpx, RGBA(150, 78, 62))
-                drawSolidBox(canvas, bx + bw * 0.68f, by + bh * 0.42f, bw * 0.24f, bh * 0.4f, hpx * 0.55f, base.shade(0.9))
+                if (variant == 0) {
+                    drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.18f, bw * 0.58f, bh * 0.64f, hpx, base)
+                    drawPitchedRoof(canvas, bx + bw * 0.08f, by + bh * 0.18f, bw * 0.58f, bh * 0.64f, hpx, roof)
+                    drawSolidBox(canvas, bx + bw * 0.68f, by + bh * 0.42f, bw * 0.24f, bh * 0.4f, hpx * 0.55f, base.shade(0.9))
+                } else if (variant == 1) {
+                    drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.12f, bw * 0.64f, bh * 0.72f, hpx * 1.1f, base)
+                    drawPitchedRoof(canvas, bx + bw * 0.18f, by + bh * 0.12f, bw * 0.64f, bh * 0.72f, hpx * 1.1f, roof)
+                } else {
+                    drawSolidBox(canvas, bx + bw * 0.06f, by + bh * 0.28f, bw * 0.42f, bh * 0.52f, hpx * 0.8f, base)
+                    drawSolidBox(canvas, bx + bw * 0.50f, by + bh * 0.16f, bw * 0.42f, bh * 0.64f, hpx, base.shade(0.92))
+                    drawPitchedRoof(canvas, bx + bw * 0.50f, by + bh * 0.16f, bw * 0.42f, bh * 0.64f, hpx, roof)
+                }
             }
             bl.zone == "residential" && bl.level == 2 -> {
                 if (variant == 0) {
@@ -1458,16 +1477,28 @@ class MapRenderView @JvmOverloads constructor(
                 drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.1f, bw * 0.84f, bh * 0.8f, hpx, base)
             }
             bl.zone == "commercial" && bl.level == 1 -> {
+                val awning = when (variant) {
+                    0 -> RGBA(190, 70, 70)
+                    1 -> RGBA(70, 110, 170)
+                    else -> RGBA(210, 150, 60)
+                }
                 drawSolidBox(canvas, bx + bw * 0.1f, by + bh * 0.16f, bw * 0.8f, bh * 0.7f, hpx, base)
                 fillRect(canvas, bx + bw * 0.18f, by + bh * 0.58f, bw * 0.64f, bh * 0.22f, RGBA(40, 50, 70, 200))
+                fillRect(canvas, bx + bw * 0.12f, by + bh * 0.50f, bw * 0.76f, bh * 0.08f, awning)
             }
             bl.zone == "commercial" -> {
                 drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.12f, bw * 0.84f, bh * 0.76f, hpx, base)
                 fillRect(canvas, bx + bw * 0.16f, by + bh * 0.55f, bw * 0.68f, bh * 0.26f, RGBA(40, 50, 70, 180))
             }
             bl.zone == "industrial" -> {
-                drawSolidBox(canvas, bx + bw * 0.06f, by + bh * 0.22f, bw * 0.62f, bh * 0.62f, hpx * 0.75f, base)
-                drawSolidBox(canvas, bx + bw * 0.7f, by + bh * 0.38f, bw * 0.24f, bh * 0.46f, hpx * 1.15f, RGBA(110, 108, 100))
+                if (variant == 0) {
+                    drawSolidBox(canvas, bx + bw * 0.06f, by + bh * 0.22f, bw * 0.62f, bh * 0.62f, hpx * 0.75f, base)
+                    drawSolidBox(canvas, bx + bw * 0.7f, by + bh * 0.38f, bw * 0.24f, bh * 0.46f, hpx * 1.15f, RGBA(110, 108, 100))
+                } else {
+                    drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.18f, bw * 0.84f, bh * 0.64f, hpx * 0.7f, base)
+                    drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.08f, bw * 0.18f, bh * 0.22f, hpx * 1.3f, RGBA(120, 118, 110))
+                    drawSolidBox(canvas, bx + bw * 0.62f, by + bh * 0.08f, bw * 0.18f, bh * 0.22f, hpx * 1.15f, RGBA(110, 108, 100))
+                }
             }
             bl.zone == "office" -> {
                 drawSolidBox(canvas, bx + bw * 0.12f, by + bh * 0.1f, bw * 0.76f, bh * 0.8f, hpx, base)

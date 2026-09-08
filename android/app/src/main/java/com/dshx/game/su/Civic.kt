@@ -81,9 +81,10 @@ object Civic {
         if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.WATER) }) {
             out.add(COMPLAINTS.first { it.id == "water" })
         }
-        if (homes.isNotEmpty() && !hasSchool) out.add(COMPLAINTS.first { it.id == "school" })
-        if (homes.isNotEmpty() && !hasClinic) out.add(COMPLAINTS.first { it.id == "clinic" })
-        if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.GARBAGE) }) {
+        val pop = GameData.current?.population ?: 0.0
+        if (homes.isNotEmpty() && !hasSchool && pop >= 20) out.add(COMPLAINTS.first { it.id == "school" })
+        if (homes.isNotEmpty() && !hasClinic && pop >= 25) out.add(COMPLAINTS.first { it.id == "clinic" })
+        if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.GARBAGE) } && pop >= 40) {
             out.add(COMPLAINTS.first { it.id == "trash" })
         }
         if (shops.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }) {
