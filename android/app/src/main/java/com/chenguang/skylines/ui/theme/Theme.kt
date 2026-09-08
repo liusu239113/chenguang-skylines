@@ -7,7 +7,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import com.chenguang.skylines.R
 
-val LocalGameFont = staticCompositionLocalOf { FontFamily.Default }
+val LocalGameFont = staticCompositionLocalOf<FontFamily> { FontFamily.Default }
 
 @Composable
 fun ChenguangTheme(content: @Composable () -> Unit) {

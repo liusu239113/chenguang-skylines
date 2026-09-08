@@ -256,7 +256,7 @@ class MapRenderView @JvmOverloads constructor(
         RGBA(234, 194, 88), RGBA(134, 170, 134), RGBA(96, 98, 104)
     )
     private val dirs = arrayOf(intArrayOf(1, 0), intArrayOf(0, 1), intArrayOf(-1, 0), intArrayOf(0, -1))
-    private const val CARS_TARGET = 26
+    private val CARS_TARGET = 26
 
     private fun isRoadCell(x: Int, y: Int) = World.tile(x, y)?.road != null
 
