@@ -362,10 +362,18 @@ class World {
             return abs(x - w.unlockCx) + abs(y - w.unlockCy) <= unlockRadius()
         }
 
+        fun nextUnlockPop(): Int {
+            val w = current ?: return 60
+            val extra = (w._pop / 60).coerceIn(0, 36)
+            if (extra >= 36) return w._pop
+            return (extra + 1) * 60
+        }
+
         fun lockedHint(): String {
-            val r = unlockRadius()
-            val next = ((r - 7).coerceAtLeast(1)) * 60
-            return "先建设高速旁已解锁区域。人口达到 $next 后会向外扩一圈。"
+            val need = nextUnlockPop()
+            val have = current?._pop ?: 0
+            val left = (need - have).coerceAtLeast(0)
+            return "黑色区域随人口自动解锁。再增加 $left 人会向外扩一圈（目标 $need 人）。"
         }
 
         fun tile(x: Int, y: Int): Tile? {

@@ -255,6 +255,17 @@ fun MapScreenContent(mapView: MapRenderView) {
                             C.accentBlue.toColor()
                         )
                     }
+                    val need = World.nextUnlockPop()
+                    val have = s.population.toInt()
+                    val left = (need - have).coerceAtLeast(0)
+                    Text(
+                        if (left <= 0) "城区已尽量向外展开"
+                        else "黑色区域：再增加 $left 人自动解锁（目标 $need 人）",
+                        fontSize = 10.sp,
+                        color = C.textMid.toColor(),
+                        fontFamily = LocalGameFont.current,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
             }
 
@@ -464,6 +475,9 @@ fun MapScreenContent(mapView: MapRenderView) {
                     if (tile?.cable == true) UIHelper.InfoRow("电缆", "已铺")
                     Networks.districtAt(sel.first, sel.second)?.let { d ->
                         UIHelper.InfoRow("区划", d.name + " · " + Networks.policyName(d.policy))
+                    }
+                    if (!World.isUnlocked(sel.first, sel.second) && World.tile(sel.first, sel.second)?.road != "highway") {
+                        UIHelper.InfoRow("解锁", World.lockedHint(), C.accentRed.toColor())
                     }
                     if (World.current?.highwayConnected == true) {
                         UIHelper.InfoRow("外环高速", "已接通 · 繁荣 " + (World.current?.prosperity ?: 0))
@@ -1103,7 +1117,7 @@ private fun HelpPanel() {
             }
             HelpRow("手", "右下角手掌图标=退出建造并拖地图。修完路一定要点它，否则会继续铺路。")
             HelpRow("职", "点顶栏营造职级打开营造档案。人口、满意度和测评都达标才会晋升，不是现实官职。")
-            HelpRow("路", "开局只解锁高速旁一小块。人口增加后向外扩。外环高速全天有过路车；接进城后才会进游客。本地车回家就进车库，不堵路。")
+            HelpRow("路", "黑色地块不用点。在亮处划住宅引人，人口每满 60 人自动向外扩一圈。外环高速全天有过路车；接进城后才会进游客。")
             HelpRow("铁", "先建火车站再【规划】铺铁轨才会跑火车；机场建好会有飞机进出。公交站连成线路才发公交车。")
             HelpRow("区", "【住宅/商业/工业/办公】在路旁涂色，邻路才会长楼。房子建好就会迁入人口。")
             HelpRow("电", "先【服务】放风电/煤电（必须靠路）。再【规划】→电缆把电接到分区，数据面板开「电力」看绿/红色块。")
