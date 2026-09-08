@@ -1,9 +1,9 @@
-package com.chenguang.skylines
+package com.dshx.game.su
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.chenguang.skylines.world.MapRenderView
+import com.dshx.game.su.world.MapRenderView
 
 // ============================================================================
 // AppState — 全局 UI 状态（对应 Lua 各 Screen 的模块局部变量）

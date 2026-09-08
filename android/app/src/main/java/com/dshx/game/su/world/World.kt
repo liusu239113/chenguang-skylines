@@ -1,6 +1,6 @@
-package com.chenguang.skylines.world
+package com.dshx.game.su.world
 
-import com.chenguang.skylines.Config
+import com.dshx.game.su.Config
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min

@@ -1,4 +1,4 @@
-package com.chenguang.skylines
+package com.dshx.game.su
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,14 +20,14 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.chenguang.skylines.ui.screens.MainMenuContent
-import com.chenguang.skylines.ui.toColor
-import com.chenguang.skylines.ui.screens.MapScreen
-import com.chenguang.skylines.ui.screens.MapScreenContent
-import com.chenguang.skylines.ui.screens.NewspaperContent
-import com.chenguang.skylines.ui.theme.ChenguangTheme
-import com.chenguang.skylines.world.Growth
-import com.chenguang.skylines.world.MapRenderView
+import com.dshx.game.su.ui.screens.MainMenuContent
+import com.dshx.game.su.ui.toColor
+import com.dshx.game.su.ui.screens.MapScreen
+import com.dshx.game.su.ui.screens.MapScreenContent
+import com.dshx.game.su.ui.screens.NewspaperContent
+import com.dshx.game.su.ui.theme.AppTheme
+import com.dshx.game.su.world.Growth
+import com.dshx.game.su.world.MapRenderView
 
 // ============================================================================
 // 《都市天际线：晨光》入口，与 scripts/main.lua 对应
@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
             GameData.init(20260408)
         }
         setContent {
-            ChenguangTheme {
+            AppTheme {
                 AppRoot()
             }
         }

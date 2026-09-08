@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ChenguangSkylines"
+rootProject.name = "DshxGame"
 include(":app")

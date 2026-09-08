@@ -66,7 +66,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: chenguang-skylines-release
+          name: dshx-game-su-release
           path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
 

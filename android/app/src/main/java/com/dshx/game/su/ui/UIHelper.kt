@@ -1,4 +1,4 @@
-package com.chenguang.skylines.ui
+package com.dshx.game.su.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,9 +27,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.chenguang.skylines.Config
-import com.chenguang.skylines.RGBA
-import com.chenguang.skylines.ui.theme.LocalGameFont
+import com.dshx.game.su.Config
+import com.dshx.game.su.RGBA
+import com.dshx.game.su.ui.theme.LocalGameFont
 import kotlin.math.floor
 
 // ============================================================================

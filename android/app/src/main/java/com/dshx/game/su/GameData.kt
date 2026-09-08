@@ -1,11 +1,11 @@
-package com.chenguang.skylines
+package com.dshx.game.su
 
-import com.chenguang.skylines.world.World
-import com.chenguang.skylines.world.Growth
-import com.chenguang.skylines.world.Citizens
-import com.chenguang.skylines.world.Transit
-import com.chenguang.skylines.world.CitySystems
-import com.chenguang.skylines.world.Networks
+import com.dshx.game.su.world.World
+import com.dshx.game.su.world.Growth
+import com.dshx.game.su.world.Citizens
+import com.dshx.game.su.world.Transit
+import com.dshx.game.su.world.CitySystems
+import com.dshx.game.su.world.Networks
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
@@ -44,7 +44,7 @@ class CityState {
     var taxInd: Int = Config.TAX.default
     var taxOff: Int = Config.TAX.default
     // 最近一次覆盖统计（数据面板用）
-    var lastCoverage: com.chenguang.skylines.world.Coverage? = null
+    var lastCoverage: com.dshx.game.su.world.Coverage? = null
     // 贷款
     var loanDebt: Double = 0.0
     var loanCooldown: Int = 0
@@ -268,7 +268,7 @@ object GameData {
         return HappyBreakdown(base, service, pollution, coveragePenalty, taxPenalty, event, policy, commute, jobs, target)
     }
 
-    private fun computeHappinessTarget(st: com.chenguang.skylines.world.WorldStats): Double =
+    private fun computeHappinessTarget(st: com.dshx.game.su.world.WorldStats): Double =
         happinessBreakdown().target
 
     private fun onNewDay() {

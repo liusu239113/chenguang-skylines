@@ -1,7 +1,7 @@
-package com.chenguang.skylines.world
+package com.dshx.game.su.world
 
-import com.chenguang.skylines.Config
-import com.chenguang.skylines.GameData
+import com.dshx.game.su.Config
+import com.dshx.game.su.GameData
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random

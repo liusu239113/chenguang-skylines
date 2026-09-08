@@ -1,4 +1,4 @@
-package com.chenguang.skylines.ui.screens
+package com.dshx.game.su.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,14 +32,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.chenguang.skylines.AppState
-import com.chenguang.skylines.Config
-import com.chenguang.skylines.GameData
-import com.chenguang.skylines.SaveManager
-import com.chenguang.skylines.Sfx
-import com.chenguang.skylines.ui.theme.LocalGameFont
-import com.chenguang.skylines.ui.toColor
-import com.chenguang.skylines.world.MapRenderView
+import com.dshx.game.su.AppState
+import com.dshx.game.su.Config
+import com.dshx.game.su.GameData
+import com.dshx.game.su.SaveManager
+import com.dshx.game.su.Sfx
+import com.dshx.game.su.ui.theme.LocalGameFont
+import com.dshx.game.su.ui.toColor
+import com.dshx.game.su.world.MapRenderView
 import kotlin.math.floor
 import kotlin.random.Random
 
