@@ -16,8 +16,11 @@ import kotlin.math.min
 class Tile {
     var terrain: String = "grass"
     var zone: String = "none"
-    var road: String? = null          // "local" | "avenue"
+    var road: String? = null          // "dirt" | "local" | "avenue" | "highway"
     var building: Building? = null
+    var pipe: Boolean = false         // 地下水管
+    var cable: Boolean = false        // 地下电缆
+    var district: Int = 0             // 区划 id，0=未划
 }
 
 class Building {
@@ -399,6 +402,8 @@ class World {
                     w.grid[yy - 1][xx - 1].building = b
                 }
             }
+            if (s.category == Config.ServiceCat.POWER) Networks.seedCablesAround(x, y, s.sizeW, s.sizeH)
+            if (s.category == Config.ServiceCat.WATER) Networks.seedPipesAround(x, y, s.sizeW, s.sizeH)
             return true
         }
 
@@ -529,6 +534,7 @@ class World {
                     } else if (b.zone == "industrial") {
                         v -= 1
                     }
+                    if (b.abandoned) v -= 2
                 }
             }
             return v
@@ -564,7 +570,10 @@ class World {
                     val nx = cx + dx[k]
                     val ny = cy + dy[k]
                     val t = tile(nx, ny) ?: continue
-                    if (t.road != null) {
+                    val along = t.road != null ||
+                        (category == Config.ServiceCat.POWER && t.cable) ||
+                        (category == Config.ServiceCat.WATER && t.pipe)
+                    if (along) {
                         val p = nx to ny
                         if (visited.add(p)) queue.addLast(p)
                     } else if (t.building != null && t.building?.isService != true) {

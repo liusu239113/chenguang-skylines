@@ -2,6 +2,9 @@ package com.chenguang.skylines
 
 import com.chenguang.skylines.world.World
 import com.chenguang.skylines.world.Growth
+import com.chenguang.skylines.world.Citizens
+import com.chenguang.skylines.world.Transit
+import com.chenguang.skylines.world.Networks
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
@@ -102,6 +105,9 @@ object GameData {
         GameData.seed = seed
         World.generate(seed)
         Growth.reset()
+        Citizens.reset()
+        Transit.reset()
+        Networks.reset()
         current = createState()
         val s = current!!
         s.cityName = cityName
@@ -229,11 +235,12 @@ object GameData {
         val taxPenalty =
             -max(0.0, (s.taxRes - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint -
                 max(0.0, (s.taxCom - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint -
-                max(0.0, (s.taxInd - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
+                max(0.0, (s.taxInd - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint -
+                max(0.0, (s.taxOff - Config.TAX.default).toDouble()) * Config.TAX.happyPerPoint
         var event = 0.0
         for (ev in s.activeEvents) event += ev.happy
         val policy = policyHappyBonus()
-        val commute = -s.congestion * 10.0
+        val commute = -s.congestion * 8.0 - Citizens.avgCommute * 12.0 + Transit.coverageBoost() * 8.0
         val labor = max(1.0, s.population * 0.62)
         val jobRate = min(1.2, s.jobs / labor)
         val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06
@@ -286,7 +293,10 @@ object GameData {
                 }
             }
         }
-        val bldN = max(1, st.resCount + st.comCount + st.indCount)
+        for (d in Networks.districts) {
+            if (d.policy == "old_town") tradeIncome += 6.0
+        }
+        val bldN = max(1, st.resCount + st.comCount + st.indCount + st.offCount)
         val powerNeed = bldN * policyMul("powerUseMul")
         val supplyFactor = min(1.0, powerCap.toDouble() / powerNeed)
         val waterFactor = min(1.0, waterCap.toDouble() / bldN)
@@ -297,7 +307,15 @@ object GameData {
         s.jobs = st.comCap + st.indCap + st.offCap
         val trafficLoad = s.population / 12.0 + st.comCount * 1.6 + st.indCount * 2.0 + st.offCount * 1.4
         val cap = max(12.0, st.roadCapacity.toDouble())
-        s.congestion = max(0.0, min(1.0, trafficLoad / cap * policyMul("trafficMul") * (1.0 - min(0.55, transitScore / 40.0))))
+        s.congestion = max(
+            0.0,
+            min(
+                1.0,
+                trafficLoad / cap * policyMul("trafficMul") *
+                    (1.0 - min(0.55, transitScore / 40.0 + Transit.coverageBoost()))
+            )
+        )
+        if (s.day % 3 == 1) Citizens.rebuild()
 
         // 人口 / 岗位：住宅迁入，商工办入驻；缺服务或低满意则废弃
         val waterMul: Double = if (cov.water < 0.99f) cov.water.toDouble() else 1.0
@@ -356,7 +374,7 @@ object GameData {
             val fill = if (lv.cap > 0) b.occupied().toDouble() / lv.cap else occRatio
             when (b.zone) {
                 "commercial" -> bizCom += lv.income * fill
-                "industrial" -> bizInd += lv.income * fill
+                "industrial" -> bizInd += lv.income * fill * Networks.districtMul("industry", e.x, e.y)
                 "office" -> bizOff += lv.income * fill
             }
         }
@@ -436,7 +454,7 @@ object GameData {
         }
 
         // 成就检查
-        val bldCount = st.resCount + st.comCount + st.indCount + st.serviceCount
+        val bldCount = st.resCount + st.comCount + st.indCount + st.offCount + st.serviceCount
         for (a in Config.ACHIEVEMENTS) {
             if (a.id in s.achievements) continue
             val v = when (a.type) {
@@ -555,6 +573,8 @@ object GameData {
             dayAcc -= T.daySeconds
             onNewDay()
         }
+        Citizens.tick(simDt)
+        Transit.tick(simDt)
     }
 
     // -----------------------------------------------------------------------
@@ -650,6 +670,41 @@ object GameData {
         return true to ("已启用：" + p.name + " · 生效 " + p.days + " 天")
     }
 
+    fun paintPipe(x: Int, y: Int): Pair<Boolean, String?> {
+        val (ok, msg) = Networks.canPipe(x, y)
+        if (!ok) return false to msg
+        val t = World.tile(x, y) ?: return false to "越界"
+        if (t.pipe) return true to null
+        val s = current ?: return false to null
+        val cost = 2
+        if (!sandbox && s.funds < cost) return false to "资金不足（水管 2 万/格）"
+        Networks.setPipe(x, y, true)
+        if (!sandbox) s.funds -= cost
+        Networks.recount()
+        return true to null
+    }
+
+    fun paintCable(x: Int, y: Int): Pair<Boolean, String?> {
+        val t = World.tile(x, y) ?: return false to "越界"
+        if (t.terrain == "water") return false to "水域无法铺电缆"
+        if (t.cable) return true to null
+        val s = current ?: return false to null
+        val cost = 2
+        if (!sandbox && s.funds < cost) return false to "资金不足（电缆 2 万/格）"
+        Networks.setCable(x, y, true)
+        if (!sandbox) s.funds -= cost
+        Networks.recount()
+        return true to null
+    }
+
+    fun paintDistrict(x: Int, y: Int): Pair<Boolean, String?> {
+        Networks.ensureDistrict()
+        Networks.paintDistrict(x, y)
+        return true to null
+    }
+
+    fun tapBusStop(x: Int, y: Int): Pair<Boolean, String?> = Transit.addDraftStop(x, y)
+
     /** 市政贷款：借入 LOAN.amount，按日自动还款 */
     fun borrow(): Pair<Boolean, String?> {
         val s = current ?: return false to null
@@ -668,7 +723,7 @@ object GameData {
         return when (type) {
             "pop" -> s.population
             "funds" -> s.funds
-            "buildings" -> (st.resCount + st.comCount + st.indCount).toDouble()
+            "buildings" -> (st.resCount + st.comCount + st.indCount + st.offCount).toDouble()
             "happy" -> s.happiness
             else -> 0.0
         }

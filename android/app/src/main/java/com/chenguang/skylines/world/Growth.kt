@@ -126,8 +126,9 @@ object Growth {
             val land = World.landValue(e.x, e.y)
             val covOk = World.isCoveredBy(e.x, e.y, Config.ServiceCat.POWER) &&
                 World.isCoveredBy(e.x, e.y, Config.ServiceCat.WATER)
-            if (zoneDemand >= G.demandMin && ageOk && land >= G.landValueUpgrade && covOk &&
-                Random.nextDouble() < zoneDemand
+            val distMul = Networks.districtMul("upgrade", e.x, e.y)
+            if (distMul > 0.0 && zoneDemand >= G.demandMin && ageOk && land >= G.landValueUpgrade && covOk &&
+                Random.nextDouble() < zoneDemand * distMul
             ) {
                 World.upgradeBuilding(e.x, e.y)
             }

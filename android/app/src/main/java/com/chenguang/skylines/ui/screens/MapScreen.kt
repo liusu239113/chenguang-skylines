@@ -42,9 +42,12 @@ import com.chenguang.skylines.Sfx
 import com.chenguang.skylines.ui.UIHelper
 import com.chenguang.skylines.ui.toColor
 import com.chenguang.skylines.ui.theme.LocalGameFont
+import com.chenguang.skylines.world.Citizens
 import com.chenguang.skylines.world.Growth
 import com.chenguang.skylines.world.MapRenderView
+import com.chenguang.skylines.world.Networks
 import com.chenguang.skylines.world.Tool
+import com.chenguang.skylines.world.Transit
 import com.chenguang.skylines.world.World
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -65,6 +68,10 @@ object MapScreen {
             "zone" -> Tool("zone", zoneKey = AppState.zoneKey)
             "bulldoze" -> Tool("bulldoze")
             "service" -> AppState.selService?.let { Tool("service", id = it) }
+            "pipe" -> Tool("pipe")
+            "cable" -> Tool("cable")
+            "bus" -> Tool("bus")
+            "district" -> Tool("district")
             else -> null
         }
         MapRef.view?.tool = t
@@ -74,23 +81,29 @@ object MapScreen {
     fun selectMode(m: String) {
         Sfx.play("sfx_click")
         if (m == "service") {
-            // 点「服务」总是重新打开抽屉选择设施
             AppState.mode = "service"
             AppState.serviceOpen = true
             AppState.roadOpen = false
+            AppState.planOpen = false
         } else if (m == "road") {
-            // 点「道路」打开抽屉选单/双车道
             AppState.mode = "road"
             AppState.roadOpen = true
             AppState.serviceOpen = false
+            AppState.planOpen = false
+        } else if (m == "plan") {
+            AppState.planOpen = !AppState.planOpen
+            AppState.serviceOpen = false
+            AppState.roadOpen = false
         } else if (AppState.mode == m && m != "zone") {
             AppState.mode = "view"
             AppState.serviceOpen = false
             AppState.roadOpen = false
+            AppState.planOpen = false
         } else {
             AppState.mode = m
             AppState.serviceOpen = false
             AppState.roadOpen = false
+            AppState.planOpen = false
         }
         syncTool()
     }
@@ -100,6 +113,7 @@ object MapScreen {
         AppState.zoneKey = zk
         AppState.mode = "zone"
         AppState.serviceOpen = false
+        AppState.planOpen = false
         syncTool()
     }
 
@@ -107,6 +121,7 @@ object MapScreen {
         AppState.mode = "view"
         AppState.serviceOpen = false
         AppState.roadOpen = false
+        AppState.planOpen = false
         syncTool()
     }
 
@@ -297,12 +312,21 @@ fun MapScreenContent(mapView: MapRenderView) {
                         UIHelper.InfoRow("供电", if (World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.POWER)) "已通" else "断电")
                         UIHelper.InfoRow("供水", if (World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.WATER)) "已通" else "缺水")
                     }
+                    val tile = World.tile(sel.first, sel.second)
+                    if (tile?.pipe == true) UIHelper.InfoRow("水管", "已铺")
+                    if (tile?.cable == true) UIHelper.InfoRow("电缆", "已铺")
+                    Networks.districtAt(sel.first, sel.second)?.let { d ->
+                        UIHelper.InfoRow("区划", d.name + " · " + Networks.policyName(d.policy))
+                    }
                 }
             }
         }
 
-        // ---------------- 抽屉（服务 / 道路） ----------------
-        if ((AppState.mode == "service" && AppState.serviceOpen) || (AppState.mode == "road" && AppState.roadOpen)) {
+        // ---------------- 抽屉（服务 / 道路 / 规划） ----------------
+        if ((AppState.mode == "service" && AppState.serviceOpen) ||
+            (AppState.mode == "road" && AppState.roadOpen) ||
+            AppState.planOpen
+        ) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -439,13 +463,16 @@ fun MapScreenContent(mapView: MapRenderView) {
                 Triple("zone", "工业", "industrial"),
                 Triple("zone", "办公", "office"),
                 Triple("bulldoze", "推平", null),
-                Triple("service", "服务", null)
+                Triple("service", "服务", null),
+                Triple("plan", "规划", null)
             )
             for (it in items) {
-                val active = if (it.first == "zone") {
-                    AppState.mode == "zone" && AppState.zoneKey == it.third
-                } else {
-                    AppState.mode == it.first
+                val active = when {
+                    it.first == "zone" -> AppState.mode == "zone" && AppState.zoneKey == it.third
+                    it.first == "plan" -> AppState.planOpen ||
+                        AppState.mode == "pipe" || AppState.mode == "cable" ||
+                        AppState.mode == "bus" || AppState.mode == "district"
+                    else -> AppState.mode == it.first
                 }
                 UIHelper.ToolItem(it.second, active, width = 40.dp) {
                     if (it.first == "zone") {
@@ -611,7 +638,109 @@ private fun DrawerContent(mapView: MapRenderView) {
                 "按住拖拽连续修路；分区内邻路才会长楼。",
                 fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
             )
+        } else if (AppState.planOpen) {
+            PlanDrawer(mapView)
         }
+    }
+}
+
+@Composable
+private fun PlanDrawer(mapView: MapRenderView) {
+    val C = Config.COLORS
+    val live = AppState.liveTick
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            "规划 · 管网 / 公交 / 区划",
+            fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            UIHelper.PickChip("水管", "2万/格", AppState.mode == "pipe", width = 86.dp) {
+                AppState.mode = "pipe"
+                AppState.overlay = "pipe"
+                MapScreen.syncTool()
+            }
+            UIHelper.PickChip("电缆", "2万/格", AppState.mode == "cable", width = 86.dp) {
+                AppState.mode = "cable"
+                AppState.overlay = "cable"
+                MapScreen.syncTool()
+            }
+            UIHelper.PickChip("公交线", "${Transit.draft.size}站", AppState.mode == "bus", width = 86.dp) {
+                AppState.mode = "bus"
+                MapScreen.syncTool()
+            }
+            UIHelper.PickChip(
+                "区划",
+                Networks.districts.firstOrNull()?.name ?: "一区",
+                AppState.mode == "district",
+                width = 86.dp
+            ) {
+                Networks.ensureDistrict()
+                AppState.mode = "district"
+                AppState.overlay = "district"
+                MapScreen.syncTool()
+            }
+        }
+        Text(
+            "水管 " + Networks.pipeCount + " 格 · 电缆 " + Networks.cableCount +
+                " 格 · 公交 " + Transit.lines.size + " 条 · 乘客 " + Transit.ridership,
+            fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+        )
+        if (AppState.mode == "bus" || Transit.draft.isNotEmpty()) {
+            Text(
+                "按顺序点公交站/地铁站连线。草稿 " + Transit.draft.size + " 站。",
+                fontSize = 10.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                UIHelper.PickChip("确认开通", "≥2站", false, width = 110.dp) {
+                    val (ok, msg) = Transit.confirmDraft()
+                    mapView.setToast(msg ?: if (ok) "已开通" else "失败")
+                    AppState.bumpLive()
+                    AppState.bumpMap()
+                }
+                UIHelper.PickChip("清空草稿", "", false, width = 90.dp) {
+                    Transit.clearDraft()
+                    AppState.bumpLive()
+                }
+            }
+        }
+        Text(
+            "区划政策（涂色后再选）",
+            fontSize = 11.sp, fontWeight = FontWeight.Bold,
+            color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+        )
+        val d = Networks.districts.firstOrNull { it.id == Networks.activeDistrict }
+            ?: Networks.districts.firstOrNull()
+        if (d != null) Networks.DISTRICT_POLICIES.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { p ->
+                    UIHelper.PickChip(
+                        text = p.second,
+                        sub = p.third,
+                        selected = d.policy == p.first,
+                        width = 140.dp
+                    ) {
+                        d.policy = p.first
+                        AppState.bumpLive()
+                    }
+                }
+            }
+        }
+        UIHelper.PickChip("新建区划", "再涂一块地", false, width = 140.dp) {
+            Networks.addDistrict("新区" + Networks.nextDistrictId)
+            AppState.mode = "district"
+            MapScreen.syncTool()
+            AppState.bumpLive()
+        }
+        Text(
+            "市民采样 " + Citizens.agents.size + " · 在岗 " + Citizens.employed +
+                " · 通勤指数 " + (Citizens.avgCommute * 100).toInt() + "%",
+            fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
+        )
+        if (live < 0) Text("")
     }
 }
 
@@ -779,12 +908,12 @@ private fun HelpPanel() {
             )
             HelpRow("操作", "单指拖动平移；双指捏合或右侧 +/− 缩放；点格子查看信息。")
             HelpRow("一步", "选【道路】，从大道边按住拖拽修路——分区内只有邻路的格子才会长楼。")
-            HelpRow("二步", "点【住宅/商业/工业】激活分区笔刷，在路旁涂色（每格少量花费）。")
-            HelpRow("三步", "时间自动流动：需求条（顶部住/商/工）越高，对应分区越快自动长楼、小楼升高楼。")
-            HelpRow("四步", "【服务】放公园、电站、水塔、垃圾场进城区；【推平】拖过可拆建筑、拆路、清除分区。")
+            HelpRow("二步", "点【住宅/商业/工业/办公】在路旁涂分区。办公需要教育，适合中后期。")
+            HelpRow("三步", "时间自动流动：需求条越高，对应分区越快长楼。市民会按昼夜通勤上班、购物、回家。")
+            HelpRow("四步", "【服务】放电站/水塔/学校；【规划】铺水管电缆、点公交站连线、涂区划政策。")
             HelpRow("五步", "点【策】启用市政政策：减税/绿化/免费公交会立刻改需求、污染和拥堵，持续到倒计时结束。")
             HelpRow("六步", "【≡】保存进度会写入当前槽位，主菜单「存档管理」能看到城市名、人口和日期。")
-            HelpRow("七步", "人口达标晋级：村庄→小镇→集镇→城区→都市→大都会。缺电缺水会停产，注意别破产。")
+            HelpRow("七步", "缺电缺水会废弃建筑；公交线路能缩短通勤、降低拥堵。人口晋级解锁设施。")
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -825,6 +954,9 @@ private fun overlayLabel(cat: String): String = when (cat) {
     Config.ServiceCat.SAFETY -> "消防"
     "traffic" -> "拥堵"
     "landvalue" -> "地价"
+    "pipe" -> "水管"
+    "cable" -> "电缆"
+    "district" -> "区划"
     else -> cat
 }
 
@@ -883,6 +1015,12 @@ private fun DataPanel() {
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
+                "市民 " + Citizens.agents.size + " · 在岗 " + Citizens.employed +
+                    " · 通勤 " + (Citizens.avgCommute * 100).toInt() +
+                    "% · 公交 " + Transit.lines.size + " 条/" + Transit.ridership + " 客",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
                 "今日 税 ${UIHelper.fmtMoney(s.dayIncomeTax)} · 产业 ${UIHelper.fmtMoney(s.dayIncomeBiz)} · 贸易 ${UIHelper.fmtMoney(s.dayIncomeTrade)} · 维护 -${UIHelper.fmtMoney(s.lastUpkeep)} · 净 ${UIHelper.fmtMoney(s.lastNet)}万",
                 fontSize = 10.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
@@ -934,7 +1072,7 @@ private fun DataPanel() {
             val cats = listOf(
                 Config.ServiceCat.POWER, Config.ServiceCat.WATER, Config.ServiceCat.GARBAGE,
                 Config.ServiceCat.HEALTH, Config.ServiceCat.EDUCATION, Config.ServiceCat.SAFETY,
-                "traffic", "landvalue"
+                "traffic", "landvalue", "pipe", "cable", "district"
             )
             cats.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

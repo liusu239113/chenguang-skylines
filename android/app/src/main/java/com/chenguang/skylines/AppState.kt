@@ -12,7 +12,7 @@ object AppState {
     /** menu | map | newspaper */
     var screen by mutableStateOf("menu")
 
-    /** view | road | zone | bulldoze | service */
+    /** view | road | zone | bulldoze | service | pipe | cable | bus | district */
     var mode by mutableStateOf("view")
     var zoneKey by mutableStateOf("residential")
     var roadKind by mutableStateOf("local")
@@ -20,6 +20,7 @@ object AppState {
 
     var serviceOpen by mutableStateOf(false)
     var roadOpen by mutableStateOf(false)
+    var planOpen by mutableStateOf(false)
     var policyOpen by mutableStateOf(false)
     var helpOpen by mutableStateOf(false)
 

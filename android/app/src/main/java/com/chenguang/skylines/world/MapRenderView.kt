@@ -30,7 +30,7 @@ import kotlin.random.Random
 // ============================================================================
 
 data class Tool(
-    val kind: String,               // road | zone | bulldoze | service
+    val kind: String,               // road | zone | bulldoze | service | pipe | cable | bus | district
     val roadKind: String? = null,
     val zoneKey: String? = null,
     val id: String? = null
@@ -225,6 +225,27 @@ class MapRenderView @JvmOverloads constructor(
                 if (ok) Sfx.play("sfx_build") else if (msg != null) setToast(msg)
                 return ok
             }
+            "pipe" -> {
+                val (ok, msg) = GameData.paintPipe(tx, ty)
+                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
+                return ok
+            }
+            "cable" -> {
+                val (ok, msg) = GameData.paintCable(tx, ty)
+                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
+                return ok
+            }
+            "district" -> {
+                val (ok, msg) = GameData.paintDistrict(tx, ty)
+                if (ok) Sfx.play("sfx_click", 0.25f) else if (msg != null) setToast(msg)
+                return ok
+            }
+            "bus" -> {
+                val (ok, msg) = GameData.tapBusStop(tx, ty)
+                if (ok) Sfx.play("sfx_click", 0.5f)
+                if (msg != null) setToast(msg)
+                return ok
+            }
         }
         return false
     }
@@ -243,6 +264,10 @@ class MapRenderView @JvmOverloads constructor(
                 tile != null && (tile.building != null || tile.road != null)
             }
             "service" -> World.canPlaceService(t.id ?: return false, tx, ty).first
+            "pipe" -> World.tile(tx, ty)?.terrain != "water"
+            "cable" -> World.tile(tx, ty)?.terrain != "water"
+            "district" -> World.tile(tx, ty)?.terrain != "water"
+            "bus" -> Transit.isStopCell(tx, ty)
             else -> false
         }
     }
@@ -735,6 +760,28 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
+        // ---- 1.4) 区划底纹 / 水管 / 电缆 ----
+        val showNet = overlay == "pipe" || overlay == "cable" || tool?.kind == "pipe" || tool?.kind == "cable" || tool?.kind == "district"
+        if (showNet || overlay == "district" || tool?.kind == "district") {
+            for (ty in y0..y1) {
+                for (tx in x0..x1) {
+                    val t = w.grid[ty - 1][tx - 1]
+                    val sx = worldToScreenX((tx - 1).toFloat())
+                    val sy = worldToScreenY((ty - 1).toFloat())
+                    if (t.district != 0 && (tool?.kind == "district" || overlay == "district")) {
+                        val hue = (t.district * 47) % 180
+                        fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, RGBA(80 + hue / 3, 140, 200 - hue / 4, 55))
+                    }
+                    if ((overlay == "pipe" || tool?.kind == "pipe") && t.pipe) {
+                        fillRect(canvas, sx + cell * 0.35f, sy, cell * 0.3f, cell, RGBA(70, 170, 210, 160))
+                    }
+                    if ((overlay == "cable" || tool?.kind == "cable") && t.cable) {
+                        fillRect(canvas, sx, sy + cell * 0.35f, cell, cell * 0.3f, RGBA(230, 190, 70, 160))
+                    }
+                }
+            }
+        }
+
         // ---- 1.5) 地物装饰：树冠 / 山形 / 水纹 ----
         if (cell >= 6) {
             for (ty in y0..y1) {
@@ -935,6 +982,57 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
+        // ---- 3.6) 公交车 + 草稿线路 ----
+        if (cell >= 8) {
+            val draftCols = listOf(RGBA(70, 140, 210), RGBA(210, 90, 70), RGBA(80, 170, 110), RGBA(180, 120, 40))
+            fun drawStopLine(stops: List<BusStopRef>, col: RGBA) {
+                if (stops.size < 2) return
+                val pts = mutableListOf<Float>()
+                for (i in 0 until stops.size - 1) {
+                    pts.add(worldToScreenX(stops[i].x - 0.5f))
+                    pts.add(worldToScreenY(stops[i].y - 0.5f))
+                    pts.add(worldToScreenX(stops[i + 1].x - 0.5f))
+                    pts.add(worldToScreenY(stops[i + 1].y - 0.5f))
+                }
+                fillLines(canvas, pts.toFloatArray(), col, 220, max(1.5f, cell * 0.08f))
+            }
+            for ((idx, line) in Transit.lines.withIndex()) {
+                drawStopLine(line.stops, draftCols[idx % draftCols.size])
+            }
+            if (Transit.draft.isNotEmpty()) {
+                drawStopLine(Transit.draft, RGBA(255, 90, 70, 220))
+                for (s in Transit.draft) {
+                    fillCircle(
+                        canvas, worldToScreenX(s.x - 0.5f), worldToScreenY(s.y - 0.5f),
+                        cell * 0.18f, RGBA(255, 90, 70)
+                    )
+                }
+            }
+            for (v in Transit.vehicles) {
+                val (wx, wy) = Transit.vehicleCell(v)
+                val sx = worldToScreenX(wx)
+                val sy = worldToScreenY(wy)
+                fillRoundRect(canvas, sx - cell * 0.28f, sy - cell * 0.16f, cell * 0.56f, cell * 0.32f, 3f, RGBA(40, 90, 170))
+                fillRect(canvas, sx - cell * 0.12f, sy - cell * 0.08f, cell * 0.24f, cell * 0.16f, RGBA(220, 230, 245))
+            }
+        }
+
+        // ---- 3.7) 市民（通勤中才画，避免满地图噪点） ----
+        if (cell >= 10) {
+            val pal = listOf(
+                RGBA(80, 90, 120), RGBA(160, 80, 70), RGBA(70, 120, 90),
+                RGBA(140, 110, 50), RGBA(90, 70, 130), RGBA(50, 90, 140)
+            )
+            for (c in Citizens.agents) {
+                if (c.state == "home" || c.state == "work" || c.state == "shop") continue
+                val (wx, wy) = Citizens.screenCell(c)
+                val sx = worldToScreenX(wx)
+                val sy = worldToScreenY(wy)
+                if (sx < -cell || sy < -cell || sx > viewW + cell || sy > viewH + cell) continue
+                fillCircle(canvas, sx, sy, max(1.4f, cell * 0.09f), pal[c.color % pal.size])
+            }
+        }
+
         // ---- 4) 建筑（顶面+左右侧面+投影，按等级长高） ----
         val grownH = floatArrayOf(0.62f, 1.15f, 1.95f)
         for (ty in y0..y1) {
@@ -1034,7 +1132,7 @@ class MapRenderView @JvmOverloads constructor(
                     )
                 }
             }
-        } else if (overlay.isNotEmpty()) {
+        } else if (overlay.isNotEmpty() && overlay != "pipe" && overlay != "cable" && overlay != "district") {
             val green = RGBA(90, 200, 120, 95)
             val red = RGBA(220, 80, 70, 135)
             val blue = RGBA(70, 130, 220, 105)

@@ -2,7 +2,10 @@ package com.chenguang.skylines
 
 import android.content.Context
 import com.chenguang.skylines.world.Building
+import com.chenguang.skylines.world.Citizens
 import com.chenguang.skylines.world.Growth
+import com.chenguang.skylines.world.Networks
+import com.chenguang.skylines.world.Transit
 import com.chenguang.skylines.world.World
 import org.json.JSONArray
 import org.json.JSONObject
@@ -141,9 +144,12 @@ object SaveManager {
         for (y in 1..w.rows) {
             for (x in 1..w.cols) {
                 val t = w.grid[y - 1][x - 1]
-                if (t.zone == "none" && t.road == null && t.building == null) continue
+                if (t.zone == "none" && t.road == null && t.building == null && !t.pipe && !t.cable && t.district == 0) continue
                 val o = JSONObject().put("x", x).put("y", y).put("zone", t.zone)
                 t.road?.let { o.put("road", it) }
+                if (t.pipe) o.put("pipe", true)
+                if (t.cable) o.put("cable", true)
+                if (t.district != 0) o.put("district", t.district)
                 t.building?.let { b ->
                     val bo = JSONObject().put("level", b.level).put("born", b.born)
                         .put("residents", b.residents).put("workers", b.workers)
@@ -159,6 +165,8 @@ object SaveManager {
             }
         }
         json.put("tiles", tiles)
+        json.put("busLines", Transit.toJson())
+        json.put("networks", Networks.toJson())
 
         path(slot).writeText(json.toString())
         s.lastSavedLabel = GameData.dateLabel() + " · 槽位 " + (slot + 1)
@@ -190,6 +198,9 @@ object SaveManager {
                 val t = World.tile(x, y) ?: continue
                 t.zone = o.optString("zone", "none")
                 if (o.has("road")) t.road = o.optString("road") else t.road = null
+                t.pipe = o.optBoolean("pipe", false)
+                t.cable = o.optBoolean("cable", false)
+                t.district = o.optInt("district", 0)
                 t.building = null
                 if (o.has("building")) {
                     val bo = o.getJSONObject("building")
@@ -297,6 +308,10 @@ object SaveManager {
         Growth.simTime = json.optDouble("simTime", 0.0)
         GameData.timeOfDay = json.optDouble("timeOfDay", 0.25).toFloat()
         World.current?._pop = s.population.toInt()
+        Transit.fromJson(json.optJSONArray("busLines"))
+        Networks.fromJson(json.optJSONObject("networks"))
+        Networks.recount()
+        Citizens.rebuild()
         return true
     }
 }
