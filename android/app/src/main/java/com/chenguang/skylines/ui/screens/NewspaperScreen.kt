@@ -73,7 +73,7 @@ fun NewspaperContent() {
                 )
             }
             Text(
-                "晨光简报", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                (s?.cityName ?: "晨光市") + "简报", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
             Box(modifier = Modifier.width(84.dp))   // 占位平衡

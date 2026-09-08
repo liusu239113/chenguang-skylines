@@ -43,6 +43,23 @@ object Config {
     }
 
     // -----------------------------------------------------------------------
+    // 难度
+    // -----------------------------------------------------------------------
+    data class DifficultyDef(
+        val key: String,
+        val name: String,
+        val incomeMul: Double,
+        val upkeepMul: Double,
+        val eventMul: Double
+    )
+
+    val DIFFICULTIES: List<DifficultyDef> = listOf(
+        DifficultyDef("easy", "轻松", 1.20, 0.80, 0.5),
+        DifficultyDef("normal", "标准", 1.00, 1.00, 1.0),
+        DifficultyDef("hard", "困难", 0.80, 1.30, 2.0)
+    )
+
+    // -----------------------------------------------------------------------
     // 地图
     // -----------------------------------------------------------------------
     object MAP {

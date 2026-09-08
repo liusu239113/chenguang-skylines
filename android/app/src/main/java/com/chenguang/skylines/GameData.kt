@@ -40,6 +40,8 @@ class CityState {
     var loanCooldown: Int = 0
     // 成就
     val achievements: MutableSet<String> = mutableSetOf()
+    // 城市名
+    var cityName: String = Config.World.city
 }
 
 object GameData {
@@ -54,13 +56,23 @@ object GameData {
     var pendingLevelUp: Boolean = false
     var monthFlash: Boolean = false
 
+    var seed: Int = 20260408
+    var difficultyKey: String = "normal"
+    var sandbox: Boolean = false
+
     private var dayAcc: Double = 0.0
+
+    fun difficultyDef(): Config.DifficultyDef =
+        Config.DIFFICULTIES.firstOrNull { it.key == difficultyKey } ?: Config.DIFFICULTIES[1]
 
     private fun createState(): CityState = CityState()
 
-    fun init(seed: Int = 20260408) {
+    fun init(seed: Int = 20260408, cityName: String = Config.World.city) {
+        GameData.seed = seed
         World.generate(seed)
         current = createState()
+        val s = current!!
+        s.cityName = cityName
         World.current?._pop = 0
         speedIdx = 2
         pendingLevelUp = false
@@ -68,7 +80,7 @@ object GameData {
         dayAcc = 0.0
         pushNews(
             "城市奠基",
-            Config.World.city + "迎来新任" + Config.World.playerRole +
+            s.cityName + "迎来新任" + Config.World.playerRole +
                 "。沿大道修路、划分区，城市将随时间自然生长。",
             "头条"
         )
@@ -200,7 +212,8 @@ object GameData {
             val cfg = World.serviceConfig(e.b.service)
             if (cfg != null) upkeep += cfg.upkeep / 30.0
         }
-        val net = income - upkeep
+        val diff = difficultyDef()
+        val net = (income * diff.incomeMul) - (if (sandbox) 0.0 else upkeep * diff.upkeepMul)
         s.funds += net
         if (net >= 0) s.totalIncome += net else s.totalSpent += -net
 
@@ -223,7 +236,8 @@ object GameData {
 
         // 火灾：无消防覆盖的建筑有概率起火被烧毁
         val grown = World.allBuildings().filter { !it.b.isService }
-        if (grown.isNotEmpty() && kotlin.random.Random.nextDouble() < Config.COVERAGE.fireChancePerDay) {
+        if (grown.isNotEmpty() && kotlin.random.Random.nextDouble() <
+            Config.COVERAGE.fireChancePerDay * diff.eventMul) {
             val victim = grown[kotlin.random.Random.nextInt(grown.size)]
             if (!World.isCoveredBy(victim.x, victim.y, Config.ServiceCat.SAFETY)) {
                 World.bulldoze(victim.x, victim.y)
@@ -319,9 +333,9 @@ object GameData {
         if (!ok) return false to msg
         val r = Config.ROAD[kind] ?: return false to "未知道路"
         val s = current ?: return false to null
-        if (s.funds < r.cost) return false to ("资金不足（需 ¥" + r.cost + "万）")
+        if (!sandbox && s.funds < r.cost) return false to ("资金不足（需 ¥" + r.cost + "万）")
         World.setRoad(x, y, kind)
-        s.funds -= r.cost
+        if (!sandbox) s.funds -= r.cost
         return true to null
     }
 
@@ -335,8 +349,8 @@ object GameData {
         val ok = World.setZone(x, y, zoneKey)
         if (!ok) return true to null                 // 静默跳过建筑/道路
         val cost = Config.ZONE[zoneKey]?.cost ?: 0
-        s.funds -= cost
-        if (s.funds < 0) {
+        if (!sandbox) s.funds -= cost
+        if (!sandbox && s.funds < 0) {
             World.setZone(x, y, "none")
             s.funds += cost
             return false to "资金不足"
@@ -364,12 +378,12 @@ object GameData {
         if (!ok) return false to msg
         val cfg = World.serviceConfig(id) ?: return false to "未知设施"
         val s = current ?: return false to null
-        if (cfg.unlockPop > s.population.toInt()) {
+        if (!sandbox && cfg.unlockPop > s.population.toInt()) {
             return false to ("人口达到 " + cfg.unlockPop + " 后解锁")
         }
-        if (s.funds < cfg.cost) return false to ("资金不足（需 ¥" + cfg.cost + "万）")
+        if (!sandbox && s.funds < cfg.cost) return false to ("资金不足（需 ¥" + cfg.cost + "万）")
         World.placeService(id, x, y)
-        s.funds -= cfg.cost
+        if (!sandbox) s.funds -= cfg.cost
         pushNews(
             cfg.name + " 建成",
             String.format("在 (%d,%d) 建成 %s，耗资 %d万。", x, y, cfg.name, cfg.cost),

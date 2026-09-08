@@ -36,6 +36,7 @@ import com.chenguang.skylines.AppState
 import com.chenguang.skylines.Config
 import com.chenguang.skylines.GameData
 import com.chenguang.skylines.MapRef
+import com.chenguang.skylines.SaveManager
 import com.chenguang.skylines.Sfx
 import com.chenguang.skylines.ui.UIHelper
 import com.chenguang.skylines.ui.toColor
@@ -123,6 +124,7 @@ object MapScreen {
             GameData.monthFlash = false
             Sfx.play("sfx_month")
             view?.setToast(GameData.monthLabel() + " 月度结算完成")
+            SaveManager.save(AppState.activeSlot)   // 每月自动存档
         }
     }
 
@@ -160,7 +162,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 if (s != null) {
-                    UIHelper.Chip("", World.cityLevel().name)
+                    UIHelper.Chip("", s.cityName)
                     ChipValue("资金", "¥" + UIHelper.fmtMoney(s.funds) + "万", C.accentGold.toColor(), live)
                     ChipValue("人口", UIHelper.fmtPop(floor(s.population).toInt()), C.textDark.toColor(), live)
                     ChipValue(
@@ -319,6 +321,18 @@ fun MapScreenContent(mapView: MapRenderView) {
             }
         }
 
+        // ---------------- 暂停按钮 ----------------
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 120.dp, end = 12.dp)
+        ) {
+            UIHelper.RoundButton("≡", size = 40.dp, fontSize = 20.sp) {
+                Sfx.play("sfx_click", 0.6f)
+                AppState.paused = !AppState.paused
+            }
+        }
+
         // ---------------- 覆盖热力图提示条 ----------------
         if (AppState.overlay.isNotEmpty()) {
             Row(
@@ -397,6 +411,8 @@ fun MapScreenContent(mapView: MapRenderView) {
         if (AppState.helpOpen) HelpPanel()
         // ---------------- 数据面板 ----------------
         if (AppState.dataOpen) DataPanel()
+        // ---------------- 暂停面板 ----------------
+        if (AppState.paused) PausePanel()
     }
 }
 
@@ -912,6 +928,74 @@ private fun TaxSlider(label: String, value: Int, onChange: (Int) -> Unit) {
             onValueChange = { onChange(it.roundToInt()) },
             valueRange = Config.TAX.min.toFloat()..Config.TAX.max.toFloat(),
             steps = (Config.TAX.max - Config.TAX.min - 1)
+        )
+    }
+}
+
+@Composable
+private fun PausePanel() {
+    val C = Config.COLORS
+    val s = GameData.current ?: return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .noRippleClickable { AppState.paused = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.82f)
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .noRippleClickable { },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                s.cityName + " · " + World.cityLevel().name,
+                fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                GameData.dateLabel() + " · 人口 " + s.population.toInt() + " · 满意 " + floor(s.happiness).toInt(),
+                fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            PauseBtn("继续游戏", C.accentGreen.toColor(), Color.White) {
+                Sfx.play("sfx_click")
+                AppState.paused = false
+            }
+            PauseBtn("保存进度", C.chipBg.toColor(), C.textDark.toColor()) {
+                Sfx.play("sfx_click")
+                SaveManager.save(AppState.activeSlot)
+                MapRef.view?.setToast("已保存")
+            }
+            PauseBtn("保存并返回主菜单", C.chipBg.toColor(), C.textDark.toColor()) {
+                Sfx.play("sfx_click")
+                SaveManager.save(AppState.activeSlot)
+                AppState.paused = false
+                AppState.screen = "menu"
+                AppState.menuScreen = "main"
+            }
+        }
+    }
+}
+
+@Composable
+private fun PauseBtn(text: String, bg: Color, fg: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .background(bg, RoundedCornerShape(22.dp))
+            .border(1.dp, Config.COLORS.border2.toColor(), RoundedCornerShape(22.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = fg,
+            fontFamily = LocalGameFont.current
         )
     }
 }

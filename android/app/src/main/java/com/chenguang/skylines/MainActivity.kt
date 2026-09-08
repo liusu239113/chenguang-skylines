@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Sfx.init(this)
+        SaveManager.init(this)
         if (GameData.current == null) {
             GameData.init(20260408)
         }
@@ -91,12 +92,14 @@ fun AppRoot() {
                 last = now
                 if (dt > 0.1f) dt = 0.1f          // 防止切后台回来大跳
                 if (AppState.screen == "map") {
-                    GameData.tick(dt)
-                    Growth.tick((dt * GameData.speed()).toDouble()) { name, gain ->
-                        Sfx.play(name, gain)
+                    if (!AppState.paused) {
+                        GameData.tick(dt)
+                        Growth.tick((dt * GameData.speed()).toDouble()) { name, gain ->
+                            Sfx.play(name, gain)
+                        }
+                        mapView.update(dt)
+                        MapScreen.tick(dt, mapView)
                     }
-                    mapView.update(dt)
-                    MapScreen.tick(dt, mapView)
                     mapView.invalidate()
                 }
             }
