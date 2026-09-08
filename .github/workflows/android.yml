@@ -41,16 +41,14 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             "platforms;android-35" "build-tools;35.0.0" "platform-tools" > /dev/null 2>&1 || true
 
-      - name: Create signing keystore
+      - name: Check release keystore
         working-directory: android
         run: |
-          mkdir -p keystore
-          if [ ! -f keystore/chenguang.jks ]; then
-            keytool -genkeypair -keystore keystore/chenguang.jks -alias chenguang \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass chenguang123 -keypass chenguang123 \
-              -dname "CN=Chenguang Skylines, OU=Game, O=Liusu, L=Hangzhou, ST=Zhejiang, C=CN"
+          if [ ! -f keystore/chenguang.p12 ]; then
+            echo "缺少固定正式签名证书 android/keystore/chenguang.p12"
+            exit 1
           fi
+          ls -lh keystore/chenguang.p12
 
       - name: Build signed APK
         working-directory: android

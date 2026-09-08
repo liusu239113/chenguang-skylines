@@ -17,10 +17,11 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("../keystore/chenguang.jks")
+            storeFile = file("../keystore/chenguang.p12")
             storePassword = "chenguang123"
             keyAlias = "chenguang"
             keyPassword = "chenguang123"
+            storeType = "PKCS12"
         }
     }
 
