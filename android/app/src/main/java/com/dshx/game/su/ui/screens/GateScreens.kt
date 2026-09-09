@@ -84,7 +84,7 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text("欢迎使用「都市建设模拟：设身其中」。进入前请阅读并同意：", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                Text("欢迎使用「模拟市长：城市经营」。进入前请阅读并同意：", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
                 Text("收集信息：设备型号与系统版本、广告标识（OAID/AndroidID）、网络类型、本地存档、崩溃日志。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
                 Text("用途：提供游戏服务、展示广告维持免费运营、优化与修复问题。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
                 Text("第三方：优量汇、AdGain、优推、TapTap 登录等 SDK 可能读取 AndroidID / OAID 用于广告与登录鉴权。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)

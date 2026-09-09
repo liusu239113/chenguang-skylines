@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/project.schema.json",
   "project_id": "m_vxn3",
-  "name": "都市天际线：晨光",
+  "name": "模拟市长：城市经营",
   "version": "1.0.1",
   "entry": "main.lua",
   "author": {
@@ -14,7 +14,7 @@
   },
   "taptap_publish": {
     "developer_id": 377480,
-    "title": "都市天际线：晨光",
+    "title": "模拟市长：城市经营",
     "screen_orientation": "portrait"
   },
   "metadata": {
