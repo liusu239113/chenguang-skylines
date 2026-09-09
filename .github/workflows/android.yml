@@ -76,7 +76,7 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: "都市建设模拟：设身其中 · build ${{ github.run_number }}"
-          body: "正式签名 APK（com.dshx.game.su · 1.0.0），可直接安装。旧包名需先卸载。"
+          body: "正式签名 APK（com.dshx.game.su · 1.0.1），可直接安装。旧包名需先卸载。"
           files: android/app/build/outputs/apk/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

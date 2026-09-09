@@ -715,6 +715,7 @@ object GameData {
         val linkedBefore = World.current?.highwayConnected == true
         World.setRoad(x, y, kind)
         if (!sandbox) s.funds -= pay
+        if (kind == "metro" || kind == "rail") Networks.recount()
         World.refreshHighwayLink()
         if (!linkedBefore && World.current?.highwayConnected == true) {
             pushNews("外环接通", "城区路接到外环高速，外地游客将按繁荣度进城。", "交通")
@@ -758,7 +759,10 @@ object GameData {
                     .sumOf { it.b.residents }.toDouble()
                 World.current?._pop = s.population.toInt()
             }
-            "road" -> s.funds += 2
+            "road" -> {
+                s.funds += 2
+                Networks.recount()
+            }
             "zone" -> { /* 清除分区不退款 */ }
         }
         World.refreshHighwayLink()

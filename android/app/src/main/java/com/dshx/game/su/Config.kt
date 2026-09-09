@@ -149,7 +149,9 @@ object Config {
         "dirt" to RoadDef("dirt", "泥土路", 0, 6, 30, 1, 0.002),
         "local" to RoadDef("local", "两车道", 8, 14, 40, 2, 0.006),
         "avenue" to RoadDef("avenue", "四车道", 20, 28, 60, 4, 0.012),
-        "highway" to RoadDef("highway", "高速路", 40, 48, 100, 7, 0.022)
+        "highway" to RoadDef("highway", "高速路", 40, 48, 100, 7, 0.022),
+        "metro" to RoadDef("metro", "地铁隧", 6, 36, 70, 1, 0.010),
+        "rail" to RoadDef("rail", "铁轨", 8, 20, 80, 3, 0.014)
     )
 
     // -----------------------------------------------------------------------
@@ -216,18 +218,18 @@ object Config {
             "市民广场，显著提升满意度与地价。", ServiceCat.AMENITY, 500),
         // ---- 电力（容量决定能否撑住全城） ----
         ServiceDef("wind_farm", "风电场", 500, 18, 6, 0, false, 1, 1,
-            "清洁风电。容量 18，适合前期。", ServiceCat.POWER, 0, 0, 18, 0),
+            "清洁风电。按半径覆盖周边，容量 18。", ServiceCat.POWER, 0, 0, 18, 0),
         ServiceDef("solar_plant", "太阳能电站", 800, 16, 7, 0, false, 2, 2,
-            "光伏电站。容量 36，无污染。", ServiceCat.POWER, 300, 0, 36, 0),
+            "光伏电站。按半径覆盖，容量 36，无污染。", ServiceCat.POWER, 300, 0, 36, 0),
         ServiceDef("coal_plant", "燃煤电厂", 1200, 42, 10, -3, false, 2, 2,
-            "容量 70，稳定但污染重。", ServiceCat.POWER, 0, 8, 70, 0),
+            "容量 70，覆盖更广，稳定但污染重。", ServiceCat.POWER, 0, 8, 70, 0),
         ServiceDef("nuclear_plant", "核电站", 4200, 45, 14, 0, false, 3, 3,
-            "容量 180，维护昂贵，污染极低。", ServiceCat.POWER, 4000, 1, 180, 0),
+            "容量 180，覆盖最广，维护昂贵。", ServiceCat.POWER, 4000, 1, 180, 0),
         // ---- 供水 ----
         ServiceDef("water_tower", "水塔", 300, 12, 5, 0, false, 1, 1,
-            "抽取地下水。容量 18，可随处放。", ServiceCat.WATER, 0, 0, 0, 18),
+            "抽取地下水。按半径覆盖周边。", ServiceCat.WATER, 0, 0, 0, 18),
         ServiceDef("pump_station", "抽水站", 600, 18, 8, 0, false, 1, 1,
-            "必须靠河。容量 40，再用水管接到分区。", ServiceCat.WATER, 0, 0, 0, 40),
+            "必须靠河。覆盖半径更大。", ServiceCat.WATER, 0, 0, 0, 40),
         // ---- 垃圾 ----
         ServiceDef("landfill", "垃圾场", 350, 22, 6, 0, false, 1, 1,
             "填埋生活垃圾，满载后污染加重。", ServiceCat.GARBAGE, 40, 3),

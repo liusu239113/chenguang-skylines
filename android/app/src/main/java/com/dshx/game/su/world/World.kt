@@ -426,25 +426,41 @@ class World {
         // 修路
         // -------------------------------------------------------------------
         /** 返回 true 可修；false + msg（无 msg 表示静默跳过） */
-        private val ROAD_RANK = mapOf("dirt" to 0, "local" to 1, "avenue" to 2, "highway" to 3)
+        private val ROAD_RANK = mapOf(
+            "dirt" to 0, "local" to 1, "avenue" to 2, "highway" to 3, "metro" to 2, "rail" to 2
+        )
+
+        fun hasService(id: String): Boolean = allBuildings().any { it.b.service == id }
 
         fun canRoad(x: Int, y: Int, kind: String = "local"): Pair<Boolean, String?> {
             val t = tile(x, y) ?: return false to "越界"
             if (!isUnlocked(x, y) && kind != "highway") return false to lockedHint()
-            if (t.terrain == "water") return false to "不能铺在水上"
+            if (kind == "metro" && !hasService("metro")) return false to "先建地铁站才能挖隧道"
+            if (kind == "rail" && !hasService("rail_station")) return false to "先建火车站才能铺铁轨"
+            if (t.terrain == "water" && kind != "metro") return false to "不能铺在水上"
             if (t.building != null) return false to "先拆除这里的建筑"
             val exist = t.road
             if (exist != null) {
                 val a = ROAD_RANK[exist] ?: 0
                 val b = ROAD_RANK[kind] ?: 0
-                if (b <= a) return false to null
+                if (kind != "metro" && kind != "rail" && b <= a) return false to null
             }
             return true to null
         }
 
         fun setRoad(x: Int, y: Int, kind: String): Boolean {
             val t = tile(x, y) ?: return false
-            if (t.terrain == "water" || t.building != null) return false
+            if (t.building != null) return false
+            if (t.terrain == "water" && kind != "metro") return false
+            if (kind == "metro") {
+                t.metro = true
+                return true
+            }
+            if (kind == "rail") {
+                t.rail = true
+                t.zone = "none"
+                return true
+            }
             t.road = kind
             t.zone = "none"
             return true
@@ -536,9 +552,6 @@ class World {
                     w.grid[yy - 1][xx - 1].building = b
                 }
             }
-            if (s.category == Config.ServiceCat.POWER) Networks.seedCablesAround(x, y, s.sizeW, s.sizeH)
-            if (s.category == Config.ServiceCat.WATER && s.id != "sewage") Networks.seedPipesAround(x, y, s.sizeW, s.sizeH)
-            if (s.id == "sewage") Networks.seedSewersAround(x, y, s.sizeW, s.sizeH)
             if (s.id == "metro") Networks.seedMetroAround(x, y, s.sizeW, s.sizeH)
             if (s.id == "rail_station") Networks.seedRailAround(x, y, s.sizeW, s.sizeH)
             return true
@@ -606,7 +619,17 @@ class World {
             }
             t.road?.let { kind ->
                 t.road = null
+                t.metro = false
+                t.rail = false
                 return "road" to kind
+            }
+            if (t.metro) {
+                t.metro = false
+                return "road" to "metro"
+            }
+            if (t.rail) {
+                t.rail = false
+                return "road" to "rail"
             }
             if (t.zone != "none") {
                 t.zone = "none"
@@ -681,56 +704,32 @@ class World {
         }
 
         // -------------------------------------------------------------------
-        // 覆盖系统：电/水/垃圾等「沿道路网」传播（设施需邻路才生效）
+        // 覆盖系统：按设施半径（造价/体量越大半径越大）
         // -------------------------------------------------------------------
 
-        /** 沿路网 BFS：从该类设施扩散，返回被覆盖的成长建筑 id 集合（id = y*cols+x） */
+        fun coverRadius(cfg: Config.ServiceDef): Int =
+            max(cfg.radius, 2 + cfg.sizeW + cfg.cost / 400)
+
+        fun isCoveredBy(x: Int, y: Int, category: String): Boolean {
+            for (e in allBuildings()) {
+                if (!e.b.isService) continue
+                val cfg = serviceConfig(e.b.service) ?: continue
+                if (cfg.category != category) continue
+                val cx = e.x + (e.b.w - 1) / 2
+                val cy = e.y + (e.b.h - 1) / 2
+                if (abs(x - cx) + abs(y - cy) <= coverRadius(cfg)) return true
+            }
+            return false
+        }
+
         fun bfsCovered(category: String): Set<Int> {
             val w = current ?: return emptySet()
             val result = mutableSetOf<Int>()
-            val queue = ArrayDeque<Pair<Int, Int>>()
-            val visited = mutableSetOf<Pair<Int, Int>>()
-            for (e in allBuildings()) {
-                val b = e.b
-                if (!b.isService) continue
-                val cfg = serviceConfig(b.service) ?: continue
-                if (cfg.category != category) continue
-                for (yy in e.y until e.y + b.h) {
-                    for (xx in e.x until e.x + b.w) {
-                        val p = xx to yy
-                        if (visited.add(p)) queue.addLast(p)
-                    }
-                }
-            }
-            val dx = intArrayOf(1, -1, 0, 0)
-            val dy = intArrayOf(0, 0, 1, -1)
-            while (queue.isNotEmpty()) {
-                val (cx, cy) = queue.removeFirst()
-                for (k in 0 until 4) {
-                    val nx = cx + dx[k]
-                    val ny = cy + dy[k]
-                    val t = tile(nx, ny) ?: continue
-                    val along = when (category) {
-                        Config.ServiceCat.POWER -> t.cable
-                        Config.ServiceCat.WATER -> t.pipe
-                        "sewer" -> t.sewer
-                        else -> t.road != null
-                    }
-                    if (along) {
-                        val p = nx to ny
-                        if (visited.add(p)) queue.addLast(p)
-                    } else if (t.building != null && t.building?.isService != true) {
-                        result.add(ny * w.cols + nx)
-                    }
-                }
+            for (g in allBuildings()) {
+                if (g.b.isService) continue
+                if (isCoveredBy(g.x, g.y, category)) result.add(g.y * w.cols + g.x)
             }
             return result
-        }
-
-        /** 某格是否被覆盖（沿路网） */
-        fun isCoveredBy(x: Int, y: Int, category: String): Boolean {
-            val w = current ?: return false
-            return (y * w.cols + x) in bfsCovered(category)
         }
 
         /** 各类别的覆盖比例（0..1，无建筑时视为 1） */

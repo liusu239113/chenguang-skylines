@@ -274,16 +274,6 @@ class MapRenderView @JvmOverloads constructor(
                 if (ok) Sfx.play("sfx_build") else if (msg != null) setToast(msg)
                 return ok
             }
-            "pipe" -> {
-                val (ok, msg) = GameData.paintPipe(tx, ty)
-                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
-                return ok
-            }
-            "cable" -> {
-                val (ok, msg) = GameData.paintCable(tx, ty)
-                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
-                return ok
-            }
             "district" -> {
                 val (ok, msg) = GameData.paintDistrict(tx, ty)
                 if (ok) Sfx.play("sfx_click", 0.25f) else if (msg != null) setToast(msg)
@@ -293,21 +283,6 @@ class MapRenderView @JvmOverloads constructor(
                 val (ok, msg) = GameData.tapBusStop(tx, ty)
                 if (ok) Sfx.play("sfx_click", 0.5f)
                 if (msg != null) setToast(msg)
-                return ok
-            }
-            "sewer" -> {
-                val (ok, msg) = GameData.paintSewer(tx, ty)
-                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
-                return ok
-            }
-            "metro" -> {
-                val (ok, msg) = GameData.paintMetro(tx, ty)
-                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
-                return ok
-            }
-            "rail" -> {
-                val (ok, msg) = GameData.paintRail(tx, ty)
-                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
                 return ok
             }
             "tree" -> {
@@ -340,16 +315,11 @@ class MapRenderView @JvmOverloads constructor(
             }
             "bulldoze" -> {
                 val tile = World.tile(tx, ty)
-                tile != null && (tile.building != null || tile.road != null)
+                tile != null && (tile.building != null || tile.road != null || tile.metro || tile.rail)
             }
             "service" -> World.canPlaceService(t.id ?: return false, tx, ty).first
-            "pipe" -> World.tile(tx, ty)?.terrain != "water"
-            "cable" -> World.tile(tx, ty)?.terrain != "water"
             "district" -> World.tile(tx, ty)?.terrain != "water"
             "bus" -> Transit.isStopCell(tx, ty)
-            "sewer" -> true
-            "metro" -> World.tile(tx, ty)?.terrain != "water"
-            "rail" -> World.tile(tx, ty)?.terrain != "water"
             "tree" -> {
                 val tile = World.tile(tx, ty)
                 tile != null && tile.terrain != "water" && tile.road == null && tile.building == null
@@ -533,7 +503,7 @@ class MapRenderView @JvmOverloads constructor(
                 toastT = 0f
             }
         }
-        rainPhase += dt * 1.8f
+        rainPhase += dt * 2.4f
         if (rainPhase > 1000f) rainPhase -= 1000f
         ambientAcc += dt
         if (ambientAcc > 2.4f && camScale > 1.15f) {
@@ -679,9 +649,10 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // ---- 1.4) 区划底纹 / 水管 / 电缆 ----
-        val showNet = overlay in listOf("pipe", "cable", "sewer", "metro", "rail", "district") ||
-            tool?.kind in listOf("pipe", "cable", "sewer", "metro", "rail", "district")
+        // ---- 1.4) 区划底纹 / 地铁隧 / 铁轨 ----
+        val showNet = overlay in listOf("metro", "rail", "district") ||
+            tool?.kind in listOf("metro", "rail", "district") ||
+            (tool?.kind == "road" && (tool?.roadKind == "metro" || tool?.roadKind == "rail"))
         if (showNet) {
             for (ty in y0..y1) {
                 for (tx in x0..x1) {
@@ -692,19 +663,10 @@ class MapRenderView @JvmOverloads constructor(
                         val hue = (t.district * 47) % 180
                         fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, RGBA(80 + hue / 3, 140, 200 - hue / 4, 55))
                     }
-                    if ((overlay == "pipe" || tool?.kind == "pipe") && t.pipe) {
-                        fillRect(canvas, sx + cell * 0.35f, sy, cell * 0.3f, cell, RGBA(70, 170, 210, 160))
-                    }
-                    if ((overlay == "cable" || tool?.kind == "cable") && t.cable) {
-                        fillRect(canvas, sx, sy + cell * 0.35f, cell, cell * 0.3f, RGBA(230, 190, 70, 160))
-                    }
-                    if ((overlay == "sewer" || tool?.kind == "sewer") && t.sewer) {
-                        fillRect(canvas, sx + cell * 0.2f, sy + cell * 0.4f, cell * 0.6f, cell * 0.2f, RGBA(90, 70, 50, 180))
-                    }
-                    if ((overlay == "metro" || tool?.kind == "metro") && t.metro) {
+                    if ((overlay == "metro" || tool?.roadKind == "metro" || tool?.kind == "metro") && t.metro) {
                         fillRect(canvas, sx + cell * 0.1f, sy + cell * 0.42f, cell * 0.8f, cell * 0.16f, RGBA(40, 80, 160, 190))
                     }
-                    if ((overlay == "rail" || tool?.kind == "rail") && t.rail) {
+                    if ((overlay == "rail" || tool?.roadKind == "rail" || tool?.kind == "rail") && t.rail) {
                         fillRect(canvas, sx + cell * 0.12f, sy + cell * 0.38f, cell * 0.76f, cell * 0.24f, RGBA(70, 70, 78, 210))
                     }
                 }
@@ -1137,11 +1099,10 @@ class MapRenderView @JvmOverloads constructor(
                     )
                 }
             }
-        } else if (overlay.isNotEmpty() && overlay !in listOf("pipe", "cable", "district", "sewer", "metro", "rail")) {
+        } else if (overlay.isNotEmpty() && overlay !in listOf("district", "metro", "rail")) {
             val green = RGBA(70, 190, 110, 110)
             val red = RGBA(210, 70, 60, 95)
             val blue = RGBA(50, 110, 210, 130)
-            val coveredSet = World.bfsCovered(overlay)
             for (ty in y0..y1) {
                 for (tx in x0..x1) {
                     val t = w.grid[ty - 1][tx - 1]
@@ -1153,10 +1114,8 @@ class MapRenderView @JvmOverloads constructor(
                         if (cfg != null && cfg.category == overlay && b.ax == tx && b.ay == ty) {
                             fillRect(canvas, sx, sy, cell * b.w, cell * b.h, blue)
                         }
-                    } else {
-                        val ok = (ty * w.cols + tx) in coveredSet ||
-                            (overlay == Config.ServiceCat.POWER && t.cable) ||
-                            (overlay == Config.ServiceCat.WATER && t.pipe)
+                    } else if (b != null && !b.isService) {
+                        val ok = World.isCoveredBy(tx, ty, overlay)
                         fillRect(canvas, sx, sy, cell, cell, if (ok) green else red)
                     }
                 }
@@ -1167,7 +1126,7 @@ class MapRenderView @JvmOverloads constructor(
                 if (cfg.category != overlay) continue
                 val cx = worldToScreenX(e.x - 1 + cfg.sizeW / 2f)
                 val cy = worldToScreenY(e.y - 1 + cfg.sizeH / 2f)
-                val r = cell * (cfg.radius + 0.5f)
+                val r = cell * (World.coverRadius(cfg) + 0.5f)
                 strokeCircle(canvas, cx, cy, r, RGBA(40, 90, 200, 160), 255, 1.6f)
             }
         }
@@ -1279,8 +1238,9 @@ class MapRenderView @JvmOverloads constructor(
                     gh = cell * sc.sizeH
                     val cx = worldToScreenX(hoverX - 1 + sc.sizeW / 2f)
                     val cy = worldToScreenY(hoverY - 1 + sc.sizeH / 2f)
-                    fillCircle(canvas, cx, cy, cell * (sc.radius + 0.5f), RGBA(96, 200, 140, 26))
-                    strokeCircle(canvas, cx, cy, cell * (sc.radius + 0.5f), RGBA(96, 200, 140, 90), 255, 1f)
+                    val cr = World.coverRadius(sc).toFloat()
+                    fillCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 26))
+                    strokeCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 90), 255, 1f)
                 }
             }
             fillRect(canvas, gx, gy, gw, gh, if (ok) C.ghostOk else C.ghostBad)
@@ -1321,16 +1281,18 @@ class MapRenderView @JvmOverloads constructor(
             fillRect(canvas, 0f, 0f, viewW, viewH, RGBA(18, 24, 52, (nightLevel * 88).toInt()))
         }
 
-        // ---- 6.6) 天气（雨/雾） ----
+        // ---- 6.6) 天气：雨滴竖直下落，钉在屏幕上，不跟地图拖
         when (GameData.weather) {
             1 -> {
-                strokeColor(RGBA(200, 220, 240, 140), 255, max(1.2f, cell * 0.03f))
-                val n = 90
+                fillRect(canvas, 0f, 0f, viewW, viewH, RGBA(70, 90, 110, 28))
+                strokeColor(RGBA(210, 225, 240, 170), 255, 1.4f)
+                paint.strokeCap = Paint.Cap.ROUND
+                val n = 140
+                val fall = rainPhase * 420f
                 for (i in 0 until n) {
-                    val drift = (rainPhase * 220f + i * 47f)
-                    val rx = ((i * 73 + 19).toFloat() + drift * 0.35f).mod(viewW + 40f) - 20f
-                    val ry = ((i * 91 + 7).toFloat() + drift).mod(viewH + 60f) - 30f
-                    canvas.drawLine(rx, ry, rx - 7f, ry + 18f, paint)
+                    val rx = ((i * 97 + 13) % 1000) / 1000f * (viewW + 24f) - 12f
+                    val ry = ((i * 53 + 29) / 1000f * (viewH + 80f) + fall) % (viewH + 80f) - 40f
+                    canvas.drawLine(rx, ry, rx, ry + 14f, paint)
                 }
             }
             2 -> {
@@ -1359,6 +1321,8 @@ class MapRenderView @JvmOverloads constructor(
 
     private fun zoneBaseColor(t: Tile, x: Int, y: Int): RGBA {
         val C = Config.COLORS
+        if (t.metro) return RGBA(48, 72, 110)
+        if (t.rail) return RGBA(72, 72, 78)
         t.road?.let {
             return when (it) {
                 "highway" -> C.roadHighway
