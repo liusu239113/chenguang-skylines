@@ -19,7 +19,7 @@ object Ambience {
     }
 
     fun tick(dt: Float, weather: Int, onMap: Boolean) {
-        if (\!onMap) {
+        if (!onMap) {
             stop()
             lightning = (lightning - dt * 4f).coerceAtLeast(0f)
             return
