@@ -2,7 +2,7 @@
   "$schema": "../schemas/project.schema.json",
   "project_id": "m_vxn3",
   "name": "模拟市长：城市经营",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "entry": "main.lua",
   "author": {
     "name": "GameDev",
