@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.dshx.game.su"
+    namespace = "com.dshx.game.she"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.dshx.game.su"
+        applicationId = "com.dshx.game.she"
         minSdk = 26
         targetSdk = 35
         versionCode = 2
