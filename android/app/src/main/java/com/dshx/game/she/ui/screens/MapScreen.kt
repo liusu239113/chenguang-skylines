@@ -477,15 +477,12 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 UIHelper.InfoRow("店员/员工", staff.take(2).joinToString("、") { it.driver.name })
                             }
                         }
-                        UIHelper.InfoRow(
-                            "供电",
-                            if (World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.POWER)) "电站覆盖范围内" else "不在电站覆盖内",
-                            if (World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.POWER)) C.accentGreen.toColor() else C.accentRed.toColor()
-                        )
-                        UIHelper.InfoRow(
-                            "供水",
-                            if (World.isCoveredBy(sel.first, sel.second, Config.ServiceCat.WATER)) "水塔/泵站覆盖内" else "不在供水范围内"
-                        )
+                        coverInfo(sel.first, sel.second, Config.ServiceCat.POWER, "供电")
+                        coverInfo(sel.first, sel.second, Config.ServiceCat.WATER, "供水")
+                        coverInfo(sel.first, sel.second, Config.ServiceCat.GARBAGE, "垃圾")
+                        coverInfo(sel.first, sel.second, Config.ServiceCat.HEALTH, "医疗")
+                        coverInfo(sel.first, sel.second, Config.ServiceCat.EDUCATION, "教育")
+                        coverInfo(sel.first, sel.second, Config.ServiceCat.SAFETY, "治安")
                     } else if (tb != null && tb.isService) {
                         val cfg = World.serviceConfig(tb.service)
                         UIHelper.InfoRow("设施", cfg?.name ?: tb.service ?: "-")
@@ -493,9 +490,22 @@ fun MapScreenContent(mapView: MapRenderView) {
                         if (tb.service == "clinic") UIHelper.InfoRow("救护车", "2 辆 · 有人病了会出车")
                         if (tb.service == "hospital") UIHelper.InfoRow("救护车", "5 辆")
                         if (tb.service == "crematorium" || tb.service == "cemetery") UIHelper.InfoRow("灵车", "有人去世会出车接人")
-                        if (tb.service == "wind_farm" || tb.service == "coal_plant" || tb.service == "solar_plant" || tb.service == "nuclear_plant" || tb.service == "water_tower" || tb.service == "pump_station") {
-                            val cfg = World.serviceConfig(tb.service)
-                            if (cfg != null) UIHelper.InfoRow("覆盖", "半径 " + World.coverRadius(cfg) + " 格")
+                        if (cfg != null) {
+                            UIHelper.InfoRow("覆盖半径", World.coverRadius(cfg).toString() + " 格")
+                            if (cfg.powerCap > 0) {
+                                val s0 = GameData.current
+                                UIHelper.InfoRow(
+                                    "发电容量",
+                                    cfg.powerCap.toString() + "（全城 " + (s0?.powerCap ?: 0) + "/" + (s0?.powerNeed ?: 0) + "）"
+                                )
+                            }
+                            if (cfg.waterCap > 0) {
+                                val s0 = GameData.current
+                                UIHelper.InfoRow(
+                                    "供水容量",
+                                    cfg.waterCap.toString() + "（全城 " + (s0?.waterCap ?: 0) + "/" + (s0?.waterNeed ?: 0) + "）"
+                                )
+                            }
                         }
                     }
                     val tile = World.tile(sel.first, sel.second)
@@ -558,11 +568,17 @@ fun MapScreenContent(mapView: MapRenderView) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    "覆盖图 · " + overlayLabel(AppState.overlay),
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
-                )
+                Column {
+                    Text(
+                        "覆盖图 · " + overlayLabel(AppState.overlay),
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
+                    )
+                    Text(
+                        overlayHint(AppState.overlay),
+                        fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .background(C.accentRed.toColor(), RoundedCornerShape(10.dp))
@@ -1159,13 +1175,36 @@ private fun overlayLabel(cat: String): String = when (cat) {
     Config.ServiceCat.GARBAGE -> "垃圾"
     Config.ServiceCat.HEALTH -> "医疗"
     Config.ServiceCat.EDUCATION -> "教育"
-    Config.ServiceCat.SAFETY -> "消防"
+    Config.ServiceCat.SAFETY -> "治安消防"
+    Config.ServiceCat.TRANSIT -> "公交轨道"
+    Config.ServiceCat.DEATH -> "殡葬"
+    Config.ServiceCat.AMENITY -> "公园广场"
+    Config.ServiceCat.LANDMARK -> "地标"
     "traffic" -> "拥堵"
     "landvalue" -> "地价"
     "metro" -> "地铁"
     "rail" -> "铁轨"
     "district" -> "区划"
     else -> cat
+}
+
+private fun overlayHint(cat: String): String = when (cat) {
+    "traffic" -> "绿畅行 · 黄缓行 · 红拥堵"
+    "landvalue" -> "绿高地价 · 红受污染拉低"
+    "metro", "rail", "district" -> "只显示对应网络"
+    else -> "绿=已覆盖 · 红=未覆盖 · 圈=该座设施半径，圈内哪坨归哪座一看就明"
+}
+
+@Composable
+private fun coverInfo(x: Int, y: Int, cat: String, label: String) {
+    val C = Config.COLORS
+    val fac = World.coveringFacility(x, y, cat)
+    if (fac != null) {
+        val name = World.serviceConfig(fac.b.service)?.name ?: "设施"
+        UIHelper.InfoRow(label, "由「$name」覆盖", C.accentGreen.toColor())
+    } else {
+        UIHelper.InfoRow(label, "不在覆盖圈内", C.accentRed.toColor())
+    }
 }
 
 @Composable
@@ -1207,12 +1246,25 @@ private fun DataPanel() {
             // 覆盖率
             if (cov != null) {
                 CovBar("电力", cov.power)
+                Text(
+                    "发电 " + s.powerCap + " / 需求 " + s.powerNeed +
+                        " · 打开覆盖图可看到每座电站的圈和绿坨",
+                    fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                )
                 CovBar("供水", cov.water)
+                Text(
+                    "供水 " + s.waterCap + " / 需求 " + s.waterNeed + " · 容量不够时圈内也会按比例缺水",
+                    fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                )
                 CovBar("垃圾", cov.garbage)
                 CovBar("医疗", cov.health)
                 CovBar("教育", cov.education)
-                CovBar("消防", cov.safety)
+                CovBar("治安", cov.safety)
                 CovBar("殡葬", cov.death)
+                Text(
+                    "覆盖按设施半径对齐，不是电缆。点下方按钮可单独看每一类圈到了哪一坨建筑。",
+                    fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                )
             }
             Text(
                 "职级 " + GameData.rankDef().name + " · " + GameData.rankDef().perk +
@@ -1307,7 +1359,8 @@ private fun DataPanel() {
             val cats = listOf(
                 Config.ServiceCat.POWER, Config.ServiceCat.WATER, Config.ServiceCat.GARBAGE,
                 Config.ServiceCat.HEALTH, Config.ServiceCat.EDUCATION, Config.ServiceCat.SAFETY,
-                "traffic", "landvalue", "metro", "rail", "district"
+                Config.ServiceCat.TRANSIT, Config.ServiceCat.DEATH, Config.ServiceCat.AMENITY,
+                Config.ServiceCat.LANDMARK, "traffic", "landvalue", "metro", "rail", "district"
             )
             cats.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

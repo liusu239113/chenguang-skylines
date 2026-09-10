@@ -46,6 +46,10 @@ class CityState {
     var taxOff: Int = Config.TAX.default
     // 最近一次覆盖统计（数据面板用）
     var lastCoverage: com.dshx.game.she.world.Coverage? = null
+    var powerCap: Int = 0
+    var waterCap: Int = 0
+    var powerNeed: Int = 0
+    var waterNeed: Int = 0
     // 贷款
     var loanDebt: Double = 0.0
     var loanCooldown: Int = 0
@@ -366,9 +370,14 @@ object GameData {
             if (d.policy == "old_town") tradeIncome += 6.0
         }
         val bldN = max(1, st.resCount + st.comCount + st.indCount + st.offCount)
-        val powerNeed = bldN * policyMul("powerUseMul")
-        val supplyFactor = min(1.0, powerCap.toDouble() / powerNeed)
-        val waterFactor = min(1.0, waterCap.toDouble() / bldN)
+        val needP = (bldN * policyMul("powerUseMul")).toInt()
+        val needW = bldN
+        s.powerCap = powerCap
+        s.waterCap = waterCap
+        s.powerNeed = needP
+        s.waterNeed = needW
+        val supplyFactor = min(1.0, powerCap.toDouble() / max(1, needP))
+        val waterFactor = min(1.0, waterCap.toDouble() / needW)
         cov = cov.copy(power = cov.power * supplyFactor.toFloat(), water = cov.water * waterFactor.toFloat())
         s.lastCoverage = cov
         s.education = min(100.0, s.education + (eduScore * 0.08) * (if (cov.education > 0.3f) 1.0 else 0.2) - 0.04)

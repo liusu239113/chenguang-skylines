@@ -399,6 +399,45 @@ class World {
             return w.elev[y - 1][x - 1]
         }
 
+        /** 0-based 世界坐标双线性高度，相邻格子平滑过渡 */
+        fun heightAt(wx: Float, wy: Float): Float {
+            val w = current ?: return 20f
+            val fx = wx.coerceIn(0f, (w.cols - 1).toFloat())
+            val fy = wy.coerceIn(0f, (w.rows - 1).toFloat())
+            val x0 = floor(fx).toInt()
+            val y0 = floor(fy).toInt()
+            val x1 = min(w.cols - 1, x0 + 1)
+            val y1 = min(w.rows - 1, y0 + 1)
+            val tx = fx - x0
+            val ty = fy - y0
+            val h00 = w.elev[y0][x0].toFloat()
+            val h10 = w.elev[y0][x1].toFloat()
+            val h01 = w.elev[y1][x0].toFloat()
+            val h11 = w.elev[y1][x1].toFloat()
+            return h00 * (1 - tx) * (1 - ty) + h10 * tx * (1 - ty) + h01 * (1 - tx) * ty + h11 * tx * ty
+        }
+
+        fun waterFrac(wx: Float, wy: Float): Float {
+            val w = current ?: return 0f
+            var n = 0f
+            var water = 0f
+            for (dy in -1..1) for (dx in -1..1) {
+                val x = floor(wx + dx * 0.55f).toInt()
+                val y = floor(wy + dy * 0.55f).toInt()
+                if (x !in 0 until w.cols || y !in 0 until w.rows) continue
+                n += 1f
+                if (w.grid[y][x].terrain == "water") water += 1f
+            }
+            return if (n <= 0f) 0f else water / n
+        }
+
+        /** 地表绘制高度：水域压到统一水平面，岸边插值浅滩 */
+        fun surfaceAt(wx: Float, wy: Float): Float {
+            val raw = heightAt(wx, wy)
+            val wf = waterFrac(wx, wy)
+            return if (wf <= 0f) raw else raw * (1f - wf) + 8f * wf
+        }
+
         fun isRoad(x: Int, y: Int): Boolean = tile(x, y)?.road != null
 
         fun terrainName(x: Int, y: Int): String {
@@ -710,16 +749,43 @@ class World {
         fun coverRadius(cfg: Config.ServiceDef): Int =
             max(cfg.radius, 2 + cfg.sizeW + cfg.cost / 400)
 
+        /** 覆盖圈中心：设施占地的几何中心，和画面上的圈对齐 */
+        fun coverCenter(e: BuildingEntry): Pair<Float, Float> {
+            return (e.x - 1f + e.b.w / 2f) to (e.y - 1f + e.b.h / 2f)
+        }
+
         fun isCoveredBy(x: Int, y: Int, category: String): Boolean {
             for (e in allBuildings()) {
                 if (!e.b.isService) continue
                 val cfg = serviceConfig(e.b.service) ?: continue
                 if (cfg.category != category) continue
-                val cx = e.x + (e.b.w - 1) / 2
-                val cy = e.y + (e.b.h - 1) / 2
-                if (abs(x - cx) + abs(y - cy) <= coverRadius(cfg)) return true
+                val (cx, cy) = coverCenter(e)
+                val dx = (x - 1f + 0.5f) - cx
+                val dy = (y - 1f + 0.5f) - cy
+                val r = coverRadius(cfg) + 0.5f
+                if (dx * dx + dy * dy <= r * r) return true
             }
             return false
+        }
+
+        fun coveringFacility(x: Int, y: Int, category: String): BuildingEntry? {
+            var best: BuildingEntry? = null
+            var bestD = Float.MAX_VALUE
+            for (e in allBuildings()) {
+                if (!e.b.isService) continue
+                val cfg = serviceConfig(e.b.service) ?: continue
+                if (cfg.category != category) continue
+                val (cx, cy) = coverCenter(e)
+                val dx = (x - 1f + 0.5f) - cx
+                val dy = (y - 1f + 0.5f) - cy
+                val r = coverRadius(cfg) + 0.5f
+                val d = dx * dx + dy * dy
+                if (d <= r * r && d < bestD) {
+                    bestD = d
+                    best = e
+                }
+            }
+            return best
         }
 
         fun bfsCovered(category: String): Set<Int> {

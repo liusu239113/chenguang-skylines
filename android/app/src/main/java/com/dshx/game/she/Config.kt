@@ -22,6 +22,18 @@ data class RGBA(val r: Int, val g: Int, val b: Int, val a: Int = 255) {
         a
     )
 
+    fun mix(other: RGBA, t: Float): RGBA {
+        val k = t.coerceIn(0f, 1f)
+        return RGBA(
+            (r + (other.r - r) * k).toInt(),
+            (g + (other.g - g) * k).toInt(),
+            (b + (other.b - b) * k).toInt(),
+            (a + (other.a - a) * k).toInt()
+        )
+    }
+
+    fun withAlpha(alpha: Int): RGBA = RGBA(r, g, b, alpha.coerceIn(0, 255))
+
     companion object {
         fun of(r: Int, g: Int, b: Int, a: Int = 255) = RGBA(r, g, b, a)
         val TRANSPARENT = RGBA(0, 0, 0, 0)
@@ -397,7 +409,7 @@ object Config {
     )
 
     val EVENTS: List<EventDef> = listOf(
-        EventDef("blackout", "居民断电", "住宅没通电，居民来信要求接电缆。", 3, -8.0, 0.92, "power"),
+        EventDef("blackout", "居民断电", "住宅不在电站覆盖圈内，居民来信要求扩供电。", 3, -8.0, 0.92, "power"),
         EventDef("pipe", "居民缺水", "住宅没通水，生活用水告急。", 3, -8.0, 0.95, "water"),
         EventDef("clinic", "看病排队", "附近没有诊所/医院，居民看病困难。", 4, -6.0, 1.0, "health"),
         EventDef("school", "学位告急", "附近没有学校，家长反映孩子没处上学。", 4, -5.0, 1.0, "school"),

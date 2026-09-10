@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
         SaveManager.init(this)
         Prefs.init(this)
         Bgm.init(this)
+        Ambience.init(this)
         SpeedBoost.init(this)
         AppState.privacyOk = Prefs.privacyAccepted
         if (GameData.current == null) {
@@ -59,6 +60,7 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         Bgm.pause()
+        Ambience.stop()
     }
 
     override fun onResume() {
@@ -68,6 +70,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         Bgm.stop()
+        Ambience.release()
         Sfx.release()
         super.onDestroy()
     }
@@ -113,6 +116,7 @@ fun AppRoot() {
                 last = now
                 if (dt > 0.1f) dt = 0.1f
                 if (AppState.screen == "map") {
+                    Ambience.tick(dt, GameData.weather, true)
                     if (!AppState.paused) {
                         GameData.tick(dt)
                         Growth.tick((dt * GameData.speed()).toDouble()) { name, gain ->
@@ -120,8 +124,12 @@ fun AppRoot() {
                         }
                         mapView.update(dt)
                         MapScreen.tick(dt, mapView)
+                    } else {
+                        mapView.update(dt * 0.35f)
                     }
                     mapView.invalidate()
+                } else {
+                    Ambience.tick(dt, 0, false)
                 }
             }
         }
