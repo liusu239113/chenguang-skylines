@@ -49,6 +49,7 @@ import com.dshx.game.she.ui.UIHelper
 import com.dshx.game.she.ui.toColor
 import com.dshx.game.she.ui.theme.LocalGameFont
 import com.dshx.game.she.world.Citizens
+import com.dshx.game.she.world.CitySystems
 import com.dshx.game.she.world.Growth
 import com.dshx.game.she.world.MapRenderView
 import com.dshx.game.she.world.Networks
@@ -421,7 +422,18 @@ fun MapScreenContent(mapView: MapRenderView) {
                     val car = Traffic.selected
                     val train = Traffic.selectedTrain
                     val plane = Traffic.selectedPlane
+                    val svcCar = CitySystems.selected
                     when {
+                        svcCar != null -> {
+                            Text(
+                                CitySystems.label(svcCar.kind),
+                                fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                            )
+                            UIHelper.InfoRow("职务", CitySystems.job(svcCar.kind), C.accentGold.toColor())
+                            UIHelper.InfoRow("任务", "前往 (" + svcCar.destX + "," + svcCar.destY + ")")
+                            UIHelper.InfoRow("身份", "市政公务车 · 可点查看")
+                        }
                         car != null -> {
                             val d = car.driver
                             Text(
@@ -502,12 +514,24 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 UIHelper.InfoRow("店员/员工", staff.take(2).joinToString("、") { it.driver.name })
                             }
                         }
+                        val popNow = GameData.current?.population?.toInt() ?: 0
+                        fun unlocked(id: String) = popNow >= (World.serviceConfig(id)?.unlockPop ?: 0)
                         coverInfo(sel.first, sel.second, Config.ServiceCat.POWER, "供电")
                         coverInfo(sel.first, sel.second, Config.ServiceCat.WATER, "供水")
-                        coverInfo(sel.first, sel.second, Config.ServiceCat.GARBAGE, "垃圾")
-                        coverInfo(sel.first, sel.second, Config.ServiceCat.HEALTH, "医疗")
-                        coverInfo(sel.first, sel.second, Config.ServiceCat.EDUCATION, "教育")
-                        coverInfo(sel.first, sel.second, Config.ServiceCat.SAFETY, "治安")
+                        if (unlocked("landfill")) coverInfo(sel.first, sel.second, Config.ServiceCat.GARBAGE, "垃圾")
+                        if (unlocked("clinic")) coverInfo(sel.first, sel.second, Config.ServiceCat.HEALTH, "医疗")
+                        if (unlocked("school")) coverInfo(sel.first, sel.second, Config.ServiceCat.EDUCATION, "教育")
+                        if (unlocked("fire_station") || unlocked("police")) {
+                            coverInfo(sel.first, sel.second, Config.ServiceCat.SAFETY, "治安消防")
+                        }
+                        if (tb.zone == "office") {
+                            val eduOk = (GameData.current?.education ?: 0.0) >= 28.0 || Civic.schoolRate >= 0.48
+                            UIHelper.InfoRow(
+                                "办公入职",
+                                if (eduOk) "有中学以上学历的居民才能进写字楼" else "学历不够，白领进不来，先建小学/中学",
+                                if (eduOk) C.accentGreen.toColor() else C.accentRed.toColor()
+                            )
+                        }
                     } else if (tb != null && tb.isService) {
                         val cfg = World.serviceConfig(tb.service)
                         UIHelper.InfoRow("设施", cfg?.name ?: tb.service ?: "-")
@@ -1254,12 +1278,12 @@ private fun HelpPanel() {
             HelpRow("职", "点顶栏营造职级打开营造档案。人口、满意度和测评都达标才会晋升，不是现实官职。")
             HelpRow("路", "开局十字是【两车道】，和建造菜单里同一种。泥土路无标线；两车道一条中虚线；四车道中央双黄、两侧白虚线，车分内外道并排。外环高速全天有过路车；接进城后才会进游客。")
             HelpRow("铁", "先在【服务】建火车站，再在【道路】里选铁轨去地图上画。地铁同理，先建地铁站。机场建好会有飞机。")
-            HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。同一格再点可撤销。邻路才会长楼，通电通水后迁入人口。【推平】拆楼会连底下的分区一起清掉，不会再留色块。")
+            HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。设施会清掉底下分区，不会被后长出来的楼盖掉。小学点在占地内任意一格即可。【办公】要中学以上学历才进得去，收益比商业高。【推平】拆楼会连底下分区一起清掉。")
             HelpRow("电", "风电/煤电按造价和占地覆盖一片区域，不用铺电缆。点【数】开电力热力图能看到圈。")
             HelpRow("水", "水塔/抽水站按半径抽取地下水供水，不必靠河。点地图只是预览，底部「确认建造」才扣费。诊所人口 25 解锁，垃圾场 40 解锁。")
             HelpRow("规", "【规划】只选公交/区划/种树。选完面板会关，才能在地图上点。")
             HelpRow("策", "【数/?/策/银】在状态栏左下。【银】是银行：手动高息、看广告低息。暂停用顶栏 ‖，只冻时间，仍可划区修路；右上 ≡ 才是菜单。")
-            HelpRow("存", "右上【≡】打开菜单保存。主菜单「存档管理」能看到城市名、人口、日期。")
+            HelpRow("存", "每月结算和切出游戏都会自动写入当前槽位。主菜单「继续游戏」读最近一档。右上【≡】也可手动保存。")
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

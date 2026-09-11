@@ -770,5 +770,6 @@ object Traffic {
         selected = null
         selectedTrain = null
         selectedPlane = null
+        CitySystems.selected = null
     }
 }

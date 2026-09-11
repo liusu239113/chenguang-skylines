@@ -224,6 +224,7 @@ class MapRenderView @JvmOverloads constructor(
             Traffic.selected = car
             Traffic.selectedTrain = null
             Traffic.selectedPlane = null
+            CitySystems.selected = null
             selectedX = car.x
             selectedY = car.y
             hasSelection = true
@@ -236,6 +237,7 @@ class MapRenderView @JvmOverloads constructor(
             Traffic.selectedTrain = train
             Traffic.selected = null
             Traffic.selectedPlane = null
+            CitySystems.selected = null
             selectedX = train.x
             selectedY = train.y
             hasSelection = true
@@ -248,10 +250,24 @@ class MapRenderView @JvmOverloads constructor(
             Traffic.selectedPlane = plane
             Traffic.selected = null
             Traffic.selectedTrain = null
+            CitySystems.selected = null
             selectedX = plane.ax
             selectedY = plane.ay
             hasSelection = true
             Sfx.play("sfx_engine", 0.45f)
+            onTileChanged?.invoke()
+            return true
+        }
+        val svc = CitySystems.hitTest(wx, wy)
+        if (svc != null) {
+            CitySystems.selected = svc
+            Traffic.selected = null
+            Traffic.selectedTrain = null
+            Traffic.selectedPlane = null
+            selectedX = svc.x
+            selectedY = svc.y
+            hasSelection = true
+            Sfx.play("sfx_horn", 0.7f)
             onTileChanged?.invoke()
             return true
         }
@@ -1011,7 +1027,7 @@ class MapRenderView @JvmOverloads constructor(
                     "garbage" -> RGBA(90, 118, 86)
                     else -> RGBA(40, 40, 40)
                 }
-                drawVehicleBox(canvas, sx, sy, 0, col, longBody = ev.kind == "garbage", selected = false)
+                drawVehicleBox(canvas, sx, sy, 0, col, longBody = ev.kind == "garbage", selected = CitySystems.selected === ev)
             }
             for (tr in Traffic.trains) {
                 val sx = worldToScreenX(tr.x - 1 + dirs[tr.dir][0] * tr.prog + 0.5f)
@@ -1718,7 +1734,31 @@ class MapRenderView @JvmOverloads constructor(
             drawNameOnFrontWall(canvas, bx, by, bw, bh, hpx, label)
         }
         if (World.tile(tx, ty)?.onFire == true) {
-            fillCircle(canvas, bx + bw * 0.5f, by + bh * 0.2f - hpx, cell * 0.16f, RGBA(255, 120, 40, 200))
+            drawFireParticles(canvas, bx + bw * 0.5f, by + bh * 0.18f - hpx)
+        }
+    }
+
+    private fun drawFireParticles(canvas: Canvas, cx: Float, cy: Float) {
+        val t = rainPhase
+        for (i in 0 until 7) {
+            val seed = i * 1.7f
+            val rise = ((t * (1.6f + i * 0.18f) + seed) % 1.2f)
+            val px = cx + sin(t * 3.1f + seed) * cell * 0.10f
+            val py = cy - rise * cell * 0.55f
+            val s = cell * (0.16f - rise * 0.08f)
+            val a = (220 * (1f - rise / 1.2f)).toInt().coerceIn(40, 230)
+            fillCircle(canvas, px, py, s, RGBA(255, 90 + i * 8, 30, a))
+        }
+        for (i in 0 until 4) {
+            val seed = i * 2.3f
+            val rise = ((t * 0.9f + seed) % 1.4f)
+            fillCircle(
+                canvas,
+                cx + sin(t * 1.4f + seed) * cell * 0.14f,
+                cy - rise * cell * 0.7f,
+                cell * 0.07f,
+                RGBA(70, 70, 74, (120 * (1f - rise / 1.4f)).toInt().coerceIn(20, 120))
+            )
         }
     }
 

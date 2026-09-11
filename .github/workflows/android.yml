@@ -76,7 +76,7 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: "模拟市长：城市经营 · build ${{ github.run_number }}"
-          body: "正式签名 APK（com.dshx.game.she · 1.0.4），可直接安装。旧包名需先卸载。"
+          body: "正式签名 APK（com.dshx.game.she · 1.0.5），可直接安装。旧包名需先卸载。"
           files: android/app/build/outputs/apk/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

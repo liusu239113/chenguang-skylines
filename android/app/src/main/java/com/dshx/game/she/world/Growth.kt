@@ -1,5 +1,6 @@
 package com.dshx.game.she.world
 
+import com.dshx.game.she.Civic
 import com.dshx.game.she.Config
 import com.dshx.game.she.GameData
 import kotlin.math.max
@@ -56,7 +57,8 @@ object Growth {
         val r = (jobs * 1.35 + 70 + attract - pop * 0.55 - overzoneR) * taxDragR
         val c = (pop * (0.55 + edu / 380.0) + 32 - st.comCap * 0.85 - overzoneC) * taxDragC
         val i = (pop * 0.50 + 55 + edu * 0.18 - st.indCap * 0.85 - overzoneI) * taxDragI
-        val o = (pop * (edu / 160.0) + 16 - st.offCap * 0.85 - overzoneO) * taxDragO
+        val officeReady = if (edu >= 28.0 || (s?.let { Civic.schoolRate } ?: 0.42) >= 0.48) 1.0 else 0.12
+        val o = (pop * (edu / 160.0) + 16 - st.offCap * 0.85 - overzoneO) * taxDragO * officeReady
         val normR = max(st.resCap + 40.0, 1.0)
         val normC = max(st.comCap + 30.0, 1.0)
         val normI = max(st.indCap + 40.0, 1.0)

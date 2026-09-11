@@ -172,15 +172,23 @@ object Citizens {
                 c.color = Random.nextInt(6)
                 c.state = "home"
                 if (jobSlots.isNotEmpty()) {
-                    // 高学历优先办公
-                    val pick = if (edu >= 2) {
-                        jobSlots.firstOrNull { it.b.zone == "office" } ?: jobSlots[jobCursor % jobSlots.size]
+                    val officeJobs = jobSlots.filter { it.b.zone == "office" }
+                    val otherJobs = jobSlots.filter { it.b.zone != "office" }
+                    val pick = if (edu >= 2 && officeJobs.isNotEmpty()) {
+                        officeJobs[jobCursor % officeJobs.size]
+                    } else if (otherJobs.isNotEmpty()) {
+                        otherJobs[jobCursor % otherJobs.size]
                     } else {
-                        jobSlots[jobCursor % jobSlots.size]
+                        null
                     }
                     jobCursor++
-                    c.workX = pick.x
-                    c.workY = pick.y
+                    if (pick != null) {
+                        c.workX = pick.x
+                        c.workY = pick.y
+                    } else {
+                        c.workX = h.x
+                        c.workY = h.y
+                    }
                 } else {
                     c.workX = h.x
                     c.workY = h.y

@@ -451,6 +451,14 @@ object GameData {
                     if (s.happiness < 18 && b.residents > 1) b.residents -= 1
                     totalRes += b.residents
                 }
+                "office" -> {
+                    val eduOk = s.education >= 28.0 || Civic.schoolRate >= 0.48
+                    if (powered && eduOk && b.workers < lv.cap && b.ageDays % 2 == 0) {
+                        b.workers = min(lv.cap, b.workers + 1)
+                    } else if (!powered || !eduOk) {
+                        if (b.workers > 0 && b.ageDays % 3 == 0) b.workers = max(0, b.workers - 1)
+                    }
+                }
                 else -> {
                     if (powered && b.workers < lv.cap && b.ageDays % 2 == 0) {
                         b.workers = min(lv.cap, b.workers + 1)
@@ -513,7 +521,7 @@ object GameData {
                     Config.ServiceCat.TRANSIT -> s.budgetTransit
                     else -> 100
                 }
-                upkeep += cfg.upkeep / 10.0 * (budget / 100.0)
+                upkeep += cfg.upkeep / 3.5 * (budget / 100.0)
             }
         }
         val rankUpkeep = if (s.rankLevel >= 4) 0.94 else 1.0
@@ -565,16 +573,19 @@ object GameData {
         val target = if (s.population < 1) 52.0 else computeHappinessTarget(st)
         s.happiness += (target - s.happiness) * 0.12
 
-        // 火灾：无消防覆盖的建筑有概率起火被烧毁
-        val grown = World.allBuildings().filter { !it.b.isService }
-        if (grown.isNotEmpty() && kotlin.random.Random.nextDouble() <
-            Config.COVERAGE.fireChancePerDay * diff.eventMul * policyMul("fireMul")) {
-            val victim = grown[kotlin.random.Random.nextInt(grown.size)]
-            if (!World.isCoveredBy(victim.x, victim.y, Config.ServiceCat.SAFETY)) {
-                World.bulldoze(victim.x, victim.y)
-                pushNews("火灾！", "一处建筑因缺乏消防覆盖被烧毁。", "突发")
-            } else {
-                pushNews("火情解除", "消防站及时扑灭了一起火情。", "突发")
+        // 火灾只在人口能解锁消防站后发生，且只点燃成长建筑，不拆公园/设施
+        val fireUnlock = World.serviceConfig("fire_station")?.unlockPop ?: 50
+        if (s.population.toInt() >= fireUnlock) {
+            val grown = World.allBuildings().filter { !it.b.isService && !it.b.abandoned }
+            if (grown.isNotEmpty() && kotlin.random.Random.nextDouble() <
+                Config.COVERAGE.fireChancePerDay * diff.eventMul * policyMul("fireMul")
+            ) {
+                val victim = grown[kotlin.random.Random.nextInt(grown.size)]
+                val tile = World.tile(victim.x, victim.y)
+                if (tile != null && !World.isCoveredBy(victim.x, victim.y, Config.ServiceCat.SAFETY)) {
+                    tile.onFire = true
+                    pushNews("火灾！", "一处建筑起火，快建消防站或等消防车。", "突发")
+                }
             }
         }
 
@@ -615,9 +626,12 @@ object GameData {
                 val trigger = when (ev.cond) {
                     "power" -> homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }
                     "water" -> homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.WATER) }
-                    "health" -> homes.isNotEmpty() && !hasClinic
-                    "school" -> homes.isNotEmpty() && !hasSchool
-                    "garbage" -> homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.GARBAGE) }
+                    "health" -> homes.isNotEmpty() && !hasClinic &&
+                        s.population.toInt() >= (World.serviceConfig("clinic")?.unlockPop ?: 25)
+                    "school" -> homes.isNotEmpty() && !hasSchool &&
+                        s.population.toInt() >= (World.serviceConfig("school")?.unlockPop ?: 20)
+                    "garbage" -> homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.GARBAGE) } &&
+                        s.population.toInt() >= (World.serviceConfig("landfill")?.unlockPop ?: 40)
                     "shop" -> shops.any {
                         !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) ||
                             !World.isCoveredBy(it.x, it.y, Config.ServiceCat.WATER)
@@ -777,9 +791,10 @@ object GameData {
         if (!sandbox && cfg.unlockPop > s.population.toInt()) {
             return false to ("人口达到 " + cfg.unlockPop + " 后解锁")
         }
+        val anchor = World.findServiceAnchor(id, x, y) ?: return false to (msg ?: "该位置被占用")
         serviceDraftId = id
-        serviceDraftX = x
-        serviceDraftY = y
+        serviceDraftX = anchor.first
+        serviceDraftY = anchor.second
         return true to null
     }
 
@@ -876,11 +891,12 @@ object GameData {
             AdOffers.offerShortfall(cfg.cost, "建造" + cfg.name)
             return false to ("资金不足（需 ¥" + cfg.cost + "万）")
         }
-        World.placeService(id, x, y)
+        val anchor = World.findServiceAnchor(id, x, y) ?: return false to "该位置被占用"
+        World.placeService(id, anchor.first, anchor.second)
         if (!sandbox) s.funds -= cfg.cost
         pushNews(
             cfg.name + " 建成",
-            String.format("在 (%d,%d) 建成 %s，耗资 %d万。", x, y, cfg.name, cfg.cost),
+            String.format("在 (%d,%d) 建成 %s，耗资 %d万。", anchor.first, anchor.second, cfg.name, cfg.cost),
             "城建"
         )
         return true to (cfg.name + "已建成，扣 " + cfg.cost + " 万")

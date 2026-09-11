@@ -64,6 +64,7 @@ private fun startGame(
     GameData.sandbox = false
     GameData.init(seed, name, mayor)
     AppState.activeSlot = slot
+    com.dshx.game.she.Prefs.lastSlot = slot
     SaveManager.save(slot)
     AppState.saveTick++
     AppState.overlay = ""
@@ -87,7 +88,8 @@ fun MainMenuContent(mapView: MapRenderView) {
 private fun MainMenuScreen(mapView: MapRenderView) {
     val C = Config.COLORS
     val saveTick = AppState.saveTick
-    val recent = (0..2).firstOrNull { SaveManager.hasSlot(it) }
+    val recent = (0..2).firstOrNull { it == com.dshx.game.she.Prefs.lastSlot && SaveManager.hasSlot(it) }
+        ?: (0..2).firstOrNull { SaveManager.hasSlot(it) }
     val recentMeta = recent?.let { SaveManager.meta(it) }
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
@@ -126,6 +128,7 @@ private fun MainMenuScreen(mapView: MapRenderView) {
                     Sfx.play("sfx_click")
                     if (SaveManager.load(recent)) {
                         AppState.activeSlot = recent
+                        com.dshx.game.she.Prefs.lastSlot = recent
                         AppState.overlay = ""
                         AppState.mode = "view"
                         mapView.resetCamera()
@@ -467,6 +470,7 @@ private fun SlotsScreen(mapView: MapRenderView) {
                                         Sfx.play("sfx_click")
                                         if (SaveManager.load(slot)) {
                                             AppState.activeSlot = slot
+                                            com.dshx.game.she.Prefs.lastSlot = slot
                                             AppState.overlay = ""
                                             AppState.mode = "view"
                                             mapView.resetCamera()

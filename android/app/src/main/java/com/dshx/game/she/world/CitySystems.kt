@@ -24,12 +24,14 @@ class EmergencyCar(
 object CitySystems {
 
     val cars: MutableList<EmergencyCar> = mutableListOf()
+    var selected: EmergencyCar? = null
     var groundPolAvg: Double = 0.0
     var waterPolAvg: Double = 0.0
     var fires: Int = 0
 
     fun reset() {
         cars.clear()
+        selected = null
         groundPolAvg = 0.0
         waterPolAvg = 0.0
         fires = 0
@@ -148,19 +150,27 @@ object CitySystems {
                     t.onFire = false
                     dispatchTo("fire", e.x, e.y)
                 } else if (Random.nextDouble() < 0.35) {
-                    World.bulldoze(e.x, e.y)
-                    GameData.pushNews("大火蔓延", "一处建筑被烧毁。", "突发")
+                    if (e.b.isService) {
+                        t.onFire = false
+                    } else {
+                        World.bulldoze(e.x, e.y)
+                        GameData.pushNews("大火蔓延", "一处建筑被烧毁。", "突发")
+                    }
                 }
             }
         }
+        val fireUnlock = World.serviceConfig("fire_station")?.unlockPop ?: 50
         val fireChance = Config.COVERAGE.fireChancePerDay * GameData.policyMul("fireMul") *
             (if (fireN == 0) 1.6 else 1.0)
-        if (st.resCount + st.comCount + st.indCount > 0 && Random.nextDouble() < fireChance) {
-            val grown = World.allBuildings().filter { !it.b.isService }
+        if (s.population.toInt() >= fireUnlock &&
+            st.resCount + st.comCount + st.indCount > 0 &&
+            Random.nextDouble() < fireChance
+        ) {
+            val grown = World.allBuildings().filter { !it.b.isService && !it.b.abandoned }
             if (grown.isNotEmpty()) {
                 val v = grown[Random.nextInt(grown.size)]
                 World.tile(v.x, v.y)?.onFire = true
-                dispatchTo("fire", v.x, v.y)
+                if (fireN > 0) dispatchTo("fire", v.x, v.y)
             }
         }
 
@@ -182,6 +192,7 @@ object CitySystems {
             }
             if (c.path.size <= 1) {
                 arrive(c)
+                if (selected === c) selected = null
                 cars.removeAt(i)
                 continue
             }
@@ -194,6 +205,7 @@ object CitySystems {
             }
             if (c.pathI >= c.path.lastIndex) {
                 arrive(c)
+                if (selected === c) selected = null
                 cars.removeAt(i)
             }
         }
@@ -273,5 +285,37 @@ object CitySystems {
         val bx = Citizens.unpackX(b).toFloat()
         val by = Citizens.unpackY(b).toFloat()
         return (ax + (bx - ax) * c.prog - 0.5f) to (ay + (by - ay) * c.prog - 0.5f)
+    }
+
+    fun hitTest(wx: Float, wy: Float): EmergencyCar? {
+        var best: EmergencyCar? = null
+        var bestD = 0.7f
+        for (c in cars) {
+            val (sx, sy) = screenCell(c)
+            val d = abs(sx - wx) + abs(sy - wy)
+            if (d < bestD) {
+                bestD = d
+                best = c
+            }
+        }
+        return best
+    }
+
+    fun label(kind: String): String = when (kind) {
+        "fire" -> "消防车"
+        "ambulance" -> "救护车"
+        "police" -> "警车"
+        "garbage" -> "垃圾车"
+        "hearse" -> "灵车"
+        else -> "公务车"
+    }
+
+    fun job(kind: String): String = when (kind) {
+        "fire" -> "消防队员"
+        "ambulance" -> "急救司机"
+        "police" -> "巡警"
+        "garbage" -> "清运司机"
+        "hearse" -> "殡仪司机"
+        else -> "市政司机"
     }
 }

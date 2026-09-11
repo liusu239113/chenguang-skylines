@@ -82,11 +82,19 @@ object Civic {
             out.add(COMPLAINTS.first { it.id == "water" })
         }
         val pop = GameData.current?.population ?: 0.0
-        if (homes.isNotEmpty() && !hasSchool && pop >= 20) out.add(COMPLAINTS.first { it.id == "school" })
-        if (homes.isNotEmpty() && !hasClinic && pop >= 25) out.add(COMPLAINTS.first { it.id == "clinic" })
-        if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.GARBAGE) } && pop >= 40) {
+        fun unlocked(id: String): Boolean {
+            val need = World.serviceConfig(id)?.unlockPop ?: 0
+            return pop >= need
+        }
+        if (homes.isNotEmpty() && !hasSchool && unlocked("school")) out.add(COMPLAINTS.first { it.id == "school" })
+        if (homes.isNotEmpty() && !hasClinic && unlocked("clinic")) out.add(COMPLAINTS.first { it.id == "clinic" })
+        if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.GARBAGE) } && unlocked("landfill")) {
             out.add(COMPLAINTS.first { it.id == "trash" })
         }
+        val hasFire = World.allBuildings().any { it.b.service == "fire_station" }
+        val hasPolice = World.allBuildings().any { it.b.service == "police" }
+        if (unlocked("fire_station") && !hasFire) out.add(COMPLAINTS.first { it.id == "fire" })
+        if (unlocked("police") && !hasPolice) out.add(COMPLAINTS.first { it.id == "police" })
         if (shops.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }) {
             out.add(COMPLAINTS.first { it.id == "shop" })
         }
@@ -175,6 +183,8 @@ object Civic {
         Complaint("clinic", "社区居民", "看病要跑很远", "附近没有诊所，发烧都没处看。", "答应规划诊所（满意+3）", "先设巡诊点（-50万，满意+1）", 3.0, 0.0, 0.0, 1.0, -50.0, 0.0),
         Complaint("trash", "沿街住户", "垃圾堆到门口", "清运覆盖不到，生活垃圾堆路边。", "加开清运（-70万，满意+3）", "先发垃圾袋（满意+1）", 3.0, -70.0, 0.0, 1.0, -10.0, 0.0),
         Complaint("shop", "金源超市", "店里没电开不了门", "商铺不在电站覆盖圈内，客人进不来。", "扩电站覆盖（-60万，满意+2）", "先减一天商税（税收略降）", 2.0, -60.0, 0.0, 1.0, -25.0, 0.0),
-        Complaint("factory", "联华车间", "车间没电停工", "厂房不在电站覆盖圈内，工人没法开工。", "扩电站覆盖（-80万）", "先放假一天（满意-1）", 1.0, -80.0, 0.0, -1.0, 0.0, 0.0)
+        Complaint("factory", "联华车间", "车间没电停工", "厂房不在电站覆盖圈内，工人没法开工。", "扩电站覆盖（-80万）", "先放假一天（满意-1）", 1.0, -80.0, 0.0, -1.0, 0.0, 0.0),
+        Complaint("fire", "沿街住户", "附近没有消防站", "城里开始有火情，可人口已经够建消防站了。", "答应规划消防站（满意+3）", "先发灭火器（-40万，满意+1）", 3.0, 0.0, 0.0, 1.0, -40.0, 0.0),
+        Complaint("police", "社区居民", "夜里不太安心", "人口到了，该建警察局了，现在街上没有治安覆盖。", "答应规划警察局（满意+3）", "先加路灯巡逻（-50万，满意+1）", 3.0, 0.0, 0.0, 1.0, -50.0, 0.0)
     )
 }

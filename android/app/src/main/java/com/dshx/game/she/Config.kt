@@ -177,13 +177,13 @@ object Config {
             LevelDef(4, 2), LevelDef(8, 5), LevelDef(16, 10)
         )),
         "commercial" to GrownDef("商铺", listOf(
-            LevelDef(3, 6), LevelDef(8, 14), LevelDef(16, 28)
+            LevelDef(3, 4), LevelDef(8, 9), LevelDef(16, 18)
         )),
         "industrial" to GrownDef("工厂", listOf(
-            LevelDef(4, 7, 2), LevelDef(10, 16, 4), LevelDef(20, 32, 7)
+            LevelDef(4, 5, 2), LevelDef(10, 11, 4), LevelDef(20, 22, 7)
         )),
         "office" to GrownDef("写字楼", listOf(
-            LevelDef(6, 8), LevelDef(12, 18), LevelDef(24, 36)
+            LevelDef(6, 14), LevelDef(12, 30), LevelDef(24, 58)
         ))
     )
 
@@ -318,9 +318,9 @@ object Config {
     // 财政
     // -----------------------------------------------------------------------
     object ECONOMY {
-        const val taxPerPopPerDay = 0.04
-        const val baseIncomePerDay = 0.15
-        const val upkeepPerRoadDay = 0.018
+        const val taxPerPopPerDay = 0.018
+        const val baseIncomePerDay = 0.04
+        const val upkeepPerRoadDay = 0.045
         const val happinessDecayDay = 0.10
         const val pollutionHappy = 0.045
         const val occupancyPerDay = 0.06
@@ -344,7 +344,7 @@ object Config {
         const val waterHappyPenalty = 15.0
         const val garbageHappyPenalty = 10.0
         const val powerIncomeFloor = 0.4     // 缺电时商业/工业收入下限比例
-        const val fireChancePerDay = 0.02    // 每日无消防覆盖建筑起火概率
+        const val fireChancePerDay = 0.012    // 每日无消防覆盖建筑起火概率（人口够解锁消防后才发生）
     }
 
     // -----------------------------------------------------------------------

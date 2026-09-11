@@ -611,23 +611,63 @@ class World {
         // -------------------------------------------------------------------
         // 服务设施
         // -------------------------------------------------------------------
-        fun canPlaceService(id: String, x: Int, y: Int): Pair<Boolean, String?> {
-            val s = serviceConfig(id) ?: return false to "未知设施"
-            if (!isUnlocked(x, y)) return false to lockedHint()
+        private fun tileBlocksService(t: Tile, id: String): Boolean {
+            if (t.terrain == "water" && id != "harbor") return true
+            if (t.road != null) return true
+            val b = t.building ?: return false
+            if (b.isService) return true
+            return !b.abandoned
+        }
+
+        fun footprintFree(id: String, x: Int, y: Int): Boolean {
+            val s = serviceConfig(id) ?: return false
             for (yy in y until y + s.sizeH) {
                 for (xx in x until x + s.sizeW) {
+                    val t = tile(xx, yy) ?: return false
+                    if (tileBlocksService(t, id)) return false
+                    if (!isUnlocked(xx, yy)) return false
+                }
+            }
+            return true
+        }
+
+        /** 点在占地范围内任意一格，找能放下的锚点，避免 2×2 小学被当成占用 */
+        fun findServiceAnchor(id: String, tapX: Int, tapY: Int): Pair<Int, Int>? {
+            val s = serviceConfig(id) ?: return null
+            if (s.sizeW == 1 && s.sizeH == 1) {
+                return if (footprintFree(id, tapX, tapY)) tapX to tapY else null
+            }
+            for (dy in 0 until s.sizeH) {
+                for (dx in 0 until s.sizeW) {
+                    val ax = tapX - dx
+                    val ay = tapY - dy
+                    if (footprintFree(id, ax, ay)) return ax to ay
+                }
+            }
+            return null
+        }
+
+        fun canPlaceService(id: String, x: Int, y: Int): Pair<Boolean, String?> {
+            val s = serviceConfig(id) ?: return false to "未知设施"
+            val anchor = findServiceAnchor(id, x, y)
+            val ax = anchor?.first ?: x
+            val ay = anchor?.second ?: y
+            if (!isUnlocked(ax, ay)) return false to lockedHint()
+            for (yy in ay until ay + s.sizeH) {
+                for (xx in ax until ax + s.sizeW) {
                     val t = tile(xx, yy) ?: return false to "超出地图"
                     if (t.terrain == "water" && id != "harbor") {
                         return false to "不能建在水上"
                     }
-                    if (t.road != null || t.building != null) return false to "该位置被占用"
+                    if (t.road != null) return false to "该位置被占用"
+                    val b = t.building
+                    if (b != null && (b.isService || !b.abandoned)) return false to "该位置被占用"
                 }
             }
-            // 基础设施（电/水/垃圾等）必须邻路，否则无法接入路网
             if (s.category != Config.ServiceCat.AMENITY) {
                 var adjacent = false
-                outer@ for (yy in y - 1..y + s.sizeH) {
-                    for (xx in x - 1..x + s.sizeW) {
+                outer@ for (yy in ay - 1..ay + s.sizeH) {
+                    for (xx in ax - 1..ax + s.sizeW) {
                         if (isRoad(xx, yy)) {
                             adjacent = true
                             break@outer
@@ -642,17 +682,24 @@ class World {
         fun placeService(id: String, x: Int, y: Int): Boolean {
             val s = serviceConfig(id) ?: return false
             val w = current ?: return false
-            for (yy in y until y + s.sizeH) {
-                for (xx in x until x + s.sizeW) {
+            val anchor = findServiceAnchor(id, x, y) ?: return false
+            val ax = anchor.first
+            val ay = anchor.second
+            for (yy in ay until ay + s.sizeH) {
+                for (xx in ax until ax + s.sizeW) {
+                    val t = w.grid[yy - 1][xx - 1]
+                    t.building = null
+                    t.zone = "none"
+                    t.onFire = false
                     val b = Building()
                     b.service = id
-                    b.ax = x; b.ay = y
+                    b.ax = ax; b.ay = ay
                     b.w = s.sizeW; b.h = s.sizeH
-                    w.grid[yy - 1][xx - 1].building = b
+                    t.building = b
                 }
             }
-            if (s.id == "metro") Networks.seedMetroAround(x, y, s.sizeW, s.sizeH)
-            if (s.id == "rail_station") Networks.seedRailAround(x, y, s.sizeW, s.sizeH)
+            if (s.id == "metro") Networks.seedMetroAround(ax, ay, s.sizeW, s.sizeH)
+            if (s.id == "rail_station") Networks.seedRailAround(ax, ay, s.sizeW, s.sizeH)
             return true
         }
 
@@ -663,6 +710,7 @@ class World {
             val t = tile(x, y) ?: return false
             if (!isUnlocked(x, y)) return false
             if (t.building != null || t.road != null || t.terrain == "water") return false
+            if (t.zone == "none") return false
             val b = Building()
             b.zone = zone
             b.level = level

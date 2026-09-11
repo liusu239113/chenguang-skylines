@@ -59,6 +59,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        if (AppState.screen == "map" && GameData.current != null) {
+            SaveManager.save(AppState.activeSlot)
+            Prefs.lastSlot = AppState.activeSlot
+        }
         Bgm.pause()
         Ambience.stop()
     }

@@ -30,4 +30,8 @@ object Prefs {
     var sfxVolume: Float
         get() = p.getFloat("sfx_vol", 0.85f)
         set(v) { p.edit().putFloat("sfx_vol", v.coerceIn(0f, 1f)).apply() }
+
+    var lastSlot: Int
+        get() = p.getInt("last_slot", 0)
+        set(v) { p.edit().putInt("last_slot", v.coerceIn(0, 2)).apply() }
 }
