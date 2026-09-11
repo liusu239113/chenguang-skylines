@@ -617,7 +617,7 @@ class World {
             for (yy in y until y + s.sizeH) {
                 for (xx in x until x + s.sizeW) {
                     val t = tile(xx, yy) ?: return false to "超出地图"
-                    if (t.terrain == "water" && id != "pump_station" && id != "harbor") {
+                    if (t.terrain == "water" && id != "harbor") {
                         return false to "不能建在水上"
                     }
                     if (t.road != null || t.building != null) return false to "该位置被占用"
@@ -635,18 +635,6 @@ class World {
                     }
                 }
                 if (!adjacent) return false to "需建在道路旁（接入电网/管网）"
-            }
-            if (id == "pump_station") {
-                var nearWater = false
-                outerW@ for (yy in y - 2 until y + s.sizeH + 2) {
-                    for (xx in x - 2 until x + s.sizeW + 2) {
-                        if (tile(xx, yy)?.terrain == "water") {
-                            nearWater = true
-                            break@outerW
-                        }
-                    }
-                }
-                if (!nearWater) return false to "抽水站必须建在河边"
             }
             return true to null
         }

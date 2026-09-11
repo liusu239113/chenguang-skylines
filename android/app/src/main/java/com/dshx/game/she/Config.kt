@@ -241,7 +241,7 @@ object Config {
         ServiceDef("water_tower", "水塔", 300, 12, 5, 0, false, 1, 1,
             "抽取地下水。按半径覆盖周边。", ServiceCat.WATER, 0, 0, 0, 18),
         ServiceDef("pump_station", "抽水站", 600, 18, 8, 0, false, 1, 1,
-            "必须靠河。覆盖半径更大。", ServiceCat.WATER, 0, 0, 0, 40),
+            "抽取地下水。覆盖半径更大，不必靠河。", ServiceCat.WATER, 0, 0, 0, 40),
         // ---- 垃圾 ----
         ServiceDef("landfill", "垃圾场", 350, 22, 6, 0, false, 1, 1,
             "填埋生活垃圾，满载后污染加重。", ServiceCat.GARBAGE, 40, 3),
