@@ -119,6 +119,7 @@ object MapScreen {
 
     fun setZoneKey(zk: String) {
         Sfx.play("sfx_click", 0.6f)
+        if (AppState.zoneKey != zk) GameData.clearZoneDraft()
         AppState.zoneKey = zk
         AppState.mode = "zone"
         AppState.serviceOpen = false
@@ -127,6 +128,7 @@ object MapScreen {
     }
 
     fun cancelTool() {
+        GameData.clearZoneDraft()
         AppState.mode = "view"
         AppState.serviceOpen = false
         AppState.roadOpen = false
@@ -240,10 +242,15 @@ fun MapScreenContent(mapView: MapRenderView) {
                     ) {
                         HudStat("资金", UIHelper.fmtFunds(s.funds), C.accentGold.toColor())
                         HudStat("人口", UIHelper.fmtPop(floor(s.population).toInt()), C.textDark.toColor())
-                        HudStat(
-                            "满意", floor(s.happiness).toInt().toString(),
-                            if (s.happiness >= 55) C.accentGreen.toColor() else C.accentRed.toColor()
-                        )
+                        Box(modifier = Modifier.clickable {
+                            Sfx.play("sfx_click", 0.4f)
+                            AppState.happyOpen = true
+                        }) {
+                            HudStat(
+                                "满意", floor(s.happiness).toInt().toString(),
+                                if (s.happiness >= 55) C.accentGreen.toColor() else C.accentRed.toColor()
+                            )
+                        }
                         HudStat(
                             "繁荣",
                             (World.current?.prosperity ?: 0).toString(),
@@ -272,10 +279,14 @@ fun MapScreenContent(mapView: MapRenderView) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // RCI
+                // RCI 需求：条越长=当前越缺这类分区，点开看详情
                 Row(
                     modifier = Modifier
                         .background(C.panelWhite.toColor(), RoundedCornerShape(14.dp))
+                        .clickable {
+                            Sfx.play("sfx_click", 0.4f)
+                            AppState.demandOpen = true
+                        }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -296,7 +307,8 @@ fun MapScreenContent(mapView: MapRenderView) {
                     val speeds = listOf("‖" to 0, "1x" to 1, "2x" to 2, "3x" to 3)
                     val act = LocalContext.current as? Activity
                     for (sp in speeds) {
-                        val active = GameData.speedIdx == sp.second
+                        val pausedNow = AppState.paused || GameData.speedIdx == 0
+                        val active = if (sp.second == 0) pausedNow else (!AppState.paused && GameData.speedIdx == sp.second)
                         val locked = sp.second >= 2 && !SpeedBoost.isActive()
                         Box(
                             modifier = Modifier
@@ -308,16 +320,23 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 )
                                 .clickable {
                                     Sfx.play("sfx_click", 0.5f)
-                                    if (locked) {
+                                    if (sp.second == 0) {
+                                        AppState.paused = true
+                                        GameData.setSpeed(0)
+                                        MapRef.view?.setToast("已暂停时间，仍可划区修路")
+                                        AppState.bumpLive()
+                                    } else if (locked) {
                                         if (act != null) {
                                             Ads.reward(act, {
                                                 SpeedBoost.activate()
+                                                AppState.paused = false
                                                 GameData.setSpeed(sp.second)
                                                 MapRef.view?.setToast("加速已解锁 20 分钟")
                                                 AppState.bumpLive()
                                             })
                                         }
                                     } else {
+                                        AppState.paused = false
                                         GameData.setSpeed(sp.second)
                                         AppState.bumpLive()
                                     }
@@ -336,9 +355,9 @@ fun MapScreenContent(mapView: MapRenderView) {
             }
         }
 
-        val overlayOpen = AppState.policyOpen || AppState.helpOpen || AppState.dataOpen || AppState.paused ||
+        val overlayOpen = AppState.policyOpen || AppState.helpOpen || AppState.dataOpen || AppState.menuOpen ||
             AppState.settingsOpen || AppState.civicOpen || AppState.complaintOpen || AppState.achievementOpen ||
-            AppState.adOfferOpen
+            AppState.adOfferOpen || AppState.happyOpen || AppState.demandOpen || AppState.bankOpen
         if (!overlayOpen) {
             Column(
                 modifier = Modifier
@@ -358,6 +377,10 @@ fun MapScreenContent(mapView: MapRenderView) {
                 UIHelper.RoundButton("策", size = 40.dp, fontSize = 15.sp) {
                     Sfx.play("sfx_click", 0.6f)
                     AppState.policyOpen = !AppState.policyOpen
+                }
+                UIHelper.RoundButton("银", size = 40.dp, fontSize = 15.sp) {
+                    Sfx.play("sfx_click", 0.6f)
+                    AppState.bankOpen = !AppState.bankOpen
                 }
             }
         }
@@ -449,6 +472,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     )
                     UIHelper.InfoRow("海拔", World.elevation(sel.first, sel.second).toString() + "m")
                     UIHelper.InfoRow("地形", World.terrainName(sel.first, sel.second))
+                    World.roadNameAt(sel.first, sel.second)?.let { UIHelper.InfoRow("路名", it, C.accentGold.toColor()) }
                     UIHelper.InfoRow("现状", World.zoneName(sel.first, sel.second), C.accentBlue.toColor())
                     UIHelper.InfoRow("地价", World.landValue(sel.first, sel.second).toString())
                     UIHelper.InfoRow("噪音", World.noiseAt(sel.first, sel.second).toString())
@@ -552,7 +576,7 @@ fun MapScreenContent(mapView: MapRenderView) {
         ) {
             UIHelper.RoundButton("≡", size = 40.dp, fontSize = 20.sp) {
                 Sfx.play("sfx_click", 0.6f)
-                AppState.paused = !AppState.paused
+                AppState.menuOpen = !AppState.menuOpen
             }
         }
 
@@ -663,6 +687,63 @@ fun MapScreenContent(mapView: MapRenderView) {
             }
         }
 
+        if (AppState.mode == "zone" && GameData.zoneDraft.isNotEmpty() && !overlayOpen) {
+            val n = GameData.zoneDraft.size
+            val cost = GameData.zoneDraftCost()
+            val zname = Config.ZONE[GameData.zoneDraftKey]?.name ?: "分区"
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 78.dp, start = 12.dp, end = 12.dp)
+                    .fillMaxWidth()
+                    .shadowCard(16.dp, C.panelWhite.toColor())
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "待确认划区 $n 格 · $zname",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                    )
+                    Text(
+                        "再点同一格可撤销 · 确认后扣 $cost 万",
+                        fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .background(C.chipBg.toColor(), RoundedCornerShape(12.dp))
+                            .clickable {
+                                Sfx.play("sfx_click", 0.5f)
+                                GameData.clearZoneDraft()
+                                AppState.bumpLive()
+                                AppState.bumpMap()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text("取消", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .background(C.accentGreen.toColor(), RoundedCornerShape(12.dp))
+                            .clickable {
+                                val (ok, msg) = GameData.confirmZoneDraft()
+                                if (ok) Sfx.play("sfx_build", 0.5f) else Sfx.play("sfx_click", 0.4f)
+                                if (msg != null) MapRef.view?.setToast(msg)
+                                AppState.bumpLive()
+                                AppState.bumpMap()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text("确认划区", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
+                    }
+                }
+            }
+        }
+
         if (AppState.mode != "view" && !overlayOpen) {
             Box(
                 modifier = Modifier
@@ -688,12 +769,15 @@ fun MapScreenContent(mapView: MapRenderView) {
         if (AppState.policyOpen) PolicyPanel()
         if (AppState.helpOpen) HelpPanel()
         if (AppState.dataOpen) DataPanel()
+        if (AppState.happyOpen) HappyPanel()
+        if (AppState.demandOpen) DemandPanel()
         if (AppState.civicOpen) CivicPanel()
         if (AppState.achievementOpen) AchievementPanel()
         if (AppState.settingsOpen) SettingsPanel()
         if (AppState.complaintOpen && Civic.pending != null) ComplaintPanel()
         if (AppState.adOfferOpen) AdOfferDialog()
-        if (AppState.paused) PausePanel()
+        if (AppState.bankOpen) BankPanel()
+        if (AppState.menuOpen) PausePanel()
     }
 }
 
@@ -1050,33 +1134,10 @@ private fun PolicyPanel() {
             TaxSlider("商业", s.taxCom) { s.taxCom = it; AppState.bumpLive() }
             TaxSlider("工业", s.taxInd) { s.taxInd = it; AppState.bumpLive() }
             TaxSlider("办公", s.taxOff) { s.taxOff = it; AppState.bumpLive() }
-
-            // ---- 营造贷款 ----
-            val loanState = when {
-                s.loanDebt > 0 -> "还款中：剩余 " + floor(s.loanDebt).toInt() + " 万"
-                s.loanCooldown > 0 -> "贷款冷却 " + s.loanCooldown + " 天"
-                else -> "营造贷款 · 借 " + Config.LOAN.amount.toInt() + " 万"
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .background(C.chipBg.toColor(), RoundedCornerShape(14.dp))
-                    .border(1.dp, C.border2.toColor(), RoundedCornerShape(14.dp))
-                    .clickable {
-                        val (ok, msg) = GameData.borrow()
-                        if (!ok) MapRef.view?.setToast(msg ?: "无法贷款") else Sfx.play("sfx_click")
-                        AppState.bumpLive()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    loanState, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                    color = if (s.loanDebt > 0) C.accentGold.toColor()
-                    else if (s.loanCooldown > 0) C.textFaint.toColor() else C.accentRed.toColor(),
-                    fontFamily = LocalGameFont.current
-                )
-            }
+            Text(
+                "贷款已移到左上【银】银行。广告低息、手动高息。",
+                fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
 
             Box(
                 modifier = Modifier
@@ -1130,14 +1191,14 @@ private fun HelpPanel() {
             }
             HelpRow("手", "右下角手掌图标=退出建造并拖地图。修完路一定要点它，否则会继续铺路。")
             HelpRow("职", "点顶栏营造职级打开营造档案。人口、满意度和测评都达标才会晋升，不是现实官职。")
-            HelpRow("路", "黑色地块不用点。在亮处划住宅引人，人口每满 60 人自动向外扩一圈。外环高速全天有过路车；接进城后才会进游客。")
+            HelpRow("路", "黑色地块不用点。在亮处划住宅引人，通电通水后人口会涨，每满 20 人自动向外扩一圈。点「满意」和「住商工办」可看详情。外环高速全天有过路车；接进城后才会进游客。")
             HelpRow("铁", "先在【服务】建火车站，再在【道路】里选铁轨去地图上画。地铁同理，先建地铁站。机场建好会有飞机。")
-            HelpRow("区", "【住宅/商业/工业/办公】在路旁涂色，邻路才会长楼。房子建好就会迁入人口。")
+            HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。同一格再点可撤销。邻路才会长楼，通电通水后迁入人口。")
             HelpRow("电", "风电/煤电按造价和占地覆盖一片区域，不用铺电缆。点【数】开电力热力图能看到圈。")
             HelpRow("水", "水塔/抽水站按半径供水。抽水站必须靠河。诊所人口 25 解锁，垃圾场 40 解锁。")
             HelpRow("规", "【规划】只选公交/区划/种树。选完面板会关，才能在地图上点。")
-            HelpRow("策", "【数/?/策】在状态栏左下。详情卡右上角 × 可关。1x 免费，2x/3x 看一次广告解锁 20 分钟。")
-            HelpRow("存", "右上【≡】保存到当前槽位。主菜单「存档管理」能看到城市名、人口、日期。")
+            HelpRow("策", "【数/?/策/银】在状态栏左下。【银】是银行：手动高息、看广告低息。暂停用顶栏 ‖，只冻时间，仍可划区修路；右上 ≡ 才是菜单。")
+            HelpRow("存", "右上【≡】打开菜单保存。主菜单「存档管理」能看到城市名、人口、日期。")
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1193,6 +1254,246 @@ private fun overlayHint(cat: String): String = when (cat) {
     "landvalue" -> "绿高地价 · 红受污染拉低"
     "metro", "rail", "district" -> "只显示对应网络"
     else -> "绿=已覆盖 · 红=未覆盖 · 圈=该座设施半径，圈内哪坨归哪座一看就明"
+}
+
+@Composable
+private fun HappyPanel() {
+    val C = Config.COLORS
+    val s = GameData.current ?: return
+    val bd = GameData.happinessBreakdown()
+    val live = AppState.liveTick
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .noRippleClickable { AppState.happyOpen = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(16.dp)
+                .noRippleClickable { },
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "满意度从哪来", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.happyOpen = false }.padding(4.dp)
+                )
+            }
+            Text(
+                "当前 ${floor(s.happiness).toInt()} · 目标 ${bd.target.toInt()}（每天慢慢靠拢目标）",
+                fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = if (s.happiness >= 55) C.accentGreen.toColor() else C.accentRed.toColor(),
+                fontFamily = LocalGameFont.current
+            )
+            Text("基础分 ${bd.base.toInt()}：城市底子，没有设施时也有这么多。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("公园/广场/学校/诊所等服务 ${if (bd.service >= 0) "+" else ""}${bd.service.toInt()}：多建公园、广场、学校、诊所会涨。公园会吸收污染、抬地价。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("污染 ${bd.pollution.toInt()}：工厂、电厂、垃圾堆会拉低。绿化、种树、把住工分开能缓解。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("覆盖 ${bd.coveragePenalty.toInt()}：住宅要在电/水/垃圾圈里，圈外会扣分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("税率 ${bd.taxPenalty.toInt()}：税率高于 10% 会扣分。点【策】可调。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("事件 ${if (bd.event >= 0) "+" else ""}${bd.event.toInt()}：市民来信和城建事件。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("政策 ${if (bd.policy >= 0) "+" else ""}${bd.policy.toInt()}：民生改善、绿化行动等会加分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("通勤 ${if (bd.commute >= 0) "+" else ""}${bd.commute.toInt()}：路堵会扣，公交/地铁能加。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("就业/健康/教育 ${if (bd.jobs >= 0) "+" else ""}${bd.jobs.toInt()}：商工办岗位、医院学校、治安都算在这里。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.accentGreen.toColor(), RoundedCornerShape(20.dp))
+                    .clickable { AppState.happyOpen = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("关闭", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
+            }
+            if (live < 0) Text("")
+        }
+    }
+}
+
+@Composable
+private fun DemandPanel() {
+    val C = Config.COLORS
+    val d = Growth.lastDemand
+    val st = World.stats()
+    val s = GameData.current
+    val pop = s?.population?.toInt() ?: 0
+    val live = AppState.liveTick
+    fun tip(v: Double): String = when {
+        v >= 0.7 -> "很缺，赶紧划这类区"
+        v >= 0.4 -> "有需求，可以再划一点"
+        v >= 0.2 -> "基本够用"
+        else -> "暂时饱和，先别狂划"
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .noRippleClickable { AppState.demandOpen = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(16.dp)
+                .noRippleClickable { },
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "住商工办需求", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.demandOpen = false }.padding(4.dp)
+                )
+            }
+            Text(
+                "顶栏那一排是 RCI 需求，不是进度。条越长=市场上越缺这类楼，邻路空地才会按这个长楼。",
+                fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text("住 ${(d.r * 100).toInt()}% · ${tip(d.r)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
+            Text("人口 $pop / 住宅容量 ${st.resCap}。岗位多、满意度高时住房需求涨；房子盖太多会回落。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("商 ${(d.c * 100).toInt()}% · ${tip(d.c)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
+            Text("人口多了才要店。现有商业容量 ${st.comCap}。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("工 ${(d.i * 100).toInt()}% · ${tip(d.i)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentGold.toColor(), fontFamily = LocalGameFont.current)
+            Text("工厂提供岗位，但会污染。现有工业容量 ${st.indCap}。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("办 ${(d.o * 100).toInt()}% · ${tip(d.o)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
+            Text("教育越高、白领越多，办公需求越大。现有办公容量 ${st.offCap}。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("税率过高会压需求。通电通水的路旁住宅才会进人，进人后黑色区域每 20 人扩一圈。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.accentGreen.toColor(), RoundedCornerShape(20.dp))
+                    .clickable { AppState.demandOpen = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("关闭", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
+            }
+            if (live < 0) Text("")
+        }
+    }
+}
+
+@Composable
+private fun BankPanel() {
+    val C = Config.COLORS
+    val s = GameData.current ?: return
+    val act = LocalContext.current as? Activity
+    val live = AppState.liveTick
+    val (can, why) = GameData.bankCanBorrow()
+    val rankMul = if (s.rankLevel >= 2) 1.25 else 1.0
+    val manAmt = (Config.LOAN.manualAmount * rankMul).toInt()
+    val adAmt = (Config.LOAN.adAmount * rankMul).toInt()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .noRippleClickable { AppState.bankOpen = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .heightIn(max = 560.dp)
+                .verticalScroll(rememberScrollState())
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(16.dp)
+                .noRippleClickable { },
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "营造银行", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.bankOpen = false }.padding(4.dp)
+                )
+            }
+            Text(
+                if (s.loanDebt > 0) {
+                    val kind = if (s.loanKind == "ad") "广告低息" else "手动高息"
+                    "在还：$kind · 剩余 ${floor(s.loanDebt).toInt()} 万 · 日还 ${s.loanDaily.toInt()} 万"
+                } else if (s.loanCooldown > 0) "冷却 ${s.loanCooldown} 天后再借"
+                else "当前无贷款，可选一种借出。",
+                fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "手动贷到账多但每天还得多；看广告贷到账略少、每天还得少。同一时间只能有一笔。",
+                fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(C.chipBg.toColor(), RoundedCornerShape(14.dp))
+                    .clickable(enabled = can) {
+                        val (ok, msg) = GameData.borrowBank("manual")
+                        if (ok) Sfx.play("sfx_cash") else Sfx.play("sfx_click", 0.4f)
+                        if (msg != null) MapRef.view?.setToast(msg)
+                        AppState.bumpLive()
+                    }
+                    .padding(12.dp)
+            ) {
+                Column {
+                    Text("手动高息贷 · 到账 ${manAmt} 万", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
+                    Text("每天自动还 ${Config.LOAN.manualDaily.toInt()} 万，大约半个月还清。不看广告。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(C.accentSoftBg.toColor(), RoundedCornerShape(14.dp))
+                    .clickable(enabled = can) {
+                        if (act == null) return@clickable
+                        Ads.reward(act, {
+                            val (ok, msg) = GameData.borrowBank("ad")
+                            if (ok) Sfx.play("sfx_cash")
+                            if (msg != null) MapRef.view?.setToast(msg)
+                            AppState.bumpLive()
+                        })
+                    }
+                    .padding(12.dp)
+            ) {
+                Column {
+                    Text("看广告低息贷 · 到账 ${adAmt} 万", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
+                    Text("看完广告才到账。每天只还 ${Config.LOAN.adDaily.toInt()} 万，压力小很多。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                }
+            }
+            if (!can) Text(why ?: "", fontSize = 11.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.accentGreen.toColor(), RoundedCornerShape(20.dp))
+                    .clickable { AppState.bankOpen = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("关闭", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
+            }
+            if (live < 0) Text("")
+        }
+    }
 }
 
 @Composable
@@ -1499,7 +1800,7 @@ private fun PausePanel() {
         modifier = Modifier
             .fillMaxSize()
             .background(C.veil.toColor())
-            .noRippleClickable { AppState.paused = false },
+            .noRippleClickable { AppState.menuOpen = false },
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -1515,7 +1816,7 @@ private fun PausePanel() {
                 Text(
                     "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
-                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.paused = false }.padding(4.dp)
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.menuOpen = false }.padding(4.dp)
                 )
             }
             Text(
@@ -1544,26 +1845,31 @@ private fun PausePanel() {
             )
             PauseBtn("继续游戏", C.accentGreen.toColor(), Color.White) {
                 Sfx.play("sfx_click")
-                AppState.paused = false
+                AppState.menuOpen = false
             }
-            PauseBtn("看广告领奖励", C.accentGold.toColor(), Color.White) {
+            PauseBtn("银行贷款", C.accentGold.toColor(), Color.White) {
                 Sfx.play("sfx_click")
-                AppState.paused = false
+                AppState.menuOpen = false
+                AppState.bankOpen = true
+            }
+            PauseBtn("看广告领奖励（礼包+280万/加倍税/满意+8/拨款+220万）", C.accentGold.toColor(), Color.White) {
+                Sfx.play("sfx_click")
+                AppState.menuOpen = false
                 AppState.settingsOpen = true
             }
             PauseBtn("设置 · 音量/广告", C.chipBg.toColor(), C.textDark.toColor()) {
                 Sfx.play("sfx_click")
-                AppState.paused = false
+                AppState.menuOpen = false
                 AppState.settingsOpen = true
             }
             PauseBtn("营造档案 / 测评", C.chipBg.toColor(), C.textDark.toColor()) {
                 Sfx.play("sfx_click")
-                AppState.paused = false
+                AppState.menuOpen = false
                 AppState.civicOpen = true
             }
             PauseBtn("营造成就", C.chipBg.toColor(), C.textDark.toColor()) {
                 Sfx.play("sfx_click")
-                AppState.paused = false
+                AppState.menuOpen = false
                 AppState.achievementOpen = true
             }
             PauseBtn("保存到槽位 " + (AppState.activeSlot + 1), C.chipBg.toColor(), C.textDark.toColor()) {
@@ -1576,7 +1882,7 @@ private fun PausePanel() {
                 Sfx.play("sfx_save")
                 SaveManager.save(AppState.activeSlot)
                 AppState.saveTick++
-                AppState.paused = false
+                AppState.menuOpen = false
                 AppState.screen = "menu"
                 AppState.menuScreen = "slots"
             }

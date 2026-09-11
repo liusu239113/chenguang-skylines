@@ -50,9 +50,11 @@ class CityState {
     var waterCap: Int = 0
     var powerNeed: Int = 0
     var waterNeed: Int = 0
-    // 贷款
+    // 贷款：manual 高息 / ad 低息
     var loanDebt: Double = 0.0
     var loanCooldown: Int = 0
+    var loanKind: String = ""
+    var loanDaily: Double = 0.0
     // 成就
     val achievements: MutableSet<String> = mutableSetOf()
     // 进行中的事件
@@ -109,6 +111,10 @@ object GameData {
     var difficultyKey: String = "normal"
     var sandbox: Boolean = false
 
+    /** 划区草稿：点格子只预览，点确认才扣费落图 */
+    val zoneDraft: LinkedHashSet<Int> = LinkedHashSet()
+    var zoneDraftKey: String = "residential"
+
     /** 一天内时间：0=清晨，0.25=正午，0.5=黄昏，0.75=夜晚 */
     var timeOfDay: Float = 0.25f
 
@@ -138,6 +144,9 @@ object GameData {
         val s = current!!
         s.cityName = cityName
         s.mayorName = mayorName.ifBlank { "未署名" }
+        s.funds = Config.RESOURCES.fundsStart * difficultyDef().incomeMul
+        s.loanKind = ""
+        s.loanDaily = 0.0
         World.current?._pop = 0
         speedIdx = 1
         pendingLevelUp = false
@@ -146,6 +155,7 @@ object GameData {
         eventCooldown = 12
         timeOfDay = 0.25f
         weather = 0
+        clearZoneDraft()
         pushNews(
             "城市奠基",
             s.cityName + "迎来新任" + Config.World.playerRole +
@@ -425,13 +435,14 @@ object GameData {
             }
             when (b.zone) {
                 "residential" -> {
-                    // 一栋一户：L1 一家约 2~4 人，慢慢迁入；拆房人口会从合计里消失
-                    if (powered && watered && b.residents < lv.cap && s.happiness >= 28) {
-                        if (b.ageDays % 3 == 0) b.residents = min(lv.cap, b.residents + 1)
+                    // 通电通水即可迁入；满意度只影响速度，不再卡死在 28
+                    if (powered && watered && b.residents < lv.cap) {
+                        val pace = if (s.happiness >= 45) 1 else 2
+                        if (b.ageDays % pace == 0) b.residents = min(lv.cap, b.residents + 1)
                     }
                     if (!powered && b.residents > 1 && b.ageDays > 12) b.residents -= 1
                     if (!watered && b.residents > 1 && b.ageDays > 16) b.residents -= 1
-                    if (s.happiness < 22 && b.residents > 1) b.residents -= 1
+                    if (s.happiness < 18 && b.residents > 1) b.residents -= 1
                     totalRes += b.residents
                 }
                 else -> {
@@ -524,13 +535,16 @@ object GameData {
 
         // 贷款还款
         if (s.loanDebt > 0) {
-            val repay = min(Config.LOAN.dailyRepay, s.loanDebt)
+            val daily = if (s.loanDaily > 0) s.loanDaily else Config.LOAN.manualDaily
+            val repay = min(daily, s.loanDebt)
             s.loanDebt -= repay
             s.funds -= repay
             if (s.loanDebt <= 0) {
                 s.loanDebt = 0.0
+                s.loanDaily = 0.0
+                s.loanKind = ""
                 s.loanCooldown = Config.LOAN.cooldown
-                pushNews("贷款还清", "营造贷款已全部还清。", "财政")
+                pushNews("贷款还清", "银行贷款已全部还清。", "财政")
             }
         }
         if (s.loanCooldown > 0) s.loanCooldown -= 1
@@ -612,7 +626,8 @@ object GameData {
                 if (s.activeEvents.none { it.id == ev.id }) {
                     s.activeEvents.add(ActiveEvent(ev.id, ev.name, ev.duration, ev.happy, ev.incomeMul))
                     pushNews("居民反馈：" + ev.name, ev.desc, "来信")
-                    eventCooldown = 10 + kotlin.random.Random.nextInt(8)
+                    val wait = (10 + kotlin.random.Random.nextInt(8)) / difficultyDef().eventMul
+                    eventCooldown = max(3, wait.toInt())
                 }
             } else {
                 eventCooldown = 6
@@ -690,6 +705,7 @@ object GameData {
     fun tick(dt: Float) {
         val s = current ?: return
         if (speedIdx >= 2 && !SpeedBoost.isActive()) speedIdx = 1
+        if (AppState.paused || speedIdx == 0) return
         val simDt = dt * speed()
         s.playSeconds += dt.toDouble()
         // 昼夜循环独立于游戏速度：固定 120 秒一轮（避免闪烁）
@@ -733,24 +749,59 @@ object GameData {
         return true to null
     }
 
+    fun packTile(x: Int, y: Int): Int = y * 10000 + x
+    fun unpackTileX(k: Int): Int = k % 10000
+    fun unpackTileY(k: Int): Int = k / 10000
+
+    fun clearZoneDraft() {
+        zoneDraft.clear()
+    }
+
+    fun zoneDraftCost(): Int {
+        val unit = Config.ZONE[zoneDraftKey]?.cost ?: 0
+        return zoneDraft.size * unit
+    }
+
     fun paintZone(x: Int, y: Int, zoneKey: String): Pair<Boolean, String?> {
-        val s = current ?: return false to null
+        val t = World.tile(x, y) ?: return false to "越界"
         if (zoneKey == "none") {
-            val t = World.tile(x, y)
-            if (t != null && t.zone != "none") World.setZone(x, y, "none")
+            if (t.zone != "none") World.setZone(x, y, "none")
             return true to null
         }
-        val ok = World.setZone(x, y, zoneKey)
-        if (!ok) return true to null                 // 静默跳过建筑/道路
-        val cost = Config.ZONE[zoneKey]?.cost ?: 0
-        if (!sandbox) s.funds -= cost
-        if (!sandbox && s.funds < 0) {
-            World.setZone(x, y, "none")
-            s.funds += cost
-            AdOffers.offerShortfall(cost, "划区")
-            return false to "资金不足"
+        if (t.zone == zoneKey) return true to null   // 已是该分区，不进草稿
+        if (!World.isUnlocked(x, y)) return false to World.lockedHint()
+        if (t.terrain == "water" || t.road != null || t.building != null) return true to null
+        if (zoneDraftKey != zoneKey) {
+            zoneDraft.clear()
+            zoneDraftKey = zoneKey
         }
+        val key = packTile(x, y)
+        if (zoneDraft.contains(key)) zoneDraft.remove(key) else zoneDraft.add(key)
         return true to null
+    }
+
+    fun confirmZoneDraft(): Pair<Boolean, String?> {
+        val s = current ?: return false to "未开始"
+        if (zoneDraft.isEmpty()) return false to "先在地图上点要划的格子"
+        val unit = Config.ZONE[zoneDraftKey]?.cost ?: 0
+        val n = zoneDraft.size
+        val cost = n * unit
+        if (!sandbox && s.funds < cost) {
+            AdOffers.offerShortfall(cost, "划区")
+            return false to ("资金不足（需 ¥" + cost + "万，" + n + " 格）")
+        }
+        var painted = 0
+        val it = zoneDraft.iterator()
+        while (it.hasNext()) {
+            val k = it.next()
+            val x = unpackTileX(k)
+            val y = unpackTileY(k)
+            if (World.setZone(x, y, zoneDraftKey)) painted++
+        }
+        val pay = painted * unit
+        if (!sandbox) s.funds -= pay
+        zoneDraft.clear()
+        return true to ("已确认划区 " + painted + " 格，扣 " + pay + " 万")
     }
 
     fun bulldoze(x: Int, y: Int): Boolean {
@@ -902,7 +953,9 @@ object GameData {
 
     fun plantTree(x: Int, y: Int): Pair<Boolean, String?> {
         val s = current ?: return false to null
+        val t = World.tile(x, y) ?: return false to "越界"
         if (!World.isUnlocked(x, y)) return false to World.lockedHint()
+        if (t.terrain == "forest") return true to null   // 已是林地，不扣费
         if (!sandbox && s.funds < 1) return false to "资金不足"
         if (!World.plantTree(x, y)) return false to "这里不能种树"
         if (!sandbox) s.funds -= 1
@@ -927,16 +980,33 @@ object GameData {
         return true to null
     }
 
-    /** 市政贷款：借入 LOAN.amount，按日自动还款 */
-    fun borrow(): Pair<Boolean, String?> {
-        val s = current ?: return false to null
-        if (s.loanDebt > 0) return false to "尚有未还贷款"
+    fun bankCanBorrow(): Pair<Boolean, String?> {
+        val s = current ?: return false to "未开始"
+        if (s.loanDebt > 0) return false to ("尚有未还贷款 " + floor(s.loanDebt).toInt() + " 万")
         if (s.loanCooldown > 0) return false to ("冷却 " + s.loanCooldown + " 天")
-        val amount = Config.LOAN.amount * (if (s.rankLevel >= 2) 1.4 else 1.0)
-        s.loanDebt = amount
-        s.funds += amount
-        pushNews("营造贷款", "借入 " + amount.toInt() + " 万，将按日自动还款。", "财政")
         return true to null
+    }
+
+    /** 手动贷：到账多、日还高；广告贷：到账略少、日还低 */
+    fun borrowBank(kind: String): Pair<Boolean, String?> {
+        val s = current ?: return false to null
+        val (ok, msg) = bankCanBorrow()
+        if (!ok) return false to msg
+        val rankMul = if (s.rankLevel >= 2) 1.25 else 1.0
+        val ad = kind == "ad"
+        val amount = (if (ad) Config.LOAN.adAmount else Config.LOAN.manualAmount) * rankMul
+        val daily = if (ad) Config.LOAN.adDaily else Config.LOAN.manualDaily
+        s.loanDebt = amount
+        s.loanDaily = daily
+        s.loanKind = if (ad) "ad" else "manual"
+        s.funds += amount
+        val title = if (ad) "广告低息贷" else "银行高息贷"
+        pushNews(
+            title,
+            "到账 " + amount.toInt() + " 万，每日自动还 " + daily.toInt() + " 万。",
+            "财政"
+        )
+        return true to (title + "到账 " + amount.toInt() + " 万")
     }
 
     /** 市政任务当前进度值 */

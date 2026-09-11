@@ -26,6 +26,10 @@ object AppState {
 
     /** 数据面板 */
     var dataOpen by mutableStateOf(false)
+    /** 满意度来源抽屉 */
+    var happyOpen by mutableStateOf(false)
+    /** RCI 需求详情抽屉 */
+    var demandOpen by mutableStateOf(false)
 
     /** 覆盖热力图（"" | power/water/garbage/health/education/safety） */
     var overlay by mutableStateOf("")
@@ -38,8 +42,12 @@ object AppState {
     var newDifficulty by mutableStateOf("normal")
     /** 当前游戏所在槽位 */
     var activeSlot by mutableStateOf(0)
-    /** 暂停面板 */
+    /** 时间暂停（‖）：只冻模拟，仍可划区修路 */
     var paused by mutableStateOf(false)
+    /** 右上角菜单（≡）：存档/设置，不挡规划时的暂停 */
+    var menuOpen by mutableStateOf(false)
+    /** 银行贷款面板 */
+    var bankOpen by mutableStateOf(false)
     var saveTick by mutableStateOf(0)   // 存档后刷新存档管理界面
 
     /** 实时数值节流刷新（0.5s 一次） */

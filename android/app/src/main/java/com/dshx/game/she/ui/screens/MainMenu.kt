@@ -358,11 +358,23 @@ private fun NewGameScreen(mapView: MapRenderView) {
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            d.name, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                            color = if (active) C.accentRed.toColor() else C.textDark.toColor(),
-                            fontFamily = LocalGameFont.current
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                d.name, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                color = if (active) C.accentRed.toColor() else C.textDark.toColor(),
+                                fontFamily = LocalGameFont.current
+                            )
+                            Text(
+                                when (d.key) {
+                                    "easy" -> "收入×1.2 维护×0.8"
+                                    "hard" -> "收入×0.8 维护×1.3"
+                                    else -> "收入×1.0 维护×1.0"
+                                },
+                                fontSize = 9.sp,
+                                color = C.textMid.toColor(),
+                                fontFamily = LocalGameFont.current
+                            )
+                        }
                     }
                 }
             }

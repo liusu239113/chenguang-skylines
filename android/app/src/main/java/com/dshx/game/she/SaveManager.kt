@@ -7,7 +7,9 @@ import com.dshx.game.she.world.Growth
 import com.dshx.game.she.world.Networks
 import com.dshx.game.she.world.Traffic
 import com.dshx.game.she.world.Transit
+import com.dshx.game.she.world.RoadLine
 import com.dshx.game.she.world.World
+import kotlin.math.min
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -100,6 +102,8 @@ object SaveManager {
         json.put("taxOff", s.taxOff)
         json.put("loanDebt", s.loanDebt)
         json.put("loanCooldown", s.loanCooldown)
+        json.put("loanKind", s.loanKind)
+        json.put("loanDaily", s.loanDaily)
         json.put("crime", s.crime)
         json.put("deathsPending", s.deathsPending)
         json.put("prisonUsed", s.prisonUsed)
@@ -190,6 +194,23 @@ object SaveManager {
             }
         }
         json.put("tiles", tiles)
+        val roads = JSONArray()
+        for (line in w.roadLines) {
+            val o = JSONObject()
+                .put("name", line.name)
+                .put("kind", line.kind)
+                .put("dir", line.dir)
+                .put("labelX", line.labelX)
+                .put("labelY", line.labelY)
+            val xs = JSONArray(); val ys = JSONArray()
+            val n = min(line.segX.size, line.segY.size)
+            for (i in 0 until n) {
+                xs.put(line.segX[i]); ys.put(line.segY[i])
+            }
+            o.put("segX", xs).put("segY", ys)
+            roads.put(o)
+        }
+        json.put("roadLines", roads)
         json.put("busLines", Transit.toJson())
         json.put("networks", Networks.toJson())
 
@@ -274,6 +295,8 @@ object SaveManager {
         s.taxOff = json.optInt("taxOff", Config.TAX.default)
         s.loanDebt = json.optDouble("loanDebt", 0.0)
         s.loanCooldown = json.optInt("loanCooldown", 0)
+        s.loanKind = json.optString("loanKind", "")
+        s.loanDaily = json.optDouble("loanDaily", 0.0)
         s.crime = json.optDouble("crime", 8.0)
         s.deathsPending = json.optInt("deathsPending", 0)
         s.prisonUsed = json.optInt("prisonUsed", 0)
@@ -359,6 +382,32 @@ object SaveManager {
         World.current?._pop = s.population.toInt()
         Transit.fromJson(json.optJSONArray("busLines"))
         Networks.fromJson(json.optJSONObject("networks"))
+        val rl = json.optJSONArray("roadLines")
+        if (rl != null) {
+            val w = World.current
+            if (w != null) {
+                w.roadLines.clear()
+                for (i in 0 until rl.length()) {
+                    val o = rl.getJSONObject(i)
+                    val xsArr = o.optJSONArray("segX") ?: JSONArray()
+                    val ysArr = o.optJSONArray("segY") ?: JSONArray()
+                    val n = min(xsArr.length(), ysArr.length())
+                    val xs = IntArray(n) { xsArr.getInt(it) }
+                    val ys = IntArray(n) { ysArr.getInt(it) }
+                    w.roadLines.add(
+                        RoadLine(
+                            name = o.optString("name", "未名路"),
+                            kind = o.optString("kind", "local"),
+                            segX = xs,
+                            segY = ys,
+                            dir = o.optString("dir", "h"),
+                            labelX = o.optInt("labelX", 0),
+                            labelY = o.optInt("labelY", 0)
+                        )
+                    )
+                }
+            }
+        }
         Networks.recount()
         Citizens.rebuild()
         World.refreshHighwayLink()

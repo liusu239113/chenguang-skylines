@@ -454,6 +454,8 @@ fun SettingsPanel() {
                 if (SpeedBoost.isActive()) "加速剩余 ${SpeedBoost.remainingSec() / 60} 分 ${SpeedBoost.remainingSec() % 60} 秒" else "2x/3x 加速需看广告解锁 20 分钟",
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
+            Text("看广告能拿到这些（看完才到账，不是空点）：", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("①每周礼包 +280 万  ②税收加倍 12 天  ③民心安抚 满意+8  ④营造拨款 +220 万。缺钱修路时还会弹应急拨款。银行低息贷也在左上【银】。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
             AdBtn("每周礼包 +280万", !AdOffers.weeklyClaimed, act, "daily")
             AdBtn("税收加倍 12 天", true, act, "doubletax")
             AdBtn("民心安抚 满意+8", true, act, "happy")

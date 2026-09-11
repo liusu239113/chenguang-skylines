@@ -304,13 +304,14 @@ object Config {
     }
 
     object GROWTH {
-        const val tickSeconds = 2.2
-        const val spawnChance = 0.32
-        const val upgradeChance = 0.18
-        const val demandMin = 0.18
+        const val tickSeconds = 1.6
+        const val spawnChance = 0.52
+        const val upgradeChance = 0.22
+        const val demandMin = 0.12
         const val abandonHappy = 28.0
         const val upgradeAgeDays = 12
         const val landValueUpgrade = 8
+        const val unlockPerPop = 20   // 每增加这么多人，解锁圈外扩一环
     }
 
     // -----------------------------------------------------------------------
@@ -322,7 +323,7 @@ object Config {
         const val upkeepPerRoadDay = 0.018
         const val happinessDecayDay = 0.10
         const val pollutionHappy = 0.045
-        const val occupancyPerDay = 0.02
+        const val occupancyPerDay = 0.06
     }
 
     // -----------------------------------------------------------------------
@@ -350,9 +351,11 @@ object Config {
     // 市政贷款
     // -----------------------------------------------------------------------
     object LOAN {
-        const val amount = 400.0      // 借款额（万）
-        const val dailyRepay = 18.0   // 每日自动还款（万）
-        const val cooldown = 90       // 还清后冷却天数
+        const val manualAmount = 500.0
+        const val manualDaily = 32.0     // 手动贷：高息，约 16 天还清
+        const val adAmount = 420.0
+        const val adDaily = 12.0         // 广告贷：低息，约 35 天还清
+        const val cooldown = 45
     }
 
     // -----------------------------------------------------------------------

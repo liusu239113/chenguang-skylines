@@ -1,6 +1,7 @@
 package com.dshx.game.she.world
 
 import com.dshx.game.she.Config
+import com.dshx.game.she.GameData
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
@@ -232,7 +233,7 @@ class World {
             }
             w.unlockCx = startX
             w.unlockCy = startY
-            w.unlockR = 8
+            w.unlockR = 10
             w.spawnX = startX
             w.spawnY = startY
 
@@ -362,9 +363,11 @@ class World {
             return x >= 1 && x <= w.cols && y >= 1 && y <= w.rows
         }
 
+        fun unlockStep(): Int = Config.GROWTH.unlockPerPop
+
         fun unlockRadius(): Int {
-            val w = current ?: return 9
-            val extra = (w._pop / 60).coerceIn(0, 36)
+            val w = current ?: return 10
+            val extra = (w._pop / unlockStep()).coerceIn(0, 48)
             return (w.unlockR + extra).coerceAtMost(max(w.cols, w.rows))
         }
 
@@ -374,17 +377,17 @@ class World {
         }
 
         fun nextUnlockPop(): Int {
-            val w = current ?: return 60
-            val extra = (w._pop / 60).coerceIn(0, 36)
-            if (extra >= 36) return w._pop
-            return (extra + 1) * 60
+            val w = current ?: return unlockStep()
+            val extra = (w._pop / unlockStep()).coerceIn(0, 48)
+            if (extra >= 48) return w._pop
+            return (extra + 1) * unlockStep()
         }
 
         fun lockedHint(): String {
             val need = nextUnlockPop()
             val have = current?._pop ?: 0
             val left = (need - have).coerceAtLeast(0)
-            return "黑色区域随人口自动解锁。再增加 $left 人会向外扩一圈（目标 $need 人）。"
+            return "黑色区域随人口自动解锁。再增加 $left 人会向外扩一圈（目标 $need 人）。路旁划住宅、通电通水后人口会涨。"
         }
 
         fun tile(x: Int, y: Int): Tile? {
@@ -502,7 +505,76 @@ class World {
             }
             t.road = kind
             t.zone = "none"
+            nameNewStreet(x, y, kind)
             return true
+        }
+
+        fun roadNameAt(x: Int, y: Int): String? {
+            val w = current ?: return null
+            if (tile(x, y)?.road == null) return null
+            for (line in w.roadLines) {
+                val n = min(line.segX.size, line.segY.size)
+                for (i in 0 until n) {
+                    if (line.segX[i] == x && line.segY[i] == y) return line.name
+                }
+            }
+            return null
+        }
+
+        /** 新修街道自动命名：接到已有路则沿用路名，否则开一条新街 */
+        private fun nameNewStreet(x: Int, y: Int, kind: String) {
+            if (kind == "metro" || kind == "rail") return
+            val w = current ?: return
+            val existing = roadNameAt(x, y)
+            if (existing != null) return
+            val dirs = arrayOf(intArrayOf(1, 0), intArrayOf(-1, 0), intArrayOf(0, 1), intArrayOf(0, -1))
+            for (d in dirs) {
+                val nx = x + d[0]
+                val ny = y + d[1]
+                val neighbor = tile(nx, ny)?.road
+                if (neighbor == null || neighbor == "metro") continue
+                val name = roadNameAt(nx, ny) ?: continue
+                for (line in w.roadLines) {
+                    if (line.name != name) continue
+                    val n = min(line.segX.size, line.segY.size)
+                    val xs = IntArray(n + 1)
+                    val ys = IntArray(n + 1)
+                    for (i in 0 until n) {
+                        xs[i] = line.segX[i]
+                        ys[i] = line.segY[i]
+                    }
+                    xs[n] = x
+                    ys[n] = y
+                    val idx = w.roadLines.indexOf(line)
+                    if (idx >= 0) {
+                        w.roadLines[idx] = RoadLine(
+                            name = line.name,
+                            kind = if (kind == "highway" || line.kind == "highway") "highway"
+                            else if (kind == "avenue" || line.kind == "avenue") "avenue"
+                            else line.kind,
+                            segX = xs,
+                            segY = ys,
+                            dir = line.dir,
+                            labelX = line.labelX,
+                            labelY = line.labelY
+                        )
+                    }
+                    return
+                }
+            }
+            val horiz = (tile(x - 1, y)?.road != null) || (tile(x + 1, y)?.road != null)
+            val name = pickName(GameData.seed, w.roadLines.size * 11 + x * 3 + y)
+            w.roadLines.add(
+                RoadLine(
+                    name = name,
+                    kind = kind,
+                    segX = intArrayOf(x),
+                    segY = intArrayOf(y),
+                    dir = if (horiz) "h" else "v",
+                    labelX = if (horiz) x else 0,
+                    labelY = if (horiz) 0 else y
+                )
+            )
         }
 
         fun roadCapacity(x: Int, y: Int): Int = Config.ROAD[tile(x, y)?.road]?.capacity ?: 0

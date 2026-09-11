@@ -117,16 +117,14 @@ fun AppRoot() {
                 if (dt > 0.1f) dt = 0.1f
                 if (AppState.screen == "map") {
                     Ambience.tick(dt, GameData.weather, true)
-                    if (!AppState.paused) {
-                        GameData.tick(dt)
+                    GameData.tick(dt)
+                    if (!AppState.paused && GameData.speed() > 0) {
                         Growth.tick((dt * GameData.speed()).toDouble()) { name, gain ->
                             Sfx.play(name, gain)
                         }
-                        mapView.update(dt)
-                        MapScreen.tick(dt, mapView)
-                    } else {
-                        mapView.update(dt * 0.35f)
                     }
+                    mapView.update(dt)
+                    MapScreen.tick(dt, mapView)
                     mapView.invalidate()
                 } else {
                     Ambience.tick(dt, 0, false)
@@ -139,7 +137,7 @@ fun AppRoot() {
         if (AppState.screen == "map" && mapView.tool != null) {
             MapScreen.cancelTool()
         } else if (AppState.screen == "map") {
-            AppState.paused = true
+            AppState.menuOpen = true
         } else if (AppState.menuScreen != "main") {
             AppState.menuScreen = "main"
         }
