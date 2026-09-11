@@ -549,9 +549,9 @@ object Config {
 
         // 道路
         val roadDirt = RGBA(186, 168, 132, 255)
-        val roadLocal = RGBA(214, 210, 198, 255)
-        val roadAvenue = RGBA(230, 197, 104, 255)
-        val roadHighway = RGBA(96, 102, 110, 255)
+        val roadLocal = RGBA(118, 122, 128, 255)
+        val roadAvenue = RGBA(92, 96, 104, 255)
+        val roadHighway = RGBA(72, 76, 84, 255)
 
         // 分区
         val zoneResidential = RGBA(233, 217, 166, 255)

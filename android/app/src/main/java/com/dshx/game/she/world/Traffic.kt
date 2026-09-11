@@ -42,7 +42,8 @@ class TrafficCar(
     var parked: Boolean = true,
     var wait: Float = 0f,
     var driver: DriverCard,
-    var houseKey: String = ""
+    var houseKey: String = "",
+    var lane: Int = 0                 // 0 内侧 / 1 外侧；两车道只有 0
 )
 
 class TrainCar(
@@ -151,7 +152,8 @@ object Traffic {
                     homeX = h.x, homeY = h.y,
                     parked = true,
                     driver = driver,
-                    houseKey = key
+                    houseKey = key,
+                    lane = pickLane(road.first, road.second)
                 )
             )
         }
@@ -346,7 +348,8 @@ object Traffic {
                     homeX = dest.first, homeY = dest.second,
                     parked = false,
                     driver = driver,
-                    houseKey = ""
+                    houseKey = "",
+                    lane = pickLane(start.first, start.second)
                 )
             )
         }
@@ -377,7 +380,8 @@ object Traffic {
                 homeX = ramp.first, homeY = ramp.second,
                 parked = false,
                 driver = driver,
-                houseKey = ""
+                houseKey = "",
+                lane = pickLane(ramp.first, ramp.second)
             )
         )
     }
@@ -484,6 +488,11 @@ object Traffic {
             if (c.cruise > 0f) {
                 c.prog += c.cruise * dt * 0.62f
             }
+            val onKind = World.tile(c.x, c.y)?.road
+            if (onKind != "avenue" && onKind != "highway") c.lane = 0
+            else if (Random.nextFloat() < dt * 0.12f && !isCrossroad(c.x, c.y)) {
+                c.lane = 1 - c.lane
+            }
             var guard = 0
             while (c.prog >= 1f && guard++ < 4) {
                 c.prog -= 1f
@@ -512,6 +521,7 @@ object Traffic {
         for (o in moving) {
             if (o === c) continue
             if (o.dir != c.dir) continue
+            if (o.lane != c.lane) continue
             val same = o.x == c.x && o.y == c.y && o.prog > c.prog
             val nx = c.x + dirs[c.dir][0]
             val ny = c.y + dirs[c.dir][1]
@@ -571,6 +581,13 @@ object Traffic {
         if (t.road == null) return false
         if (kind == "through") return t.road == "highway"
         return true
+    }
+
+    private fun pickLane(x: Int, y: Int): Int {
+        val kind = World.tile(x, y)?.road
+        return if (kind == "avenue" || kind == "highway") {
+            if (Random.nextFloat() < 0.45f) 1 else 0
+        } else 0
     }
 
     private fun pickDir(x: Int, y: Int, kind: String? = null): Int {

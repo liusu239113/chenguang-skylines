@@ -3,6 +3,7 @@ package com.dshx.game.she.world
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
@@ -628,10 +629,19 @@ class MapRenderView @JvmOverloads constructor(
         canvas.drawPath(p, paint)
     }
 
-    private fun fillLines(canvas: Canvas, pts: FloatArray, c: RGBA, alpha: Int = c.a, width: Float) {
+    private fun addSeg(out: MutableList<Float>, x0: Float, y0: Float, x1: Float, y1: Float) {
+        out.add(x0); out.add(y0); out.add(x1); out.add(y1)
+    }
+
+    private fun fillLines(
+        canvas: Canvas, pts: FloatArray, c: RGBA, alpha: Int = c.a, width: Float,
+        dash: DashPathEffect? = null
+    ) {
         strokeColor(c, alpha, width)
         paint.strokeCap = Paint.Cap.BUTT
+        paint.pathEffect = dash
         canvas.drawLines(pts, paint)
+        paint.pathEffect = null
     }
 
     private enum class TAlign { CENTER, LEFT, RIGHT }
@@ -767,11 +777,15 @@ class MapRenderView @JvmOverloads constructor(
             if (any) strokePath(canvas, path, RGBA(255, 255, 255, 22), 255, 0.5f)
         }
 
-        // ---- 3) 道路车道线（单车道灰中线 / 大道双黄线）+ 路口红绿灯 ----
+        // ---- 3) 道路标线：两车道中虚线 / 四车道双黄+两侧白虚线 / 高速双黄 ----
         if (cell >= 8) {
-            val roadPt = mutableListOf<Float>()
-            val avePt = mutableListOf<Float>()
-            val hwyPt = mutableListOf<Float>()
+            val localDash = mutableListOf<Float>()
+            val aveYellowA = mutableListOf<Float>()
+            val aveYellowB = mutableListOf<Float>()
+            val aveWhite = mutableListOf<Float>()
+            val hwyYellowA = mutableListOf<Float>()
+            val hwyYellowB = mutableListOf<Float>()
+            val hwyWhite = mutableListOf<Float>()
             val railPt = mutableListOf<Float>()
             val cross = mutableListOf<Triple<Float, Float, Int>>()
             for (ty in y0..y1) {
@@ -802,47 +816,69 @@ class MapRenderView @JvmOverloads constructor(
                     val right = w.grid[ty - 1].getOrNull(tx)?.road != null
                     val horiz = left || right
                     val vert = up || down
-                    if (kind == "highway") {
-                        if (horiz) {
-                            hwyPt.add(sx); hwyPt.add(cy)
-                            hwyPt.add(sx + cell); hwyPt.add(cy)
-                        }
-                        if (vert) {
-                            hwyPt.add(cx); hwyPt.add(sy)
-                            hwyPt.add(cx); hwyPt.add(sy + cell)
-                        }
-                    } else if (kind == "avenue") {
-                        if (horiz) {
-                            avePt.add(sx); avePt.add(cy)
-                            avePt.add(sx + cell); avePt.add(cy)
-                        }
-                        if (vert) {
-                            avePt.add(cx); avePt.add(sy)
-                            avePt.add(cx); avePt.add(sy + cell)
-                        }
-                    } else {
-                        if (horiz) {
-                            roadPt.add(sx); roadPt.add(cy)
-                            roadPt.add(sx + cell); roadPt.add(cy)
-                        }
-                        if (vert) {
-                            roadPt.add(cx); roadPt.add(sy)
-                            roadPt.add(cx); roadPt.add(sy + cell)
+                    val crossroad = horiz && vert
+                    if (!crossroad) {
+                        when (kind) {
+                            "highway" -> {
+                                val gap = cell * 0.06f
+                                val lane = cell * 0.22f
+                                if (horiz) {
+                                    addSeg(hwyYellowA, sx, cy - gap, sx + cell, cy - gap)
+                                    addSeg(hwyYellowB, sx, cy + gap, sx + cell, cy + gap)
+                                    addSeg(hwyWhite, sx, cy - lane, sx + cell, cy - lane)
+                                    addSeg(hwyWhite, sx, cy + lane, sx + cell, cy + lane)
+                                }
+                                if (vert) {
+                                    addSeg(hwyYellowA, cx - gap, sy, cx - gap, sy + cell)
+                                    addSeg(hwyYellowB, cx + gap, sy, cx + gap, sy + cell)
+                                    addSeg(hwyWhite, cx - lane, sy, cx - lane, sy + cell)
+                                    addSeg(hwyWhite, cx + lane, sy, cx + lane, sy + cell)
+                                }
+                            }
+                            "avenue" -> {
+                                val gap = cell * 0.045f
+                                val lane = cell * 0.24f
+                                if (horiz) {
+                                    addSeg(aveYellowA, sx, cy - gap, sx + cell, cy - gap)
+                                    addSeg(aveYellowB, sx, cy + gap, sx + cell, cy + gap)
+                                    addSeg(aveWhite, sx, cy - lane, sx + cell, cy - lane)
+                                    addSeg(aveWhite, sx, cy + lane, sx + cell, cy + lane)
+                                }
+                                if (vert) {
+                                    addSeg(aveYellowA, cx - gap, sy, cx - gap, sy + cell)
+                                    addSeg(aveYellowB, cx + gap, sy, cx + gap, sy + cell)
+                                    addSeg(aveWhite, cx - lane, sy, cx - lane, sy + cell)
+                                    addSeg(aveWhite, cx + lane, sy, cx + lane, sy + cell)
+                                }
+                            }
+                            "local" -> {
+                                if (horiz) addSeg(localDash, sx, cy, sx + cell, cy)
+                                if (vert) addSeg(localDash, cx, sy, cx, sy + cell)
+                            }
                         }
                     }
-                    if ((left || right) && (up || down)) {
-                        cross.add(Triple(cx, cy, if (kind == "avenue") 1 else 0))
+                    if (crossroad) {
+                        cross.add(Triple(cx, cy, if (kind == "avenue" || kind == "highway") 1 else 0))
                     }
                 }
             }
-            if (roadPt.isNotEmpty()) {
-                fillLines(canvas, roadPt.toFloatArray(), RGBA(150, 145, 132, 200), 255, max(1f, cell * 0.05f))
+            val dash = DashPathEffect(floatArrayOf(max(3.5f, cell * 0.18f), max(2.4f, cell * 0.12f)), 0f)
+            if (localDash.isNotEmpty()) {
+                fillLines(canvas, localDash.toFloatArray(), RGBA(236, 236, 240, 210), 255, max(1f, cell * 0.035f), dash)
             }
-            if (avePt.isNotEmpty()) {
-                fillLines(canvas, avePt.toFloatArray(), RGBA(200, 165, 60, 220), 255, max(1f, cell * 0.07f))
+            if (aveYellowA.isNotEmpty()) {
+                fillLines(canvas, aveYellowA.toFloatArray(), RGBA(236, 196, 70, 230), 255, max(1.1f, cell * 0.04f))
+                fillLines(canvas, aveYellowB.toFloatArray(), RGBA(236, 196, 70, 230), 255, max(1.1f, cell * 0.04f))
             }
-            if (hwyPt.isNotEmpty()) {
-                fillLines(canvas, hwyPt.toFloatArray(), RGBA(240, 240, 245, 230), 255, max(1.4f, cell * 0.08f))
+            if (aveWhite.isNotEmpty()) {
+                fillLines(canvas, aveWhite.toFloatArray(), RGBA(240, 240, 245, 210), 255, max(0.9f, cell * 0.03f), dash)
+            }
+            if (hwyYellowA.isNotEmpty()) {
+                fillLines(canvas, hwyYellowA.toFloatArray(), RGBA(236, 196, 70, 240), 255, max(1.3f, cell * 0.045f))
+                fillLines(canvas, hwyYellowB.toFloatArray(), RGBA(236, 196, 70, 240), 255, max(1.3f, cell * 0.045f))
+            }
+            if (hwyWhite.isNotEmpty()) {
+                fillLines(canvas, hwyWhite.toFloatArray(), RGBA(245, 245, 248, 220), 255, max(1f, cell * 0.032f), dash)
             }
             if (railPt.isNotEmpty()) {
                 fillLines(canvas, railPt.toFloatArray(), RGBA(48, 48, 52, 240), 255, max(2.2f, cell * 0.16f))
@@ -904,17 +940,23 @@ class MapRenderView @JvmOverloads constructor(
                 val v = dirs[c.dir]
                 var sx = worldToScreenX(c.x - 1 + v[0] * c.prog + 0.5f)
                 var sy = worldToScreenY(c.y - 1 + v[1] * c.prog + 0.5f)
-                val kind = World.tile(c.x, c.y)?.road
-                val lane = cell * when (kind) {
-                    "highway" -> 0.20f
-                    "avenue" -> 0.18f
-                    else -> 0.12f
+                val kind = World.tile(c.x, c.y)?.road ?: "local"
+                val inner = cell * when (kind) {
+                    "highway" -> 0.12f
+                    "avenue" -> 0.13f
+                    else -> 0.16f
                 }
+                val outer = cell * when (kind) {
+                    "highway" -> 0.30f
+                    "avenue" -> 0.32f
+                    else -> 0.16f
+                }
+                val off = if (c.lane == 1) outer else inner
                 when (c.dir) {
-                    0 -> sy += lane
-                    2 -> sy -= lane
-                    1 -> sx -= lane
-                    3 -> sx += lane
+                    0 -> sy += off
+                    2 -> sy -= off
+                    1 -> sx -= off
+                    3 -> sx += off
                 }
                 if (sx > -cell && sy > -cell && sx < viewW + cell && sy < viewH + cell) {
                     drawVehicleBox(
@@ -1778,8 +1820,8 @@ class MapRenderView @JvmOverloads constructor(
     ) {
         val bounce = (sin(rainPhase * 9.5f) * cell * 0.012f)
         val horiz = dir == 0 || dir == 2
-        val L = cell * if (longBody) 0.72f else 0.48f
-        val W = cell * if (longBody) 0.32f else 0.26f
+        val L = cell * if (longBody) 0.58f else 0.36f
+        val W = cell * if (longBody) 0.18f else 0.14f
         val lift = cell * 0.10f + bounce
         val rx: Float
         val ry: Float

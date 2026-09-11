@@ -211,7 +211,7 @@ class World {
                 }
             }
 
-            // 大道骨架：开局只在高速旁一小块，其余靠解锁后自己修
+            // 开局十字：和建造菜单里的「两车道」同一类，其余靠解锁后自己修
             fun setRoad(x: Int, y: Int, kind: String) {
                 if (x !in 1..w.cols || y !in 1..w.rows) return
                 val t = w.grid[y - 1][x - 1]
@@ -241,14 +241,14 @@ class World {
             val ysV = IntArray(7)
             for (i in 0..6) {
                 val y = startY - 3 + i
-                setRoad(startX, y, "avenue")
+                setRoad(startX, y, "local")
                 xsV[i] = startX
                 ysV[i] = y
             }
             w.roadLines.add(
                 RoadLine(
                     name = pickName(seed, 13),
-                    kind = "avenue",
+                    kind = "local",
                     segX = xsV,
                     segY = ysV,
                     dir = "v",
@@ -260,14 +260,14 @@ class World {
             val ysH = IntArray(7)
             for (i in 0..6) {
                 val x = startX - 3 + i
-                setRoad(x, startY, "avenue")
+                setRoad(x, startY, "local")
                 xsH[i] = x
                 ysH[i] = startY
             }
             w.roadLines.add(
                 RoadLine(
                     name = pickName(seed, 45),
-                    kind = "avenue",
+                    kind = "local",
                     segX = xsH,
                     segY = ysH,
                     dir = "h",
