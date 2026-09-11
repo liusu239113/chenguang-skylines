@@ -287,6 +287,20 @@ object CitySystems {
         return (ax + (bx - ax) * c.prog - 0.5f) to (ay + (by - ay) * c.prog - 0.5f)
     }
 
+    /** 0右 1下 2左 3上，跟私家车同一套 */
+    fun heading(c: EmergencyCar): Int {
+        if (c.path.size < 2) return 0
+        val i = c.pathI.coerceIn(0, c.path.lastIndex)
+        val a = c.path[i]
+        val b = c.path.getOrElse(i + 1) { a }
+        val dx = Citizens.unpackX(b) - Citizens.unpackX(a)
+        val dy = Citizens.unpackY(b) - Citizens.unpackY(a)
+        return when {
+            abs(dx) >= abs(dy) -> if (dx >= 0) 0 else 2
+            else -> if (dy >= 0) 1 else 3
+        }
+    }
+
     fun hitTest(wx: Float, wy: Float): EmergencyCar? {
         var best: EmergencyCar? = null
         var bestD = 0.7f

@@ -1014,7 +1014,7 @@ class MapRenderView @JvmOverloads constructor(
                 val (wx, wy) = Transit.vehicleCell(v)
                 val sx = worldToScreenX(wx)
                 val sy = worldToScreenY(wy)
-                drawVehicleBox(canvas, sx, sy, 0, RGBA(40, 90, 170), longBody = true, selected = false)
+                drawVehicleBox(canvas, sx, sy, Transit.heading(v), RGBA(40, 90, 170), longBody = true, selected = false)
             }
             for (ev in CitySystems.cars) {
                 val (wx, wy) = CitySystems.screenCell(ev)
@@ -1027,7 +1027,7 @@ class MapRenderView @JvmOverloads constructor(
                     "garbage" -> RGBA(90, 118, 86)
                     else -> RGBA(40, 40, 40)
                 }
-                drawVehicleBox(canvas, sx, sy, 0, col, longBody = ev.kind == "garbage", selected = CitySystems.selected === ev)
+                drawVehicleBox(canvas, sx, sy, CitySystems.heading(ev), col, longBody = ev.kind == "garbage" || ev.kind == "hearse", selected = CitySystems.selected === ev)
             }
             for (tr in Traffic.trains) {
                 val sx = worldToScreenX(tr.x - 1 + dirs[tr.dir][0] * tr.prog + 0.5f)

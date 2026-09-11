@@ -157,6 +157,19 @@ object Transit {
         return (ax + (bx - ax) * v.prog - 0.5f) to (ay + (by - ay) * v.prog - 0.5f)
     }
 
+    fun heading(v: BusVehicle): Int {
+        if (v.path.size < 2) return 0
+        val i = v.pathI.coerceIn(0, v.path.lastIndex)
+        val a = v.path[i]
+        val b = if (v.forward) v.path.getOrElse(i + 1) { a } else v.path.getOrElse(i - 1) { a }
+        val dx = Citizens.unpackX(b) - Citizens.unpackX(a)
+        val dy = Citizens.unpackY(b) - Citizens.unpackY(a)
+        return when {
+            kotlin.math.abs(dx) >= kotlin.math.abs(dy) -> if (dx >= 0) 0 else 2
+            else -> if (dy >= 0) 1 else 3
+        }
+    }
+
     fun toJson(): JSONArray {
         val arr = JSONArray()
         for (l in lines) {
