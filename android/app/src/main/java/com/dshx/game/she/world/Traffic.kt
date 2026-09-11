@@ -595,7 +595,7 @@ object Traffic {
         for (d in dirs.indices) {
             if (isRoad(x + dirs[d][0], y + dirs[d][1], kind)) opts.add(d)
         }
-        return if (opts.isNotEmpty()) opts[Random.nextInt(opts.size)] else 0
+        return if (opts.isNotEmpty()) opts[Random.nextInt(opts.size)] else World.roadHeadingAt(x, y)
     }
 
     private fun isCrossroad(x: Int, y: Int): Boolean {

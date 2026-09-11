@@ -25,7 +25,8 @@ class BusVehicle(
     var pathI: Int = 0,
     var prog: Float = 0f,
     var speed: Float = 1.8f,
-    var forward: Boolean = true
+    var forward: Boolean = true,
+    var dir: Int = -1
 )
 
 object Transit {
@@ -87,6 +88,10 @@ object Transit {
         repeat(line.buses) { i ->
             val v = BusVehicle(line.id, path.toMutableList(), 0, i * 0.2f, 1.6f + i * 0.15f, true)
             v.pathI = (i * (path.size / max(1, line.buses))) % path.size
+            v.dir = headingFromPath(v).let { if (it >= 0) it else World.roadHeadingAt(
+                Citizens.unpackX(path[v.pathI.coerceIn(0, path.lastIndex)]),
+                Citizens.unpackY(path[v.pathI.coerceIn(0, path.lastIndex)])
+            ) }
             vehicles.add(v)
         }
     }
@@ -131,6 +136,8 @@ object Transit {
                         v.pathI--
                     }
                 }
+                val h = headingFromPath(v)
+                if (h >= 0) v.dir = h
             }
             moving++
         }
@@ -158,12 +165,39 @@ object Transit {
     }
 
     fun heading(v: BusVehicle): Int {
-        if (v.path.size < 2) return 0
+        val fromPath = headingFromPath(v)
+        if (fromPath >= 0) {
+            v.dir = fromPath
+            return fromPath
+        }
+        val ax = if (v.path.isNotEmpty()) {
+            Citizens.unpackX(v.path[v.pathI.coerceIn(0, v.path.lastIndex)])
+        } else 0
+        val ay = if (v.path.isNotEmpty()) {
+            Citizens.unpackY(v.path[v.pathI.coerceIn(0, v.path.lastIndex)])
+        } else 0
+        val along = World.roadHeadingAt(ax, ay, v.dir)
+        v.dir = along
+        return along
+    }
+
+    private fun headingFromPath(v: BusVehicle): Int {
+        if (v.path.size < 2) return -1
         val i = v.pathI.coerceIn(0, v.path.lastIndex)
         val a = v.path[i]
-        val b = if (v.forward) v.path.getOrElse(i + 1) { a } else v.path.getOrElse(i - 1) { a }
-        val dx = Citizens.unpackX(b) - Citizens.unpackX(a)
-        val dy = Citizens.unpackY(b) - Citizens.unpackY(a)
+        val atEnd = (v.forward && i >= v.path.lastIndex) || (!v.forward && i <= 0)
+        val b = if (v.forward) {
+            if (i < v.path.lastIndex) v.path[i + 1] else v.path[i - 1]
+        } else {
+            if (i > 0) v.path[i - 1] else v.path[i + 1]
+        }
+        var dx = Citizens.unpackX(b) - Citizens.unpackX(a)
+        var dy = Citizens.unpackY(b) - Citizens.unpackY(a)
+        if (atEnd) {
+            dx = -dx
+            dy = -dy
+        }
+        if (dx == 0 && dy == 0) return -1
         return when {
             kotlin.math.abs(dx) >= kotlin.math.abs(dy) -> if (dx >= 0) 0 else 2
             else -> if (dy >= 0) 1 else 3

@@ -443,6 +443,19 @@ class World {
 
         fun isRoad(x: Int, y: Int): Boolean = tile(x, y)?.road != null
 
+        /** 当前格路向：竖路朝下(1)，横路朝右(0)。有记忆朝向时优先用记忆。 */
+        fun roadHeadingAt(x: Int, y: Int, remembered: Int = -1): Int {
+            val h = isRoad(x - 1, y) || isRoad(x + 1, y)
+            val v = isRoad(x, y - 1) || isRoad(x, y + 1)
+            return when {
+                v && !h -> 1
+                h && !v -> 0
+                remembered in 0..3 -> remembered
+                v -> 1
+                else -> 0
+            }
+        }
+
         fun terrainName(x: Int, y: Int): String {
             val t = tile(x, y) ?: return "-"
             return Config.Terrain.from(t.terrain).label

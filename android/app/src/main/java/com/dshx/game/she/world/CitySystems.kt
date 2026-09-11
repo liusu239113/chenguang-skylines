@@ -15,7 +15,8 @@ class EmergencyCar(
     var path: MutableList<Int> = mutableListOf(),
     var pathI: Int = 0,
     var prog: Float = 0f,
-    var speed: Float = 2.2f
+    var speed: Float = 2.2f,
+    var dir: Int = -1
 )
 
 /**
@@ -202,6 +203,8 @@ object CitySystems {
                 c.pathI++
                 c.x = Citizens.unpackX(c.path[c.pathI])
                 c.y = Citizens.unpackY(c.path[c.pathI])
+                val h = headingFromPath(c)
+                if (h >= 0) c.dir = h
             }
             if (c.pathI >= c.path.lastIndex) {
                 arrive(c)
@@ -272,7 +275,13 @@ object CitySystems {
             } ?: return
             st.x to st.y
         }
-        cars.add(EmergencyCar(kind, start.first, start.second, dx, dy, speed = 2.0f + Random.nextFloat()))
+        cars.add(
+            EmergencyCar(
+                kind, start.first, start.second, dx, dy,
+                speed = 2.0f + Random.nextFloat(),
+                dir = World.roadHeadingAt(start.first, start.second)
+            )
+        )
     }
 
     fun screenCell(c: EmergencyCar): Pair<Float, Float> {
@@ -287,14 +296,31 @@ object CitySystems {
         return (ax + (bx - ax) * c.prog - 0.5f) to (ay + (by - ay) * c.prog - 0.5f)
     }
 
-    /** 0右 1下 2左 3上，跟私家车同一套 */
+    /** 0右 1下 2左 3上。路径空或终点按当前路向，不再默认朝右。 */
     fun heading(c: EmergencyCar): Int {
-        if (c.path.size < 2) return 0
+        val fromPath = headingFromPath(c)
+        if (fromPath >= 0) {
+            c.dir = fromPath
+            return fromPath
+        }
+        val along = World.roadHeadingAt(c.x, c.y, c.dir)
+        c.dir = along
+        return along
+    }
+
+    private fun headingFromPath(c: EmergencyCar): Int {
+        if (c.path.size < 2) return -1
         val i = c.pathI.coerceIn(0, c.path.lastIndex)
         val a = c.path[i]
-        val b = c.path.getOrElse(i + 1) { a }
-        val dx = Citizens.unpackX(b) - Citizens.unpackX(a)
-        val dy = Citizens.unpackY(b) - Citizens.unpackY(a)
+        val atEnd = i >= c.path.lastIndex
+        val b = if (!atEnd) c.path[i + 1] else c.path[i - 1]
+        var dx = Citizens.unpackX(b) - Citizens.unpackX(a)
+        var dy = Citizens.unpackY(b) - Citizens.unpackY(a)
+        if (atEnd) {
+            dx = -dx
+            dy = -dy
+        }
+        if (dx == 0 && dy == 0) return -1
         return when {
             abs(dx) >= abs(dy) -> if (dx >= 0) 0 else 2
             else -> if (dy >= 0) 1 else 3
