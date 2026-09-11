@@ -720,12 +720,15 @@ class World {
                 if (b.isService) {
                     for (yy in b.ay until b.ay + b.h) {
                         for (xx in b.ax until b.ax + b.w) {
-                            w.grid[yy - 1][xx - 1].building = null
+                            val cell = w.grid[yy - 1][xx - 1]
+                            cell.building = null
+                            cell.zone = "none"
                         }
                     }
                     return "service" to b.service
                 }
                 t.building = null
+                t.zone = "none"
                 return "grown" to b.zone
             }
             t.road?.let { kind ->
