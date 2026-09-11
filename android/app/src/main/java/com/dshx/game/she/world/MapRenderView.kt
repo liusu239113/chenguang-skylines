@@ -1205,40 +1205,7 @@ class MapRenderView @JvmOverloads constructor(
                     }
                 }
             }
-            // 设施只画单字，落在屋顶内，避免串格
-            if (cell >= 16) {
-                for (ty in y0..y1) {
-                    for (tx in x0..x1) {
-                        val t = w.grid[ty - 1][tx - 1]
-                        val bl = t.building ?: continue
-                        if (!bl.isService || bl.ax != tx || bl.ay != ty) continue
-                        val sx = worldToScreenX(bl.ax - 1 + bl.w / 2f)
-                        val sy = worldToScreenY(bl.ay - 1 + bl.h / 2f) - cell * 0.22f
-                        val sym = serviceSymbol(bl.service ?: "")
-                        if (sym.isEmpty()) continue
-                        val fs = min(cell * 0.28f, cell * bl.w * 0.32f)
-                        drawText(canvas, sx, sy, fs, RGBA(255, 255, 255), sym, TAlign.CENTER, 220)
-                    }
-                }
-            }
-            // 成长建筑名只在选中时画在屋顶上方，字号卡在本格内
-            if (hasSelection && selectedX > 0) {
-                val t = World.tile(selectedX, selectedY)
-                val bl = t?.building
-                if (bl != null && !bl.isService) {
-                    val ax = bl.ax.takeIf { it > 0 } ?: selectedX
-                    val ay = bl.ay.takeIf { it > 0 } ?: selectedY
-                    val sx = worldToScreenX(ax - 1f)
-                    val sy = worldToScreenY(ay - 1f)
-                    val bw = cell * bl.w
-                    val name = buildingName(bl.zone ?: "residential", ax, ay)
-                    val fs = min(cell * 0.24f, (bw - 6f) / max(2, name.length))
-                    drawText(
-                        canvas, sx + bw / 2f, sy - cell * 0.55f,
-                        fs, RGBA(70, 64, 52), name, TAlign.CENTER, 230
-                    )
-                }
-            }
+            // 建筑名改在 drawBuilding 里贴前墙，这里不再另画，避免飘到格子外
             // 预置 POI 标签
             for (lb in w.labels) {
                 val sx = worldToScreenX(lb.x - 0.5f)
@@ -1682,9 +1649,49 @@ class MapRenderView @JvmOverloads constructor(
             }
             else -> drawSolidBox(canvas, bx, by, bw, bh, hpx, base)
         }
+        val label = if (bl.isService) {
+            World.serviceConfig(bl.service)?.name ?: ""
+        } else {
+            buildingName(bl.zone ?: "residential", tx, ty)
+        }
+        if (label.isNotEmpty() && cell >= 11) {
+            drawNameOnFrontWall(canvas, bx, by, bw, bh, hpx, label)
+        }
         if (World.tile(tx, ty)?.onFire == true) {
             fillCircle(canvas, bx + bw * 0.5f, by + bh * 0.2f - hpx, cell * 0.16f, RGBA(255, 120, 40, 200))
         }
+    }
+
+    /** 全名贴在体块前墙中部，字宽不超过这栋建筑 */
+    private fun drawNameOnFrontWall(
+        canvas: Canvas, bx: Float, by: Float, bw: Float, bh: Float, hpx: Float, name: String
+    ) {
+        if (typeface == null) return
+        val H = max(hpx, 1.5f)
+        val foot = by + bh
+        val wallTop = foot - H
+        val cx = bx + bw * 0.5f
+        val cy = wallTop + H * 0.42f
+        val maxW = bw * 0.86f
+        var fs = min(cell * 0.30f, maxW / max(1, name.length))
+        fs = max(6f, fs)
+        var tw = measure(name, fs)
+        while (tw > maxW && fs > 6f) {
+            fs -= 0.35f
+            tw = measure(name, fs)
+        }
+        if (tw > maxW) {
+            fs = max(5.5f, maxW / max(1, name.length))
+            tw = measure(name, fs)
+        }
+        val th = fs * 1.05f
+        val padX = max(1.6f, fs * 0.18f)
+        val bgW = min(maxW, tw + padX * 2f)
+        fillRoundRect(
+            canvas, cx - bgW / 2f, cy - th / 2f - 1f, bgW, th + 2f, 1.8f,
+            RGBA(28, 32, 36, 165)
+        )
+        drawText(canvas, cx, cy, fs, RGBA(255, 252, 246), name, TAlign.CENTER, 245)
     }
 
     private fun overlayHue(cat: String): RGBA = when (cat) {
@@ -1958,33 +1965,6 @@ class MapRenderView @JvmOverloads constructor(
                 }
             }
         }
-    }
-
-    /** 基础设施/交通设施的单字符号（模型标识） */
-    private fun serviceSymbol(id: String): String = when (id) {
-        "wind_farm" -> "风"
-        "solar_plant" -> "阳"
-        "coal_plant" -> "煤"
-        "nuclear_plant" -> "核"
-        "water_tower" -> "水"
-        "pump_station" -> "泵"
-        "landfill" -> "垃"
-        "incinerator" -> "焚"
-        "bus_stop" -> "公"
-        "metro" -> "地"
-        "rail_station" -> "铁"
-        "harbor" -> "港"
-        "airport" -> "机"
-        "police" -> "警"
-        "university" -> "大"
-        "sewage" -> "污"
-        "cemetery" -> "墓"
-        "crematorium" -> "葬"
-        "prison" -> "狱"
-        "stock_exchange" -> "证"
-        "tv_tower" -> "塔"
-        "stadium" -> "体"
-        else -> ""
     }
 
     /** 成长建筑按坐标确定性取名 */
