@@ -115,6 +115,11 @@ object GameData {
     val zoneDraft: LinkedHashSet<Int> = LinkedHashSet()
     var zoneDraftKey: String = "residential"
 
+    /** 设施草稿：点地图只预览，点确认才扣费落图 */
+    var serviceDraftId: String? = null
+    var serviceDraftX: Int = 0
+    var serviceDraftY: Int = 0
+
     /** 一天内时间：0=清晨，0.25=正午，0.5=黄昏，0.75=夜晚 */
     var timeOfDay: Float = 0.25f
 
@@ -156,6 +161,7 @@ object GameData {
         timeOfDay = 0.25f
         weather = 0
         clearZoneDraft()
+        clearServiceDraft()
         pushNews(
             "城市奠基",
             s.cityName + "迎来新任" + Config.World.playerRole +
@@ -757,6 +763,35 @@ object GameData {
         zoneDraft.clear()
     }
 
+    fun clearServiceDraft() {
+        serviceDraftId = null
+        serviceDraftX = 0
+        serviceDraftY = 0
+    }
+
+    fun paintServiceDraft(id: String, x: Int, y: Int): Pair<Boolean, String?> {
+        val (ok, msg) = World.canPlaceService(id, x, y)
+        if (!ok) return false to msg
+        val cfg = World.serviceConfig(id) ?: return false to "未知设施"
+        val s = current ?: return false to null
+        if (!sandbox && cfg.unlockPop > s.population.toInt()) {
+            return false to ("人口达到 " + cfg.unlockPop + " 后解锁")
+        }
+        serviceDraftId = id
+        serviceDraftX = x
+        serviceDraftY = y
+        return true to null
+    }
+
+    fun confirmServiceDraft(): Pair<Boolean, String?> {
+        val id = serviceDraftId ?: return false to "先在地图上点要建的位置"
+        val x = serviceDraftX
+        val y = serviceDraftY
+        val (ok, msg) = placeService(id, x, y)
+        if (ok) clearServiceDraft()
+        return ok to msg
+    }
+
     fun zoneDraftCost(): Int {
         val unit = Config.ZONE[zoneDraftKey]?.cost ?: 0
         return zoneDraft.size * unit
@@ -848,7 +883,7 @@ object GameData {
             String.format("在 (%d,%d) 建成 %s，耗资 %d万。", x, y, cfg.name, cfg.cost),
             "城建"
         )
-        return true to null
+        return true to (cfg.name + "已建成，扣 " + cfg.cost + " 万")
     }
 
     fun activatePolicy(pid: String): Pair<Boolean, String?> {

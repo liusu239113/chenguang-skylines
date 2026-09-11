@@ -430,7 +430,7 @@ fun SettingsPanel() {
             }
             var bgm by remember { mutableStateOf(Prefs.bgmVolume) }
             var sfx by remember { mutableStateOf(Prefs.sfxVolume) }
-            Text("背景音乐 ${(bgm * 100).roundToInt()}%", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("背景音乐 ${(bgm * 100).roundToInt()}%（默认已调低）", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Slider(
                 value = bgm,
                 onValueChange = {

@@ -129,6 +129,7 @@ object MapScreen {
 
     fun cancelTool() {
         GameData.clearZoneDraft()
+        GameData.clearServiceDraft()
         AppState.mode = "view"
         AppState.serviceOpen = false
         AppState.roadOpen = false
@@ -687,7 +688,9 @@ fun MapScreenContent(mapView: MapRenderView) {
             }
         }
 
-        if (AppState.mode == "zone" && GameData.zoneDraft.isNotEmpty() && !overlayOpen) {
+        val showZoneConfirm = AppState.mode == "zone" && GameData.zoneDraft.isNotEmpty() && !overlayOpen
+        val showServiceConfirm = AppState.mode == "service" && GameData.serviceDraftId != null && !overlayOpen
+        if (showZoneConfirm) {
             val n = GameData.zoneDraft.size
             val cost = GameData.zoneDraftCost()
             val zname = Config.ZONE[GameData.zoneDraftKey]?.name ?: "分区"
@@ -743,15 +746,72 @@ fun MapScreenContent(mapView: MapRenderView) {
                 }
             }
         }
+        if (showServiceConfirm) {
+            val sid = GameData.serviceDraftId
+            val sc = World.serviceConfig(sid)
+            val sname = sc?.name ?: "设施"
+            val cost = sc?.cost ?: 0
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 78.dp, start = 12.dp, end = 12.dp)
+                    .fillMaxWidth()
+                    .shadowCard(16.dp, C.panelWhite.toColor())
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "待确认建造 · $sname",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                    )
+                    Text(
+                        "再点地图可改位置 · 确认后扣 $cost 万",
+                        fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .background(C.chipBg.toColor(), RoundedCornerShape(12.dp))
+                            .clickable {
+                                Sfx.play("sfx_click", 0.5f)
+                                GameData.clearServiceDraft()
+                                AppState.bumpLive()
+                                AppState.bumpMap()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text("取消", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .background(C.accentGreen.toColor(), RoundedCornerShape(12.dp))
+                            .clickable {
+                                val (ok, msg) = GameData.confirmServiceDraft()
+                                if (ok) Sfx.play("sfx_build") else Sfx.play("sfx_click", 0.4f)
+                                if (msg != null) MapRef.view?.setToast(msg)
+                                AppState.bumpLive()
+                                AppState.bumpMap()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text("确认建造", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
+                    }
+                }
+            }
+        }
 
         if (AppState.mode != "view" && !overlayOpen) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 78.dp)
-                    .size(56.dp)
-                    .shadow(6.dp, RoundedCornerShape(28.dp))
-                    .background(C.panelWhite.toColor(), RoundedCornerShape(28.dp))
+                    .padding(end = 12.dp, bottom = 148.dp)
+                    .size(52.dp)
+                    .shadow(6.dp, RoundedCornerShape(26.dp))
+                    .background(C.panelWhite.toColor(), RoundedCornerShape(26.dp))
                     .clickable {
                         Sfx.play("sfx_click")
                         MapScreen.cancelTool()
@@ -761,7 +821,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_hand_pan),
                     contentDescription = "拖动地图",
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(32.dp)
                 )
             }
         }
@@ -883,6 +943,7 @@ private fun DrawerContent(mapView: MapRenderView) {
                                         poor -> mapView.setToast("资金不足")
                                         else -> {
                                             AppState.selService = sv.id
+                                            GameData.clearServiceDraft()
                                             AppState.serviceOpen = false
                                             MapScreen.syncTool()
                                         }
@@ -1189,13 +1250,13 @@ private fun HelpPanel() {
                     modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.helpOpen = false }.padding(4.dp)
                 )
             }
-            HelpRow("手", "右下角手掌图标=退出建造并拖地图。修完路一定要点它，否则会继续铺路。")
+            HelpRow("手", "手掌在确认条上方，点它退出建造并拖地图。划区/设施都要点底部「确认」才扣费。")
             HelpRow("职", "点顶栏营造职级打开营造档案。人口、满意度和测评都达标才会晋升，不是现实官职。")
             HelpRow("路", "黑色地块不用点。在亮处划住宅引人，通电通水后人口会涨，每满 20 人自动向外扩一圈。点「满意」和「住商工办」可看详情。外环高速全天有过路车；接进城后才会进游客。")
             HelpRow("铁", "先在【服务】建火车站，再在【道路】里选铁轨去地图上画。地铁同理，先建地铁站。机场建好会有飞机。")
             HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。同一格再点可撤销。邻路才会长楼，通电通水后迁入人口。")
             HelpRow("电", "风电/煤电按造价和占地覆盖一片区域，不用铺电缆。点【数】开电力热力图能看到圈。")
-            HelpRow("水", "水塔/抽水站按半径供水。抽水站必须靠河。诊所人口 25 解锁，垃圾场 40 解锁。")
+            HelpRow("水", "水塔/抽水站按半径供水。抽水站必须靠河。点地图只是预览，底部「确认建造」才扣费。诊所人口 25 解锁，垃圾场 40 解锁。")
             HelpRow("规", "【规划】只选公交/区划/种树。选完面板会关，才能在地图上点。")
             HelpRow("策", "【数/?/策/银】在状态栏左下。【银】是银行：手动高息、看广告低息。暂停用顶栏 ‖，只冻时间，仍可划区修路；右上 ≡ 才是菜单。")
             HelpRow("存", "右上【≡】打开菜单保存。主菜单「存档管理」能看到城市名、人口、日期。")

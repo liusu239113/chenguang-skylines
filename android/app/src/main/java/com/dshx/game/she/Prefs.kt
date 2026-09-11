@@ -15,8 +15,17 @@ object Prefs {
         set(v) { p.edit().putBoolean("privacy_accepted", v).apply() }
 
     var bgmVolume: Float
-        get() = p.getFloat("bgm_vol", 0.55f)
-        set(v) { p.edit().putFloat("bgm_vol", v.coerceIn(0f, 1f)).apply(); Bgm.applyVolume() }
+        get() {
+            if (!p.contains("bgm_vol_v2")) {
+                p.edit().putBoolean("bgm_vol_v2", true).putFloat("bgm_vol", 0.22f).apply()
+                return 0.22f
+            }
+            return p.getFloat("bgm_vol", 0.22f)
+        }
+        set(v) {
+            p.edit().putBoolean("bgm_vol_v2", true).putFloat("bgm_vol", v.coerceIn(0f, 1f)).apply()
+            Bgm.applyVolume()
+        }
 
     var sfxVolume: Float
         get() = p.getFloat("sfx_vol", 0.85f)

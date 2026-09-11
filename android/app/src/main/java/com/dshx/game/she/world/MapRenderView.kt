@@ -294,8 +294,8 @@ class MapRenderView @JvmOverloads constructor(
                 return ok
             }
             "service" -> {
-                val (ok, msg) = GameData.placeService(t.id ?: return false, tx, ty)
-                if (ok) Sfx.play("sfx_build") else if (msg != null) setToast(msg)
+                val (ok, msg) = GameData.paintServiceDraft(t.id ?: return false, tx, ty)
+                if (ok) Sfx.play("sfx_click", 0.35f) else if (msg != null) setToast(msg)
                 return ok
             }
             "district" -> {
@@ -1225,7 +1225,25 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // ---- 5.5) 划区草稿预览（确认前不扣费） ----
+        // ---- 5.5) 划区/设施草稿预览（确认前不扣费） ----
+        val sid = GameData.serviceDraftId
+        if (sid != null && GameData.serviceDraftX > 0) {
+            val sc = World.serviceConfig(sid)
+            if (sc != null) {
+                val sx = worldToScreenX(GameData.serviceDraftX - 1f)
+                val sy = worldToScreenY(GameData.serviceDraftY - 1f)
+                val gw = cell * sc.sizeW
+                val gh = cell * sc.sizeH
+                val cx = worldToScreenX(GameData.serviceDraftX - 1 + sc.sizeW / 2f)
+                val cy = worldToScreenY(GameData.serviceDraftY - 1 + sc.sizeH / 2f)
+                val cr = World.coverRadius(sc).toFloat()
+                fillCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 26))
+                strokeCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 90), 255, 1f)
+                fillRect(canvas, sx, sy, gw, gh, C.ghostOk)
+                strokeColor(RGBA(110, 220, 140, 230), 255, 1.8f)
+                canvas.drawRect(sx, sy, sx + gw, sy + gh, paint)
+            }
+        }
         if (GameData.zoneDraft.isNotEmpty()) {
             val zc = when (GameData.zoneDraftKey) {
                 "residential" -> C.zoneResidential
@@ -1762,7 +1780,7 @@ class MapRenderView @JvmOverloads constructor(
         val horiz = dir == 0 || dir == 2
         val L = cell * if (longBody) 0.72f else 0.48f
         val W = cell * if (longBody) 0.32f else 0.26f
-        val lift = cell * 0.16f + bounce
+        val lift = cell * 0.10f + bounce
         val rx: Float
         val ry: Float
         val rw: Float
@@ -1772,39 +1790,53 @@ class MapRenderView @JvmOverloads constructor(
         } else {
             rx = sx - W / 2f; ry = sy - L / 2f; rw = W; rh = L
         }
+        val rad = max(1.4f, cell * 0.06f)
+        fillRoundRect(canvas, rx + 1.8f, ry + 2.6f, rw, rh, rad, RGBA(28, 34, 30, 55))
         val rubber = RGBA(36, 36, 40)
         val wheel = max(2.2f, cell * 0.08f)
-        boxFlip = dir == 2 || dir == 3
         if (horiz) {
-            drawBox(canvas, rx + rw * 0.12f, ry + rh - wheel * 0.35f, wheel, wheel * 0.72f, wheel * 0.4f, rubber)
-            drawBox(canvas, rx + rw * 0.70f, ry + rh - wheel * 0.35f, wheel, wheel * 0.72f, wheel * 0.4f, rubber)
+            fillRoundRect(canvas, rx + rw * 0.12f, ry + rh - wheel * 0.35f, wheel, wheel * 0.72f, 1.2f, rubber)
+            fillRoundRect(canvas, rx + rw * 0.70f, ry + rh - wheel * 0.35f, wheel, wheel * 0.72f, 1.2f, rubber)
+            fillRoundRect(canvas, rx + rw * 0.12f, ry - wheel * 0.25f, wheel, wheel * 0.72f, 1.2f, rubber)
+            fillRoundRect(canvas, rx + rw * 0.70f, ry - wheel * 0.25f, wheel, wheel * 0.72f, 1.2f, rubber)
         } else {
-            drawBox(canvas, rx - wheel * 0.18f, ry + rh * 0.12f, wheel * 0.72f, wheel, wheel * 0.4f, rubber)
-            drawBox(canvas, rx - wheel * 0.18f, ry + rh * 0.70f, wheel * 0.72f, wheel, wheel * 0.4f, rubber)
+            fillRoundRect(canvas, rx - wheel * 0.25f, ry + rh * 0.12f, wheel * 0.72f, wheel, 1.2f, rubber)
+            fillRoundRect(canvas, rx - wheel * 0.25f, ry + rh * 0.70f, wheel * 0.72f, wheel, 1.2f, rubber)
+            fillRoundRect(canvas, rx + rw - wheel * 0.35f, ry + rh * 0.12f, wheel * 0.72f, wheel, 1.2f, rubber)
+            fillRoundRect(canvas, rx + rw - wheel * 0.35f, ry + rh * 0.70f, wheel * 0.72f, wheel, 1.2f, rubber)
         }
-        drawBox(canvas, rx, ry, rw, rh, lift, color)
-        drawBox(canvas, rx + rw * 0.12f, ry + rh * 0.12f, rw * 0.76f, rh * 0.40f, lift * 1.35f, color.shade(1.08))
+        fillRoundRect(canvas, rx, ry - lift * 0.15f, rw, rh, rad, color.shade(0.62))
+        fillRoundRect(canvas, rx, ry - lift, rw, rh * 0.78f, rad, color)
+        fillRoundRect(canvas, rx + rw * 0.08f, ry - lift - cell * 0.04f, rw * 0.84f, rh * 0.42f, rad, color.shade(1.08))
+        strokeColor(color.shade(0.42), 90, max(0.5f, cell * 0.018f))
+        canvas.drawLine(rx + rw * 0.18f, ry - lift + rh * 0.18f, rx + rw * 0.82f, ry - lift + rh * 0.18f, paint)
+        if (selected) {
+            strokeRoundRect(canvas, rx - 1.5f, ry - lift - 1.5f, rw + 3f, rh + 3f, rad, RGBA(220, 80, 50), 255, 1.6f)
+        }
         val glass = if (nightLevel > 0.35f) RGBA(255, 220, 140) else RGBA(70, 92, 112)
         if (horiz) {
             val wx = if (dir == 0) rx + rw * 0.52f else rx + rw * 0.16f
-            drawBox(canvas, wx, ry + rh * 0.18f, rw * 0.28f, rh * 0.38f, lift * 1.15f, glass)
+            fillRoundRect(canvas, wx, ry - lift + rh * 0.12f, rw * 0.28f, rh * 0.38f, 1.2f, glass)
+            fillRoundRect(canvas, rx + rw * 0.42f, ry - lift - cell * 0.02f, cell * 0.05f, cell * 0.05f, 1f, RGBA(40, 48, 56))
+            fillRoundRect(canvas, rx + rw * 0.42f, ry - lift + rh * 0.52f, cell * 0.05f, cell * 0.05f, 1f, RGBA(40, 48, 56))
         } else {
-            val wy = if (dir == 1) ry + rh * 0.50f else ry + rh * 0.14f
-            drawBox(canvas, rx + rw * 0.18f, wy, rw * 0.64f, rh * 0.22f, lift * 1.15f, glass)
+            val wy = if (dir == 1) ry - lift + rh * 0.50f else ry - lift + rh * 0.14f
+            fillRoundRect(canvas, rx + rw * 0.18f, wy, rw * 0.64f, rh * 0.22f, 1.2f, glass)
+            fillRoundRect(canvas, rx - cell * 0.02f, ry - lift + rh * 0.42f, cell * 0.05f, cell * 0.05f, 1f, RGBA(40, 48, 56))
+            fillRoundRect(canvas, rx + rw - cell * 0.03f, ry - lift + rh * 0.42f, cell * 0.05f, cell * 0.05f, 1f, RGBA(40, 48, 56))
         }
         val light = if (dir == 0 || dir == 1) RGBA(255, 230, 160) else RGBA(210, 70, 60)
         if (horiz) {
-            val lx = if (dir == 0) rx + rw - cell * 0.10f else rx
-            drawBox(canvas, lx, ry + rh * 0.28f, cell * 0.08f, cell * 0.08f, lift * 0.6f, light)
+            val lx = if (dir == 0) rx + rw - cell * 0.08f else rx
+            fillRoundRect(canvas, lx, ry - lift + rh * 0.18f, cell * 0.07f, cell * 0.07f, 1f, light)
         } else {
-            val ly = if (dir == 1) ry + rh - cell * 0.10f else ry
-            drawBox(canvas, rx + rw * 0.38f, ly, cell * 0.08f, cell * 0.08f, lift * 0.6f, light)
-        }
-        if (selected) {
-            strokeRoundRect(canvas, rx - 1.5f, ry - lift - 1.5f, rw + 3f, rh + 3f, 2f, RGBA(220, 80, 50), 255, 1.6f)
+            val ly = if (dir == 1) ry + rh - cell * 0.10f else ry - lift
+            fillRoundRect(canvas, rx + rw * 0.38f, ly, cell * 0.07f, cell * 0.07f, 1f, light)
         }
         if (nightLevel > 0.4f) {
-            fillCircle(canvas, sx, sy, cell * 0.06f, RGBA(255, 236, 170, 180))
+            val hx = if (dir == 0) rx + rw else if (dir == 2) rx else sx
+            val hy = if (dir == 1) ry + rh else if (dir == 3) ry - lift else sy
+            fillCircle(canvas, hx, hy, cell * 0.06f, RGBA(255, 236, 170, 180))
         }
     }
 
