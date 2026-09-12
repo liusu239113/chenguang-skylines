@@ -226,16 +226,16 @@ object Config {
         // ---- 生活品质 ----
         ServiceDef("park", "公园", 260, 10, 4, 5, true, 1, 1,
             "绿地吸收污染，抬升周边地价与满意度。", ServiceCat.AMENITY, 0),
-        ServiceDef("plaza", "广场", 900, 18, 5, 8, true, 2, 2,
+        ServiceDef("plaza", "广场", 1400, 28, 5, 8, true, 2, 2,
             "市民广场，显著提升满意度与地价。", ServiceCat.AMENITY, 500),
         // ---- 电力（容量决定能否撑住全城） ----
         ServiceDef("wind_farm", "风电场", 500, 18, 6, 0, false, 1, 1,
             "清洁风电。按半径覆盖周边，容量 18。", ServiceCat.POWER, 0, 0, 18, 0),
-        ServiceDef("solar_plant", "太阳能电站", 800, 16, 7, 0, false, 2, 2,
+        ServiceDef("solar_plant", "太阳能电站", 1600, 28, 7, 0, false, 2, 2,
             "光伏电站。按半径覆盖，容量 36，无污染。", ServiceCat.POWER, 300, 0, 36, 0),
-        ServiceDef("coal_plant", "燃煤电厂", 1200, 42, 10, -3, false, 2, 2,
+        ServiceDef("coal_plant", "燃煤电厂", 1800, 56, 10, -3, false, 2, 2,
             "容量 70，覆盖更广，稳定但污染重。", ServiceCat.POWER, 0, 8, 70, 0),
-        ServiceDef("nuclear_plant", "核电站", 4200, 45, 14, 0, false, 3, 3,
+        ServiceDef("nuclear_plant", "核电站", 9800, 120, 14, 0, false, 3, 3,
             "容量 180，覆盖最广，维护昂贵。", ServiceCat.POWER, 4000, 1, 180, 0),
         // ---- 供水 ----
         ServiceDef("water_tower", "水塔", 300, 12, 5, 0, false, 1, 1,
@@ -245,19 +245,19 @@ object Config {
         // ---- 垃圾 ----
         ServiceDef("landfill", "垃圾场", 350, 22, 6, 0, false, 1, 1,
             "填埋生活垃圾，满载后污染加重。", ServiceCat.GARBAGE, 40, 3),
-        ServiceDef("incinerator", "焚烧厂", 900, 36, 8, -2, false, 2, 2,
+        ServiceDef("incinerator", "焚烧厂", 2200, 52, 8, -2, false, 2, 2,
             "烧掉垃圾并发电，有空气污染。", ServiceCat.GARBAGE, 300, 5, 12, 0),
         // ---- 医疗 ----
         ServiceDef("clinic", "诊所", 640, 28, 7, 5, false, 1, 1,
             "基础医疗，覆盖区健康与满意度提升。", ServiceCat.HEALTH, 25),
-        ServiceDef("hospital", "医院", 900, 36, 8, 6, true, 2, 2,
+        ServiceDef("hospital", "医院", 2800, 72, 8, 6, true, 2, 2,
             "大型医疗，覆盖更广。", ServiceCat.HEALTH, 700),
         // ---- 教育（驱动产业升级） ----
         ServiceDef("school", "小学", 520, 32, 7, 4, true, 2, 2,
             "基础教育，缓慢提升受教育人口。", ServiceCat.EDUCATION, 20),
-        ServiceDef("middle_school", "中学", 700, 28, 8, 4, true, 2, 2,
+        ServiceDef("middle_school", "中学", 1600, 48, 8, 4, true, 2, 2,
             "中等教育，商业与制造业需要。", ServiceCat.EDUCATION, 300),
-        ServiceDef("university", "大学", 1800, 48, 10, 6, true, 3, 3,
+        ServiceDef("university", "大学", 4200, 96, 10, 6, true, 3, 3,
             "高等教育，解锁高科技工厂。", ServiceCat.EDUCATION, 600),
         // ---- 安全 ----
         ServiceDef("fire_station", "消防站", 600, 24, 7, 0, false, 1, 1,
@@ -267,29 +267,29 @@ object Config {
         // ---- 公交 ----
         ServiceDef("bus_stop", "公交站", 220, 10, 6, 4, false, 1, 1,
             "缓解拥堵，缩短通勤。", ServiceCat.TRANSIT, 150),
-        ServiceDef("metro", "地铁站", 1600, 40, 10, 6, true, 2, 2,
+        ServiceDef("metro", "地铁站", 4800, 88, 10, 6, true, 2, 2,
             "大运量，显著降低拥堵。", ServiceCat.TRANSIT, 600),
-        ServiceDef("rail_station", "火车站", 2000, 44, 10, 8, true, 2, 2,
+        ServiceDef("rail_station", "火车站", 6200, 96, 10, 8, true, 2, 2,
             "连接城外，货运与游客。", ServiceCat.TRANSIT, 1500),
-        ServiceDef("harbor", "港口", 1800, 15, 8, 6, true, 2, 2,
+        ServiceDef("harbor", "港口", 5600, 72, 8, 6, true, 2, 2,
             "滨水货运码头，工业出口加成。", ServiceCat.TRANSIT, 1500),
-        ServiceDef("airport", "机场", 5000, 80, 12, 10, true, 3, 3,
+        ServiceDef("airport", "机场", 16000, 180, 12, 10, true, 3, 3,
             "航空枢纽，旅游收入与满意度。", ServiceCat.TRANSIT, 4000),
         // ---- 排污 / 殡葬 / 监狱 ----
-        ServiceDef("sewage", "污水处理厂", 1100, 36, 8, 0, false, 2, 2,
+        ServiceDef("sewage", "污水处理厂", 2400, 58, 8, 0, false, 2, 2,
             "处理污水。未覆盖则污染水源、市民生病。", ServiceCat.WATER, 60, 2, 0, 0),
         ServiceDef("cemetery", "墓地", 400, 4, 6, -1, false, 2, 2,
             "存放遗体。满载后污染周边。", ServiceCat.DEATH, 80),
         ServiceDef("crematorium", "火葬场", 900, 12, 8, 0, false, 1, 1,
             "焚化遗体，无堆积。需派出灵车。", ServiceCat.DEATH, 300),
-        ServiceDef("prison", "监狱", 1600, 20, 8, 0, false, 2, 2,
+        ServiceDef("prison", "监狱", 3600, 48, 8, 0, false, 2, 2,
             "关押罪犯。容量满则犯人被释放。", ServiceCat.SAFETY, 400),
         // ---- 独特建筑 ----
-        ServiceDef("stock_exchange", "证券交易所", 3500, 18, 10, 8, true, 3, 3,
+        ServiceDef("stock_exchange", "证券交易所", 8800, 64, 10, 8, true, 3, 3,
             "全城商业税收 +12%，地价上升。", ServiceCat.LANDMARK, 1000),
-        ServiceDef("tv_tower", "电视塔", 2800, 14, 12, 10, true, 2, 2,
+        ServiceDef("tv_tower", "电视塔", 7200, 52, 12, 10, true, 2, 2,
             "地标观光，满意度与旅游收入上升。", ServiceCat.LANDMARK, 1500),
-        ServiceDef("stadium", "体育场", 3200, 22, 10, 8, true, 3, 3,
+        ServiceDef("stadium", "体育场", 8600, 78, 10, 8, true, 3, 3,
             "赛事吸引游客，周末消费加成。", ServiceCat.LANDMARK, 2000)
     )
 
@@ -322,6 +322,9 @@ object Config {
         const val baseIncomePerDay = 0.02
         const val upkeepPerRoadDay = 0.070
         const val happinessDecayDay = 0.10
+        /** 人口到此之前维护/造价按前期，之后逐步加重 */
+        const val midPop = 180
+        const val latePop = 700
         const val pollutionHappy = 0.045
         const val occupancyPerDay = 0.06
     }

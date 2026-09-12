@@ -48,6 +48,8 @@ object AppState {
     var menuOpen by mutableStateOf(false)
     /** 银行贷款面板 */
     var bankOpen by mutableStateOf(false)
+    /** 财务报表（日/月明细） */
+    var ledgerOpen by mutableStateOf(false)
     var saveTick by mutableStateOf(0)   // 存档后刷新存档管理界面
 
     /** 实时数值节流刷新（0.5s 一次） */

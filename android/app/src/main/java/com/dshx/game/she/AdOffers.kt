@@ -44,16 +44,19 @@ object AdOffers {
         when (kind) {
             "daily" -> {
                 s.funds += 280
+                GameData.book("income", "other", "每周礼包", 280.0)
                 weeklyClaimed = true
                 MapRef.view?.setToast("每周营造礼包 +280 万")
             }
             "shortfall" -> {
                 val add = maxOf(220, s.lastShortfall)
                 s.funds += add
+                GameData.book("income", "other", "应急拨款", add.toDouble())
                 MapRef.view?.setToast("应急拨款 +${add}万，可继续${s.lastShortAction}")
             }
             "bailout" -> {
                 s.funds += 480
+                GameData.book("income", "other", "财政纾困", 480.0)
                 s.bankruptDays = 0
                 MapRef.view?.setToast("财政纾困 +480 万")
             }
@@ -67,6 +70,7 @@ object AdOffers {
             }
             "grant" -> {
                 s.funds += 220
+                GameData.book("income", "other", "营造拨款", 220.0)
                 MapRef.view?.setToast("营造拨款 +220 万")
             }
         }

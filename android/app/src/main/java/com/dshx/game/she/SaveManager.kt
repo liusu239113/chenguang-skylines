@@ -162,6 +162,38 @@ object SaveManager {
             )
         }
         json.put("news", news)
+        json.put("lastRoadUpkeep", s.lastRoadUpkeep)
+        json.put("lastServiceUpkeep", s.lastServiceUpkeep)
+        json.put("lastGrownUpkeep", s.lastGrownUpkeep)
+        json.put("lastLoanRepay", s.lastLoanRepay)
+        json.put("dayIncomeTax", s.dayIncomeTax)
+        json.put("dayIncomeBiz", s.dayIncomeBiz)
+        json.put("dayIncomeTrade", s.dayIncomeTrade)
+        json.put("lastIncome", s.lastIncome)
+        json.put("lastUpkeep", s.lastUpkeep)
+        json.put("lastNet", s.lastNet)
+        val days = JSONArray()
+        for (line in s.dayBook) {
+            days.put(
+                JSONObject()
+                    .put("date", line.date).put("kind", line.kind)
+                    .put("cat", line.cat).put("name", line.name).put("amount", line.amount)
+            )
+        }
+        json.put("dayBook", days)
+        val months = JSONArray()
+        for (b in s.monthBooks) {
+            months.put(
+                JSONObject()
+                    .put("year", b.year).put("month", b.month)
+                    .put("tax", b.tax).put("biz", b.biz).put("trade", b.trade)
+                    .put("loanIn", b.loanIn).put("otherIn", b.otherIn)
+                    .put("road", b.road).put("service", b.service)
+                    .put("build", b.build).put("zone", b.zone)
+                    .put("loanOut", b.loanOut).put("otherOut", b.otherOut)
+            )
+        }
+        json.put("monthBooks", months)
 
         // 世界格子改动
         val tiles = JSONArray()
@@ -361,6 +393,43 @@ object SaveManager {
             s.quest = Quest(
                 qj.optString("type"), qj.optString("name"), qj.optDouble("target"),
                 qj.optInt("reward"), qj.optBoolean("done", false)
+            )
+        }
+
+        s.lastRoadUpkeep = json.optDouble("lastRoadUpkeep", 0.0)
+        s.lastServiceUpkeep = json.optDouble("lastServiceUpkeep", 0.0)
+        s.lastGrownUpkeep = json.optDouble("lastGrownUpkeep", 0.0)
+        s.lastLoanRepay = json.optDouble("lastLoanRepay", 0.0)
+        s.dayIncomeTax = json.optDouble("dayIncomeTax", 0.0)
+        s.dayIncomeBiz = json.optDouble("dayIncomeBiz", 0.0)
+        s.dayIncomeTrade = json.optDouble("dayIncomeTrade", 0.0)
+        s.lastIncome = json.optDouble("lastIncome", 0.0)
+        s.lastUpkeep = json.optDouble("lastUpkeep", 0.0)
+        s.lastNet = json.optDouble("lastNet", 0.0)
+        s.dayBook.clear()
+        val days = json.optJSONArray("dayBook")
+        if (days != null) for (i in 0 until days.length()) {
+            val o = days.getJSONObject(i)
+            s.dayBook.add(
+                LedgerLine(
+                    o.optString("date"), o.optString("kind"), o.optString("cat"),
+                    o.optString("name"), o.optDouble("amount")
+                )
+            )
+        }
+        s.monthBooks.clear()
+        val months = json.optJSONArray("monthBooks")
+        if (months != null) for (i in 0 until months.length()) {
+            val o = months.getJSONObject(i)
+            s.monthBooks.add(
+                MonthBook(
+                    o.optInt("year"), o.optInt("month"),
+                    o.optDouble("tax"), o.optDouble("biz"), o.optDouble("trade"),
+                    o.optDouble("loanIn"), o.optDouble("otherIn"),
+                    o.optDouble("road"), o.optDouble("service"),
+                    o.optDouble("build"), o.optDouble("zone"),
+                    o.optDouble("loanOut"), o.optDouble("otherOut")
+                )
             )
         }
 

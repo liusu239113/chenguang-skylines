@@ -25,6 +25,34 @@ data class ActiveEvent(val id: String, val name: String, var daysLeft: Int, val 
 
 data class Quest(var type: String, var name: String, var target: Double, var reward: Int, var done: Boolean = false)
 
+data class LedgerLine(
+    val date: String,
+    val kind: String,   // income | spend
+    val cat: String,
+    val name: String,
+    val amount: Double
+)
+
+class MonthBook(
+    val year: Int,
+    val month: Int,
+    var tax: Double = 0.0,
+    var biz: Double = 0.0,
+    var trade: Double = 0.0,
+    var loanIn: Double = 0.0,
+    var otherIn: Double = 0.0,
+    var road: Double = 0.0,
+    var service: Double = 0.0,
+    var build: Double = 0.0,
+    var zone: Double = 0.0,
+    var loanOut: Double = 0.0,
+    var otherOut: Double = 0.0
+) {
+    fun income(): Double = tax + biz + trade + loanIn + otherIn
+    fun spend(): Double = road + service + build + zone + loanOut + otherOut
+    fun net(): Double = income() - spend()
+}
+
 class CityState {
     var year: Int = 2026
     var month: Int = 4
@@ -93,6 +121,12 @@ class CityState {
     var doubleTaxDays: Int = 0
     var lastShortfall: Int = 0
     var lastShortAction: String = ""
+    var lastRoadUpkeep: Double = 0.0
+    var lastServiceUpkeep: Double = 0.0
+    var lastGrownUpkeep: Double = 0.0
+    var lastLoanRepay: Double = 0.0
+    val dayBook: MutableList<LedgerLine> = mutableListOf()
+    val monthBooks: MutableList<MonthBook> = mutableListOf()
 }
 
 object GameData {
@@ -131,6 +165,77 @@ object GameData {
 
     fun difficultyDef(): Config.DifficultyDef =
         Config.DIFFICULTIES.firstOrNull { it.key == difficultyKey } ?: Config.DIFFICULTIES[1]
+
+    /** 人口 <180 前期不变；180~700 中期加重；700+ 后期再加重 */
+    fun cityScale(): Double {
+        val pop = current?.population ?: 0.0
+        val mid = Config.ECONOMY.midPop.toDouble()
+        val late = Config.ECONOMY.latePop.toDouble()
+        return when {
+            pop <= mid -> 1.0
+            pop <= late -> 1.0 + (pop - mid) / (late - mid) * 0.85
+            else -> 1.85 + min(1.35, (pop - late) / 2500.0)
+        }
+    }
+
+    fun buildCostMul(): Double {
+        val s = cityScale()
+        return if (s <= 1.0) 1.0 else 1.0 + (s - 1.0) * 1.15
+    }
+
+    fun serviceCost(id: String): Int {
+        val cfg = World.serviceConfig(id) ?: return 0
+        return max(cfg.cost, floor(cfg.cost * buildCostMul()).toInt())
+    }
+
+    fun roadCost(kind: String): Int {
+        val r = Config.ROAD[kind] ?: return 0
+        return max(r.cost, floor(r.cost * buildCostMul()).toInt())
+    }
+
+    fun zoneCost(key: String): Int {
+        val z = Config.ZONE[key] ?: return 0
+        return max(z.cost, floor(z.cost * (1.0 + (buildCostMul() - 1.0) * 0.45)).toInt())
+    }
+
+    private fun monthBook(): MonthBook {
+        val s = current ?: return MonthBook(2026, 4)
+        val last = s.monthBooks.lastOrNull()
+        if (last != null && last.year == s.year && last.month == s.month) return last
+        val b = MonthBook(s.year, s.month)
+        s.monthBooks.add(b)
+        while (s.monthBooks.size > 24) s.monthBooks.removeAt(0)
+        return b
+    }
+
+    fun book(kind: String, cat: String, name: String, amount: Double) = post(kind, cat, name, amount)
+
+    private fun post(kind: String, cat: String, name: String, amount: Double) {
+        if (amount <= 0.005) return
+        val s = current ?: return
+        val line = LedgerLine(dateLabel(), kind, cat, name, amount)
+        s.dayBook.add(line)
+        while (s.dayBook.size > 90) s.dayBook.removeAt(0)
+        val m = monthBook()
+        if (kind == "income") {
+            when (cat) {
+                "tax" -> m.tax += amount
+                "biz" -> m.biz += amount
+                "trade" -> m.trade += amount
+                "loan" -> m.loanIn += amount
+                else -> m.otherIn += amount
+            }
+        } else {
+            when (cat) {
+                "road" -> m.road += amount
+                "service" -> m.service += amount
+                "build" -> m.build += amount
+                "zone" -> m.zone += amount
+                "loan" -> m.loanOut += amount
+                else -> m.otherOut += amount
+            }
+        }
+    }
 
     private fun createState(): CityState = CityState()
 
@@ -501,15 +606,17 @@ object GameData {
         val bizIncome = bizBase * policyMul("incomeMul")
         val rankTrade = if (s.rankLevel >= 5) 1.08 else 1.0
         val taxBoost = if (s.doubleTaxDays > 0) 2.0 else 1.0
+        val scale = cityScale()
         val income = (taxIncome * taxBoost) + bizIncome + (tradeIncome + landmarkTour) * rankTrade
-        var upkeep = 0.0
+        var roadKeep = 0.0
         val ww = World.current
         if (ww != null) {
             for (y in 1..ww.rows) for (x in 1..ww.cols) {
                 val kind = ww.grid[y - 1][x - 1].road ?: continue
-                upkeep += Config.ROAD[kind]?.upkeep ?: E.upkeepPerRoadDay
+                roadKeep += Config.ROAD[kind]?.upkeep ?: E.upkeepPerRoadDay
             }
         }
+        var serviceKeep = 0.0
         for (e in World.allBuildings()) {
             if (!e.b.isService) continue
             val cfg = World.serviceConfig(e.b.service)
@@ -521,25 +628,48 @@ object GameData {
                     Config.ServiceCat.TRANSIT -> s.budgetTransit
                     else -> 100
                 }
-                upkeep += cfg.upkeep / 1.6 * (budget / 100.0)
+                serviceKeep += cfg.upkeep / 1.6 * (budget / 100.0)
             }
         }
+        var grownKeep = 0.0
+        if (scale > 1.0) {
+            grownKeep = (st.resCount * 0.012 + st.comCount * 0.018 + st.indCount * 0.022 + st.offCount * 0.028) *
+                (scale - 1.0)
+        }
         val rankUpkeep = if (s.rankLevel >= 4) 0.94 else 1.0
-        upkeep *= policyMul("upkeepMul") * (0.9 + Networks.districts.count { it.policy == "ev" } * 0.04) * rankUpkeep
+        val keepMul = policyMul("upkeepMul") * (0.9 + Networks.districts.count { it.policy == "ev" } * 0.04) *
+            rankUpkeep * scale
+        roadKeep *= keepMul
+        serviceKeep *= keepMul
+        grownKeep *= keepMul
+        val upkeep = roadKeep + serviceKeep + grownKeep
         val diff = difficultyDef()
         var eventIncomeMul = 1.0
         for (ev in s.activeEvents) eventIncomeMul *= ev.incomeMul
-        val gross = income * diff.incomeMul * eventIncomeMul
+        val lateIncomeCut = if (scale <= 1.0) 1.0 else 1.0 / (1.0 + (scale - 1.0) * 0.22)
+        val gross = income * diff.incomeMul * eventIncomeMul * lateIncomeCut
         val spend = if (sandbox) 0.0 else upkeep * diff.upkeepMul
         val net = gross - spend
-        s.dayIncomeTax = taxIncome
-        s.dayIncomeBiz = bizIncome
-        s.dayIncomeTrade = tradeIncome
+        val taxPart = taxIncome * taxBoost * diff.incomeMul * eventIncomeMul * lateIncomeCut
+        val bizPart = bizIncome * diff.incomeMul * eventIncomeMul * lateIncomeCut
+        val tradePart = (tradeIncome + landmarkTour) * rankTrade * diff.incomeMul * eventIncomeMul * lateIncomeCut
+        s.dayIncomeTax = taxPart
+        s.dayIncomeBiz = bizPart
+        s.dayIncomeTrade = tradePart
+        s.lastRoadUpkeep = if (sandbox) 0.0 else roadKeep * diff.upkeepMul
+        s.lastServiceUpkeep = if (sandbox) 0.0 else serviceKeep * diff.upkeepMul
+        s.lastGrownUpkeep = if (sandbox) 0.0 else grownKeep * diff.upkeepMul
         s.lastIncome = gross
         s.lastUpkeep = spend
         s.lastNet = net
         s.funds += net
         if (net >= 0) s.totalIncome += net else s.totalSpent += -net
+        post("income", "tax", "居民税", taxPart)
+        post("income", "biz", "工商税收", bizPart)
+        post("income", "trade", "贸易观光", tradePart)
+        post("spend", "road", "道路维护", s.lastRoadUpkeep)
+        post("spend", "service", "设施运营", s.lastServiceUpkeep)
+        post("spend", "service", "城区养护", s.lastGrownUpkeep)
         if (s.funds < 0) {
             s.bankruptDays += 1
             if (s.bankruptDays == 1) pushNews("财政告急", "金库见底，公共服务将收缩。尽快扩税基或贷款。", "财政")
@@ -553,6 +683,8 @@ object GameData {
             val repay = min(daily, s.loanDebt)
             s.loanDebt -= repay
             s.funds -= repay
+            s.lastLoanRepay = repay
+            post("spend", "loan", "贷款还款", repay)
             if (s.loanDebt <= 0) {
                 s.loanDebt = 0.0
                 s.loanDaily = 0.0
@@ -560,6 +692,8 @@ object GameData {
                 s.loanCooldown = Config.LOAN.cooldown
                 pushNews("贷款还清", "银行贷款已全部还清。", "财政")
             }
+        } else {
+            s.lastLoanRepay = 0.0
         }
         if (s.loanCooldown > 0) s.loanCooldown -= 1
         if (s.doubleTaxDays > 0) s.doubleTaxDays -= 1
@@ -608,6 +742,7 @@ object GameData {
             if (v >= a.threshold) {
                 s.achievements.add(a.id)
                 s.funds += a.reward
+                post("income", "other", "成就奖励", a.reward.toDouble())
                 pushNews("成就解锁：" + a.name, a.desc + "，奖励 " + a.reward + " 万。", "成就")
             }
         }
@@ -670,6 +805,7 @@ object GameData {
         if (q != null && !q.done && questValue(q.type) >= q.target) {
             q.done = true
             s.funds += q.reward
+            post("income", "other", "任务奖励", q.reward.toDouble())
             pushNews("任务完成：" + q.name, "达成目标，奖励 " + q.reward + " 万。", "任务")
         }
 
@@ -689,6 +825,7 @@ object GameData {
             s.lastLevel = level.level
             pendingLevelUp = true
             s.funds += level.reward
+            post("income", "other", "晋级拨款", level.reward.toDouble())
             pushNews(
                 "城市晋级 " + level.name + "！",
                 String.format(
@@ -751,15 +888,19 @@ object GameData {
         val r = Config.ROAD[kind] ?: return false to "未知道路"
         val s = current ?: return false to null
         val exist = World.tile(x, y)?.road
-        val oldCost = if (exist != null) Config.ROAD[exist]?.cost ?: 0 else 0
-        val pay = max(0, r.cost - oldCost)
+        val nowCost = roadCost(kind)
+        val oldCost = if (exist != null) roadCost(exist) else 0
+        val pay = max(0, nowCost - oldCost)
         if (!sandbox && s.funds < pay) {
-            AdOffers.offerShortfall(pay.toInt(), "修路")
+            AdOffers.offerShortfall(pay, "修路")
             return false to ("资金不足（需 ¥" + pay + "万）")
         }
         val linkedBefore = World.current?.highwayConnected == true
         World.setRoad(x, y, kind)
-        if (!sandbox) s.funds -= pay
+        if (!sandbox && pay > 0) {
+            s.funds -= pay
+            post("spend", "build", r.name, pay.toDouble())
+        }
         if (kind == "metro" || kind == "rail") Networks.recount()
         World.refreshHighwayLink()
         if (!linkedBefore && World.current?.highwayConnected == true) {
@@ -808,7 +949,7 @@ object GameData {
     }
 
     fun zoneDraftCost(): Int {
-        val unit = Config.ZONE[zoneDraftKey]?.cost ?: 0
+        val unit = zoneCost(zoneDraftKey)
         return zoneDraft.size * unit
     }
 
@@ -833,7 +974,7 @@ object GameData {
     fun confirmZoneDraft(): Pair<Boolean, String?> {
         val s = current ?: return false to "未开始"
         if (zoneDraft.isEmpty()) return false to "先在地图上点要划的格子"
-        val unit = Config.ZONE[zoneDraftKey]?.cost ?: 0
+        val unit = zoneCost(zoneDraftKey)
         val n = zoneDraft.size
         val cost = n * unit
         if (!sandbox && s.funds < cost) {
@@ -849,7 +990,10 @@ object GameData {
             if (World.setZone(x, y, zoneDraftKey)) painted++
         }
         val pay = painted * unit
-        if (!sandbox) s.funds -= pay
+        if (!sandbox && pay > 0) {
+            s.funds -= pay
+            post("spend", "zone", "划区", pay.toDouble())
+        }
         zoneDraft.clear()
         return true to ("已确认划区 " + painted + " 格，扣 " + pay + " 万")
     }
@@ -860,17 +1004,23 @@ object GameData {
         when (res.first) {
             "service" -> {
                 val cfg = World.serviceConfig(res.second)
-                if (cfg != null) s.funds += floor(cfg.cost * 0.3)
+                if (cfg != null) {
+                    val back = floor(serviceCost(cfg.id) * 0.3)
+                    s.funds += back
+                    post("income", "other", "拆除退款", back)
+                }
                 pushNews("拆除设施", "退还部分造价。", "城建")
             }
             "grown" -> {
                 s.funds += 1
+                post("income", "other", "拆楼残值", 1.0)
                 s.population = World.allBuildings().filter { !it.b.isService && it.b.zone == "residential" }
                     .sumOf { it.b.residents }.toDouble()
                 World.current?._pop = s.population.toInt()
             }
             "road" -> {
                 s.funds += 2
+                post("income", "other", "拆路残值", 2.0)
                 Networks.recount()
             }
             "zone" -> { /* 清除分区不退款 */ }
@@ -887,19 +1037,23 @@ object GameData {
         if (!sandbox && cfg.unlockPop > s.population.toInt()) {
             return false to ("人口达到 " + cfg.unlockPop + " 后解锁")
         }
-        if (!sandbox && s.funds < cfg.cost) {
-            AdOffers.offerShortfall(cfg.cost, "建造" + cfg.name)
-            return false to ("资金不足（需 ¥" + cfg.cost + "万）")
+        val pay = serviceCost(id)
+        if (!sandbox && s.funds < pay) {
+            AdOffers.offerShortfall(pay, "建造" + cfg.name)
+            return false to ("资金不足（需 ¥" + pay + "万）")
         }
         val anchor = World.findServiceAnchor(id, x, y) ?: return false to "该位置被占用"
         World.placeService(id, anchor.first, anchor.second)
-        if (!sandbox) s.funds -= cfg.cost
+        if (!sandbox) {
+            s.funds -= pay
+            post("spend", "build", cfg.name, pay.toDouble())
+        }
         pushNews(
             cfg.name + " 建成",
-            String.format("在 (%d,%d) 建成 %s，耗资 %d万。", anchor.first, anchor.second, cfg.name, cfg.cost),
+            String.format("在 (%d,%d) 建成 %s，耗资 %d万。", anchor.first, anchor.second, cfg.name, pay),
             "城建"
         )
-        return true to (cfg.name + "已建成，扣 " + cfg.cost + " 万")
+        return true to (cfg.name + "已建成，扣 " + pay + " 万")
     }
 
     fun activatePolicy(pid: String): Pair<Boolean, String?> {
@@ -915,6 +1069,7 @@ object GameData {
         if (p.effect.cost > 0 && !sandbox) {
             s.funds -= p.effect.cost
             s.totalSpent += p.effect.cost
+            post("spend", "other", p.name, p.effect.cost.toDouble())
         }
         pushNews(
             "新政发布：" + p.name,
@@ -934,7 +1089,10 @@ object GameData {
         val cost = 2
         if (!sandbox && s.funds < cost) return false to "资金不足（水管 2 万/格）"
         Networks.setPipe(x, y, true)
-        if (!sandbox) s.funds -= cost
+        if (!sandbox) {
+            s.funds -= cost
+            post("spend", "build", "水管", cost.toDouble())
+        }
         Networks.recount()
         return true to null
     }
@@ -948,7 +1106,10 @@ object GameData {
         val cost = 2
         if (!sandbox && s.funds < cost) return false to "资金不足（电缆 2 万/格）"
         Networks.setCable(x, y, true)
-        if (!sandbox) s.funds -= cost
+        if (!sandbox) {
+            s.funds -= cost
+            post("spend", "build", "电缆", cost.toDouble())
+        }
         Networks.recount()
         return true to null
     }
@@ -968,7 +1129,10 @@ object GameData {
         val s = current ?: return false to null
         if (!sandbox && s.funds < 2) return false to "资金不足（污水管 2 万/格）"
         Networks.setSewer(x, y, true)
-        if (!sandbox) s.funds -= 2
+        if (!sandbox) {
+            s.funds -= 2
+            post("spend", "build", "污水管", 2.0)
+        }
         Networks.recount()
         return true to null
     }
@@ -981,7 +1145,10 @@ object GameData {
         val s = current ?: return false to null
         if (!sandbox && s.funds < 6) return false to "资金不足（地铁隧道 6 万/格）"
         Networks.setMetro(x, y, true)
-        if (!sandbox) s.funds -= 6
+        if (!sandbox) {
+            s.funds -= 6
+            post("spend", "build", "地铁隧道", 6.0)
+        }
         Networks.recount()
         return true to null
     }
@@ -997,7 +1164,10 @@ object GameData {
             return false to "资金不足（铁轨 8 万/格）"
         }
         Networks.setRail(x, y, true)
-        if (!sandbox) s.funds -= 8
+        if (!sandbox) {
+            s.funds -= 8
+            post("spend", "build", "铁轨", 8.0)
+        }
         Networks.recount()
         return true to null
     }
@@ -1009,7 +1179,10 @@ object GameData {
         if (t.terrain == "forest") return true to null   // 已是林地，不扣费
         if (!sandbox && s.funds < 1) return false to "资金不足"
         if (!World.plantTree(x, y)) return false to "这里不能种树"
-        if (!sandbox) s.funds -= 1
+        if (!sandbox) {
+            s.funds -= 1
+            post("spend", "build", "种树", 1.0)
+        }
         return true to null
     }
 
@@ -1018,7 +1191,10 @@ object GameData {
         if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (!sandbox && s.funds < 3) return false to "资金不足"
         if (!World.raiseLand(x, y)) return false to "不能抬升占用格"
-        if (!sandbox) s.funds -= 3
+        if (!sandbox) {
+            s.funds -= 3
+            post("spend", "build", "填高", 3.0)
+        }
         return true to null
     }
 
@@ -1027,7 +1203,10 @@ object GameData {
         if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (!sandbox && s.funds < 3) return false to "资金不足"
         if (!World.lowerLand(x, y)) return false to "不能降低占用格"
-        if (!sandbox) s.funds -= 3
+        if (!sandbox) {
+            s.funds -= 3
+            post("spend", "build", "挖低", 3.0)
+        }
         return true to null
     }
 
@@ -1052,6 +1231,7 @@ object GameData {
         s.loanKind = if (ad) "ad" else "manual"
         s.funds += amount
         val title = if (ad) "广告低息贷" else "银行高息贷"
+        post("income", "loan", title, amount)
         pushNews(
             title,
             "到账 " + amount.toInt() + " 万，每日自动还 " + daily.toInt() + " 万。",

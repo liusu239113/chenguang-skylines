@@ -360,7 +360,7 @@ fun MapScreenContent(mapView: MapRenderView) {
 
         val overlayOpen = AppState.policyOpen || AppState.helpOpen || AppState.dataOpen || AppState.menuOpen ||
             AppState.settingsOpen || AppState.civicOpen || AppState.complaintOpen || AppState.achievementOpen ||
-            AppState.adOfferOpen || AppState.happyOpen || AppState.demandOpen || AppState.bankOpen
+            AppState.adOfferOpen || AppState.happyOpen || AppState.demandOpen || AppState.bankOpen || AppState.ledgerOpen
         if (!overlayOpen) {
             Column(
                 modifier = Modifier
@@ -384,6 +384,10 @@ fun MapScreenContent(mapView: MapRenderView) {
                 UIHelper.RoundButton("银", size = 40.dp, fontSize = 15.sp) {
                     Sfx.play("sfx_click", 0.6f)
                     AppState.bankOpen = !AppState.bankOpen
+                }
+                UIHelper.RoundButton("账", size = 40.dp, fontSize = 15.sp) {
+                    Sfx.play("sfx_click", 0.6f)
+                    AppState.ledgerOpen = !AppState.ledgerOpen
                 }
             }
         }
@@ -604,15 +608,18 @@ fun MapScreenContent(mapView: MapRenderView) {
         }
 
         // ---------------- 暂停按钮 ----------------
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(top = 8.dp, end = 12.dp)
-        ) {
-            UIHelper.RoundButton("≡", size = 40.dp, fontSize = 20.sp) {
-                Sfx.play("sfx_click", 0.6f)
-                AppState.menuOpen = !AppState.menuOpen
+        val showingDetail = AppState.mode == "view" && mapView.selectedX > 0
+        if (!showingDetail) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp, end = 12.dp)
+            ) {
+                UIHelper.RoundButton("≡", size = 40.dp, fontSize = 20.sp) {
+                    Sfx.play("sfx_click", 0.6f)
+                    AppState.menuOpen = !AppState.menuOpen
+                }
             }
         }
 
@@ -785,7 +792,7 @@ fun MapScreenContent(mapView: MapRenderView) {
             val sid = GameData.serviceDraftId
             val sc = World.serviceConfig(sid)
             val sname = sc?.name ?: "设施"
-            val cost = sc?.cost ?: 0
+            val cost = if (sid != null) GameData.serviceCost(sid) else 0
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -872,6 +879,7 @@ fun MapScreenContent(mapView: MapRenderView) {
         if (AppState.complaintOpen && Civic.pending != null) ComplaintPanel()
         if (AppState.adOfferOpen) AdOfferDialog()
         if (AppState.bankOpen) BankPanel()
+        if (AppState.ledgerOpen) LedgerPanel()
         if (AppState.menuOpen) PausePanel()
     }
 }
@@ -963,10 +971,11 @@ private fun DrawerContent(mapView: MapRenderView) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             rowItems.forEach { sv ->
                                 val locked = sv.unlockPop > s.population.toInt()
-                                val poor = s.funds < sv.cost
+                                val price = GameData.serviceCost(sv.id)
+                                val poor = s.funds < price
                                 UIHelper.PickChip(
                                     text = sv.name,
-                                    sub = if (locked) "人口" + sv.unlockPop else "¥" + sv.cost + "万",
+                                    sub = if (locked) "人口" + sv.unlockPop else "¥" + price + "万",
                                     selected = AppState.selService == sv.id,
                                     disabled = locked || poor,
                                     subColor = if (locked) C.textFaint.toColor()
@@ -1006,9 +1015,10 @@ private fun DrawerContent(mapView: MapRenderView) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (rk in listOf("dirt", "local", "avenue", "highway")) {
                     val r = Config.ROAD[rk]!!
+                    val price = GameData.roadCost(rk)
                     UIHelper.PickChip(
                         text = r.name,
-                        sub = "¥" + r.cost + " 容" + r.capacity,
+                        sub = "¥" + price + " 容" + r.capacity,
                         selected = AppState.roadKind == rk,
                         width = 90.dp
                     ) {
@@ -1293,7 +1303,7 @@ private fun HelpPanel() {
             HelpRow("电", "风电/煤电按造价和占地覆盖一片区域，不用铺电缆。点【数】开电力热力图能看到圈。")
             HelpRow("水", "水塔/抽水站按半径抽取地下水供水，不必靠河。点地图只是预览，底部「确认建造」才扣费。诊所人口 25 解锁，垃圾场 40 解锁。")
             HelpRow("规", "【规划】只选公交/区划/种树。选完面板会关，才能在地图上点。")
-            HelpRow("策", "【数/?/策/银】在状态栏左下。【银】是银行：手动高息、看广告低息。暂停用顶栏 ‖，只冻时间，仍可划区修路。1x 比以前慢一半；2x/3x 都要看广告解锁 20 分钟。右上 ≡ 是菜单。点建筑详情时，关闭在左上角。")
+            HelpRow("策", "【数/?/策/银/账】在状态栏左下。【银】贷款；【账】看每天每月收支明细。人口过 180 后维护和造价逐步加重，火车站等大件会更贵。暂停用顶栏 ‖；1x 比以前慢一半；2x/3x 都要看广告。详情关闭在左上角。")
             HelpRow("存", "每月结算和切出游戏都会自动写入当前槽位。主菜单「继续游戏」读最近一档。右上【≡】也可手动保存。")
             Box(
                 modifier = Modifier
@@ -1583,6 +1593,113 @@ private fun BankPanel() {
                     .height(40.dp)
                     .background(C.accentGreen.toColor(), RoundedCornerShape(20.dp))
                     .clickable { AppState.bankOpen = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("关闭", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
+            }
+            if (live < 0) Text("")
+        }
+    }
+}
+
+@Composable
+private fun LedgerPanel() {
+    val C = Config.COLORS
+    val s = GameData.current ?: return
+    val live = AppState.liveTick
+    val today = GameData.dateLabel()
+    val todayLines = s.dayBook.filter { it.date == today }.asReversed()
+    val month = s.monthBooks.lastOrNull()
+    fun money(v: Double): String {
+        val n = floor(v)
+        val sign = if (n >= 0) "+" else ""
+        return sign + n.toInt() + "万"
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .noRippleClickable { AppState.ledgerOpen = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 580.dp)
+                .verticalScroll(rememberScrollState())
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(16.dp)
+                .noRippleClickable { },
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "财务报表", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.ledgerOpen = false }.padding(4.dp)
+                )
+            }
+            Text(
+                "本日净 ${money(s.lastNet)} · 金库 ${UIHelper.fmtFunds(s.funds)}",
+                fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = if (s.lastNet >= 0) C.accentGreen.toColor() else C.accentRed.toColor(),
+                fontFamily = LocalGameFont.current
+            )
+            Text("今日收入", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("居民税 ${money(s.dayIncomeTax)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("工商税 ${money(s.dayIncomeBiz)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("贸易观光 ${money(s.dayIncomeTrade)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("今日支出", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("道路维护 ${money(-s.lastRoadUpkeep)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("设施运营 ${money(-s.lastServiceUpkeep)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("城区养护 ${money(-s.lastGrownUpkeep)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            if (s.lastLoanRepay > 0) {
+                Text("贷款还款 ${money(-s.lastLoanRepay)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            }
+            if (month != null) {
+                Text(
+                    "${month.year}.${month.month.toString().padStart(2, '0')} 月报",
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                )
+                Text("税 ${money(month.tax)} · 工商 ${money(month.biz)} · 贸易 ${money(month.trade)} · 贷款入 ${money(month.loanIn)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                Text("路养 ${money(-month.road)} · 设施 ${money(-month.service)} · 建造 ${money(-month.build)} · 划区 ${money(-month.zone)} · 还贷 ${money(-month.loanOut)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                Text(
+                    "本月净 ${money(month.net())}",
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    color = if (month.net() >= 0) C.accentGreen.toColor() else C.accentRed.toColor(),
+                    fontFamily = LocalGameFont.current
+                )
+            }
+            Text("近期流水", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            if (todayLines.isEmpty()) {
+                Text("今天还没有单独记账的建造/贷款流水。每日税和维护会在过日后写入。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+            } else {
+                for (line in todayLines.take(24)) {
+                    val col = if (line.kind == "income") C.accentGreen.toColor() else C.accentRed.toColor()
+                    val amt = if (line.kind == "income") money(line.amount) else money(-line.amount)
+                    Text("${line.name}  $amt", fontSize = 11.sp, color = col, fontFamily = LocalGameFont.current)
+                }
+            }
+            if (s.monthBooks.size > 1) {
+                Text("近几个月", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                for (b in s.monthBooks.asReversed().take(6)) {
+                    Text(
+                        "${b.year}.${b.month.toString().padStart(2, '0')}  入${floor(b.income()).toInt()} 出${floor(b.spend()).toInt()} 净${floor(b.net()).toInt()}",
+                        fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.accentGreen.toColor(), RoundedCornerShape(20.dp))
+                    .clickable { AppState.ledgerOpen = false },
                 contentAlignment = Alignment.Center
             ) {
                 Text("关闭", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
