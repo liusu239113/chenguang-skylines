@@ -637,8 +637,8 @@ object GameData {
                 (scale - 1.0)
         }
         val rankUpkeep = if (s.rankLevel >= 4) 0.94 else 1.0
-        val keepMul = policyMul("upkeepMul") * (0.9 + Networks.districts.count { it.policy == "ev" } * 0.04) *
-            rankUpkeep * scale
+        // 维护不跟人口叠乘，避免后期每天亏几百。中后期用收入打折 + 支出占比封顶放缓。
+        val keepMul = policyMul("upkeepMul") * (0.9 + Networks.districts.count { it.policy == "ev" } * 0.04) * rankUpkeep
         roadKeep *= keepMul
         serviceKeep *= keepMul
         grownKeep *= keepMul
@@ -646,17 +646,29 @@ object GameData {
         val diff = difficultyDef()
         var eventIncomeMul = 1.0
         for (ev in s.activeEvents) eventIncomeMul *= ev.incomeMul
-        val lateIncomeCut = if (scale <= 1.0) 1.0 else 1.0 / (1.0 + (scale - 1.0) * 0.28)
+        val lateIncomeCut = if (scale <= 1.0) 1.0 else 1.0 / (1.0 + (scale - 1.0) * 0.22)
         val rawGross = income * diff.incomeMul * eventIncomeMul * lateIncomeCut
         var spend = if (sandbox) 0.0 else upkeep * diff.upkeepMul
-        // 前期：维护最多吃掉当日收入的 55%，避免一直亏；中后期才真正咬紧。
-        if (!sandbox && scale <= 1.0 && rawGross > 0.4) {
-            spend = min(spend, rawGross * 0.55)
-        } else if (!sandbox && scale < 1.35 && rawGross > 0.4) {
-            spend = min(spend, rawGross * (0.55 + (scale - 1.0) / 0.35 * 0.30))
+        // 支出占收入上限：前期 55% 保证有利润；中期升到 78%；后期最高 88%。乱铺会接近打平，日常不破产。
+        if (!sandbox && rawGross > 0.4) {
+            val cap = when {
+                scale <= 1.0 -> 0.55
+                scale < 1.70 -> 0.55 + (scale - 1.0) / 0.70 * 0.23
+                else -> 0.78 + min(0.10, (scale - 1.70) / 1.10 * 0.10)
+            }
+            if (spend > rawGross * cap) spend = rawGross * cap
         }
-        val net = rawGross - spend
+        var net = rawGross - spend
         val gross = rawGross
+        // 日常经营利润软顶：人口越高允许越高，但一年堆不出几十亿。
+        if (!sandbox && rawGross > 0.4) {
+            val profitCap = 3.0 + (s.population / 180.0) * 4.5 + (s.population / 700.0) * 6.0
+            if (net > profitCap) {
+                spend += (net - profitCap)
+                net = profitCap
+            }
+        }
+
         val taxPart = taxIncome * taxBoost * diff.incomeMul * eventIncomeMul * lateIncomeCut
         val bizPart = bizIncome * diff.incomeMul * eventIncomeMul * lateIncomeCut
         val tradePart = (tradeIncome + landmarkTour) * rankTrade * diff.incomeMul * eventIncomeMul * lateIncomeCut

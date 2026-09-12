@@ -1710,7 +1710,7 @@ private fun LedgerPanel() {
                     LedgerRow("贷款还款", s.lastLoanRepay, false)
                 }
             }
-            if (month \!= null) {
+            if (month != null) {
                 Text(
                     "${month.year}年${month.month}月",
                     fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
