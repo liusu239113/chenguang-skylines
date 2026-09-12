@@ -284,12 +284,13 @@ fun MapScreenContent(mapView: MapRenderView) {
                 // RCI 需求：条越长=当前越缺这类分区，点开看详情
                 Row(
                     modifier = Modifier
+                        .weight(1f)
                         .background(C.panelWhite.toColor(), RoundedCornerShape(14.dp))
                         .clickable {
                             Sfx.play("sfx_click", 0.4f)
                             AppState.demandOpen = true
                         }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -302,9 +303,9 @@ fun MapScreenContent(mapView: MapRenderView) {
                 Row(
                     modifier = Modifier
                         .background(C.panelWhite.toColor(), RoundedCornerShape(14.dp))
-                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     val speeds = listOf("‖" to 0, "1x" to 1, "2x" to 2, "3x" to 3)
                     val act = LocalContext.current as? Activity
@@ -314,7 +315,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                         val locked = sp.second >= 2 && !SpeedBoost.isActive()
                         Box(
                             modifier = Modifier
-                                .width(if (sp.second == 0) 34.dp else 44.dp)
+                                .width(if (sp.second == 0) 30.dp else 36.dp)
                                 .height(26.dp)
                                 .background(
                                     if (active) C.accentSoftBg.toColor() else Color.Transparent,
@@ -397,27 +398,35 @@ fun MapScreenContent(mapView: MapRenderView) {
                     .noRippleClickable { }
             ) {
                 UIHelper.Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp),
                     radius = 16.dp,
-                    paddingTop = 10.dp,
+                    paddingTop = 8.dp,
                     paddingBottom = 10.dp,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            "×",
-                            fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                            color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                            "× 关闭",
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
+                                .align(Alignment.TopStart)
                                 .clickable {
                                     Sfx.play("sfx_click", 0.5f)
                                     mapView.clearSelection()
                                     AppState.bumpMap()
                                 }
-                                .padding(4.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                     }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                     val sel = mapView.selectedX to mapView.selectedY
                     val car = Traffic.selected
                     val train = Traffic.selectedTrain
@@ -573,6 +582,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     }
                         }
                     }
+                    }
                 }
             }
         }
@@ -597,7 +607,8 @@ fun MapScreenContent(mapView: MapRenderView) {
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 168.dp, end = 12.dp)
+                .statusBarsPadding()
+                .padding(top = 8.dp, end = 12.dp)
         ) {
             UIHelper.RoundButton("≡", size = 40.dp, fontSize = 20.sp) {
                 Sfx.play("sfx_click", 0.6f)
@@ -1282,7 +1293,7 @@ private fun HelpPanel() {
             HelpRow("电", "风电/煤电按造价和占地覆盖一片区域，不用铺电缆。点【数】开电力热力图能看到圈。")
             HelpRow("水", "水塔/抽水站按半径抽取地下水供水，不必靠河。点地图只是预览，底部「确认建造」才扣费。诊所人口 25 解锁，垃圾场 40 解锁。")
             HelpRow("规", "【规划】只选公交/区划/种树。选完面板会关，才能在地图上点。")
-            HelpRow("策", "【数/?/策/银】在状态栏左下。【银】是银行：手动高息、看广告低息。暂停用顶栏 ‖，只冻时间，仍可划区修路；右上 ≡ 才是菜单。")
+            HelpRow("策", "【数/?/策/银】在状态栏左下。【银】是银行：手动高息、看广告低息。暂停用顶栏 ‖，只冻时间，仍可划区修路。1x 比以前慢一半；2x/3x 都要看广告解锁 20 分钟。右上 ≡ 是菜单。点建筑详情时，关闭在左上角。")
             HelpRow("存", "每月结算和切出游戏都会自动写入当前槽位。主菜单「继续游戏」读最近一档。右上【≡】也可手动保存。")
             Box(
                 modifier = Modifier

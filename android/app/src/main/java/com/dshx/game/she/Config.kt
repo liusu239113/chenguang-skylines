@@ -86,7 +86,7 @@ object Config {
     // 实时时间
     // -----------------------------------------------------------------------
     object TIME {
-        const val daySeconds = 8.0f          // 1x 下一天的现实秒数（缓慢推进）
+        const val daySeconds = 16.0f         // 1x 下一天的现实秒数（比原先慢一半）
         val speeds = intArrayOf(0, 1, 2, 3)   // 暂停 / 1x / 2x / 3x
     }
 
@@ -158,12 +158,12 @@ object Config {
     )
 
     val ROAD: Map<String, RoadDef> = mapOf(
-        "dirt" to RoadDef("dirt", "泥土路", 0, 6, 30, 1, 0.002),
-        "local" to RoadDef("local", "两车道", 8, 14, 40, 2, 0.006),
-        "avenue" to RoadDef("avenue", "四车道", 20, 28, 60, 4, 0.012),
-        "highway" to RoadDef("highway", "高速路", 40, 48, 100, 7, 0.022),
-        "metro" to RoadDef("metro", "地铁隧", 6, 36, 70, 1, 0.010),
-        "rail" to RoadDef("rail", "铁轨", 8, 20, 80, 3, 0.014)
+        "dirt" to RoadDef("dirt", "泥土路", 0, 6, 30, 1, 0.008),
+        "local" to RoadDef("local", "两车道", 8, 14, 40, 2, 0.018),
+        "avenue" to RoadDef("avenue", "四车道", 20, 28, 60, 4, 0.032),
+        "highway" to RoadDef("highway", "高速路", 40, 48, 100, 7, 0.055),
+        "metro" to RoadDef("metro", "地铁隧", 6, 36, 70, 1, 0.022),
+        "rail" to RoadDef("rail", "铁轨", 8, 20, 80, 3, 0.028)
     )
 
     // -----------------------------------------------------------------------
@@ -174,16 +174,16 @@ object Config {
 
     val GROWN: Map<String, GrownDef> = mapOf(
         "residential" to GrownDef("住宅", listOf(
-            LevelDef(4, 2), LevelDef(8, 5), LevelDef(16, 10)
+            LevelDef(4, 1), LevelDef(8, 2), LevelDef(16, 4)
         )),
         "commercial" to GrownDef("商铺", listOf(
-            LevelDef(3, 4), LevelDef(8, 9), LevelDef(16, 18)
+            LevelDef(3, 2), LevelDef(8, 4), LevelDef(16, 8)
         )),
         "industrial" to GrownDef("工厂", listOf(
-            LevelDef(4, 5, 2), LevelDef(10, 11, 4), LevelDef(20, 22, 7)
+            LevelDef(4, 2, 2), LevelDef(10, 5, 4), LevelDef(20, 9, 7)
         )),
         "office" to GrownDef("写字楼", listOf(
-            LevelDef(6, 14), LevelDef(12, 30), LevelDef(24, 58)
+            LevelDef(6, 5), LevelDef(12, 11), LevelDef(24, 20)
         ))
     )
 
@@ -318,9 +318,9 @@ object Config {
     // 财政
     // -----------------------------------------------------------------------
     object ECONOMY {
-        const val taxPerPopPerDay = 0.018
-        const val baseIncomePerDay = 0.04
-        const val upkeepPerRoadDay = 0.045
+        const val taxPerPopPerDay = 0.010
+        const val baseIncomePerDay = 0.02
+        const val upkeepPerRoadDay = 0.070
         const val happinessDecayDay = 0.10
         const val pollutionHappy = 0.045
         const val occupancyPerDay = 0.06

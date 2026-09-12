@@ -521,7 +521,7 @@ object GameData {
                     Config.ServiceCat.TRANSIT -> s.budgetTransit
                     else -> 100
                 }
-                upkeep += cfg.upkeep / 3.5 * (budget / 100.0)
+                upkeep += cfg.upkeep / 1.6 * (budget / 100.0)
             }
         }
         val rankUpkeep = if (s.rankLevel >= 4) 0.94 else 1.0
