@@ -59,6 +59,7 @@ class MapRenderView @JvmOverloads constructor(
     private var viewH = 640f
     private var topInset = 70f
     private var bottomInset = 88f
+    private var cameraNeedsFit = true
 
     var selectedX: Int = -1
     var selectedY: Int = -1
@@ -145,12 +146,25 @@ class MapRenderView @JvmOverloads constructor(
         viewH = hDp
         topInset = top
         bottomInset = bottom
+        if (cameraNeedsFit) fitCameraIfNeeded() else clampCamera()
     }
 
     fun resetCamera() {
+        cameraNeedsFit = true
         camScale = 1.55f
         val w = World.current
-        setCenterTile((w?.spawnX ?: 8).toFloat(), (w?.spawnY ?: 8).toFloat())
+        setPlayCenterTile((w?.spawnX ?: 8).toFloat(), (w?.spawnY ?: 8).toFloat())
+    }
+
+    fun fitCameraIfNeeded() {
+        if (!cameraNeedsFit) {
+            clampCamera()
+            return
+        }
+        camScale = 1.55f
+        val w = World.current
+        setPlayCenterTile((w?.spawnX ?: 8).toFloat(), (w?.spawnY ?: 8).toFloat())
+        cameraNeedsFit = false
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -178,9 +192,16 @@ class MapRenderView @JvmOverloads constructor(
         val w = World.current ?: return
         val ew = camExtentW()
         val eh = camExtentH()
-        val margin = 0.15f
-        camX = clamp(camX, -ew * margin, max(-ew * margin, w.cols - ew * (1 - margin)))
-        camY = clamp(camY, -eh * margin, max(-eh * margin, w.rows - eh * (1 - margin)))
+        val playTop = topInset / cell
+        val playBot = bottomInset / cell
+        val extra = 4f
+        // 把顶行拖到 HUD 下面的可点区：camY 必须能更负
+        val minX = -ew * 0.28f
+        val maxX = max(minX, w.cols.toFloat() - ew * 0.72f)
+        val minY = -playTop - extra
+        val maxY = max(minY, w.rows.toFloat() - (eh - playBot) + extra)
+        camX = clamp(camX, minX, maxX)
+        camY = clamp(camY, minY, maxY)
     }
 
     private fun zoomAt(factor: Float, anchorX: Float, anchorY: Float) {
@@ -201,8 +222,13 @@ class MapRenderView @JvmOverloads constructor(
     fun zoomCentered(factor: Float) = zoomAt(factor, viewW / 2f, viewH / 2f)
 
     private fun setCenterTile(tx: Float, ty: Float) {
+        setPlayCenterTile(tx, ty)
+    }
+
+    private fun setPlayCenterTile(tx: Float, ty: Float) {
+        val playH = (viewH - topInset - bottomInset) / cell
         camX = tx - camExtentW() / 2f
-        camY = ty - camExtentH() / 2f
+        camY = ty - (topInset / cell) - playH / 2f
         clampCamera()
     }
 
@@ -684,6 +710,51 @@ class MapRenderView @JvmOverloads constructor(
         paint.typeface = typeface
         paint.textSize = size
         return paint.measureText(text)
+    }
+
+    private fun drawStreetSign(canvas: Canvas, cx: Float, cy: Float, name: String, kind: String, vertical: Boolean) {
+        if (name.isEmpty()) return
+        val fs = when (kind) {
+            "highway" -> min(13.5f, cell * 0.48f)
+            "avenue" -> min(13f, cell * 0.46f)
+            else -> min(12.5f, cell * 0.44f)
+        }
+        val padX = 5f
+        val padY = 2.4f
+        val bg = when (kind) {
+            "highway" -> RGBA(236, 236, 238, 232)
+            "avenue" -> RGBA(255, 248, 214, 232)
+            else -> RGBA(255, 252, 236, 232)
+        }
+        val ink = when (kind) {
+            "highway" -> RGBA(42, 48, 70)
+            "avenue" -> RGBA(92, 62, 18)
+            else -> RGBA(48, 46, 40)
+        }
+        if (vertical) {
+            val chars = name.toList()
+            val chH = fs * 0.96f
+            val tw = fs * 0.95f
+            val th = chH * chars.size
+            fillRoundRect(canvas, cx - tw / 2 - padX, cy - th / 2 - padY, tw + padX * 2, th + padY * 2, 3.5f, bg)
+            strokeRoundRect(
+                canvas, cx - tw / 2 - padX, cy - th / 2 - padY, tw + padX * 2, th + padY * 2, 3.5f,
+                RGBA(70, 64, 48), 180, 1.1f
+            )
+            var y = cy - th / 2 + chH * 0.5f
+            for (ch in chars) {
+                drawText(canvas, cx, y, fs, ink, ch.toString(), TAlign.CENTER, 250)
+                y += chH
+            }
+        } else {
+            val tw = measure(name, fs)
+            fillRoundRect(canvas, cx - tw / 2 - padX, cy - fs / 2 - padY, tw + padX * 2, fs + padY * 2, 3.5f, bg)
+            strokeRoundRect(
+                canvas, cx - tw / 2 - padX, cy - fs / 2 - padY, tw + padX * 2, fs + padY * 2, 3.5f,
+                RGBA(70, 64, 48), 180, 1.1f
+            )
+            drawText(canvas, cx, cy, fs, ink, name, TAlign.CENTER, 250)
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -1231,36 +1302,18 @@ class MapRenderView @JvmOverloads constructor(
         }
 
         // ---- 5) 标签 ----
-        val labelAlpha = clamp((cell - 7) / 6f, 0f, 1f)
-        if (labelAlpha > 0.05f && typeface != null) {
-            // 路名：大道/高速放大看，普通路靠近时也显示
-            if (cell >= 11) {
+        if (typeface != null) {
+            if (cell >= 10f) {
                 for (line in w.roadLines) {
-                    if (line.kind != "avenue" && line.kind != "highway" && cell < 16) continue
-                    if (line.dir == "v") {
-                        val ly = worldToScreenY((line.labelY - 0.5f))
-                        val lx = worldToScreenX(line.segX[0] - 0.5f)
-                        if (lx > -80 && lx < viewW + 80 && ly > topInset - 40 && ly < viewH) {
-                            val chars = line.name.toList()
-                            val fs = min(cell * 0.38f, 9f)
-                            for (i in chars.indices) {
-                                drawText(
-                                    canvas, lx, ly + i * (cell * 0.72f), fs,
-                                    RGBA(130, 120, 90), chars[i].toString(), TAlign.CENTER, 200
-                                )
-                            }
-                        }
-                    } else {
-                        val lx = worldToScreenX(line.labelX - 0.5f)
-                        val ly = worldToScreenY(line.segY[0] - 0.5f)
-                        if (ly > topInset - 20 && ly < viewH + 20 && lx > -160 && lx < viewW + 160) {
-                            val fs = min(cell * 0.36f, 9f)
-                            drawText(
-                                canvas, lx, ly, fs,
-                                RGBA(130, 120, 90), line.name, TAlign.CENTER, 200
-                            )
-                        }
-                    }
+                    val n = min(line.segX.size, line.segY.size)
+                    if (n <= 0) continue
+                    val idx = if (n <= 2) 0 else n / 3
+                    val midX = line.segX[idx]
+                    val midY = line.segY[idx]
+                    val lx = worldToScreenX(midX - 0.5f)
+                    val ly = worldToScreenY(midY - 0.5f)
+                    if (lx < -80 || lx > viewW + 80 || ly < -40 || ly > viewH + 40) continue
+                    drawStreetSign(canvas, lx, ly, line.name, line.kind, line.dir == "v")
                 }
             }
             // 建筑名改在 drawBuilding 里贴前墙，这里不再另画，避免飘到格子外

@@ -143,7 +143,8 @@ object MapScreen {
     }
 
     fun onShow(view: MapRenderView, wDp: Float, hDp: Float) {
-        view.setViewport(wDp, hDp, 108f, 96f)
+        view.setViewport(wDp, hDp, 214f, 108f)
+        view.fitCameraIfNeeded()
         view.onTileChanged = {
             AppState.bumpMap()
             AppState.bumpLive()

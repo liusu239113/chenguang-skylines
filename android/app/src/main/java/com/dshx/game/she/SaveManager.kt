@@ -479,6 +479,7 @@ object SaveManager {
         }
         Networks.recount()
         Citizens.rebuild()
+        World.ensureStreetNames()
         World.refreshHighwayLink()
         Traffic.reset()
         GameData.refreshRank()

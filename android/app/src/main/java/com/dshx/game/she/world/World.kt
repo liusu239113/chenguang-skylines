@@ -297,17 +297,51 @@ class World {
             }
             w.roadLines.add(
                 RoadLine(
-                    name = "外环高速",
+                    name = "北环高速",
                     kind = "highway",
                     segX = IntArray(hx1 - hx0 + 1) { hx0 + it },
                     segY = IntArray(hx1 - hx0 + 1) { hy0 },
                     dir = "h",
                     labelX = floor(w.cols * 0.5).toInt(),
-                    labelY = 0
+                    labelY = hy0
+                )
+            )
+            w.roadLines.add(
+                RoadLine(
+                    name = "南环高速",
+                    kind = "highway",
+                    segX = IntArray(hx1 - hx0 + 1) { hx0 + it },
+                    segY = IntArray(hx1 - hx0 + 1) { hy1 },
+                    dir = "h",
+                    labelX = floor(w.cols * 0.5).toInt(),
+                    labelY = hy1
+                )
+            )
+            w.roadLines.add(
+                RoadLine(
+                    name = "西环高速",
+                    kind = "highway",
+                    segX = IntArray(hy1 - hy0 + 1) { hx0 },
+                    segY = IntArray(hy1 - hy0 + 1) { hy0 + it },
+                    dir = "v",
+                    labelX = hx0,
+                    labelY = floor(w.rows * 0.5).toInt()
+                )
+            )
+            w.roadLines.add(
+                RoadLine(
+                    name = "东环高速",
+                    kind = "highway",
+                    segX = IntArray(hy1 - hy0 + 1) { hx1 },
+                    segY = IntArray(hy1 - hy0 + 1) { hy0 + it },
+                    dir = "v",
+                    labelX = hx1,
+                    labelY = floor(w.rows * 0.5).toInt()
                 )
             )
 
             current = w
+            ensureStreetNames()
             return w
         }
 
@@ -590,6 +624,63 @@ class World {
             )
         }
 
+        /** 推平或读档后：格子上没路了，路名一起去掉 */
+        fun pruneStaleRoadNames() {
+            val w = current ?: return
+            var i = 0
+            while (i < w.roadLines.size) {
+                val line = w.roadLines[i]
+                val n = min(line.segX.size, line.segY.size)
+                val xs = ArrayList<Int>(n)
+                val ys = ArrayList<Int>(n)
+                for (k in 0 until n) {
+                    val sx = line.segX[k]
+                    val sy = line.segY[k]
+                    if (tile(sx, sy)?.road == null) continue
+                    xs.add(sx)
+                    ys.add(sy)
+                }
+                if (xs.isEmpty()) {
+                    w.roadLines.removeAt(i)
+                    continue
+                }
+                if (xs.size != n) {
+                    var lx = 0
+                    var ly = 0
+                    for (k in xs.indices) {
+                        lx += xs[k]
+                        ly += ys[k]
+                    }
+                    lx /= xs.size
+                    ly /= ys.size
+                    w.roadLines[i] = RoadLine(
+                        name = line.name,
+                        kind = line.kind,
+                        segX = xs.toIntArray(),
+                        segY = ys.toIntArray(),
+                        dir = line.dir,
+                        labelX = if (line.dir == "h") lx else line.labelX,
+                        labelY = if (line.dir == "v") ly else line.labelY
+                    )
+                }
+                i++
+            }
+        }
+
+        /** 给还没挂名的城区路补名字（开局赠路、旧档） */
+        fun ensureStreetNames() {
+            val w = current ?: return
+            pruneStaleRoadNames()
+            for (y in 1..w.rows) {
+                for (x in 1..w.cols) {
+                    val kind = w.grid[y - 1][x - 1].road ?: continue
+                    if (kind == "highway") continue
+                    if (roadNameAt(x, y) != null) continue
+                    nameNewStreet(x, y, kind)
+                }
+            }
+        }
+
         fun roadCapacity(x: Int, y: Int): Int = Config.ROAD[tile(x, y)?.road]?.capacity ?: 0
 
         fun noiseAt(x: Int, y: Int): Int {
@@ -784,6 +875,7 @@ class World {
                 t.road = null
                 t.metro = false
                 t.rail = false
+                pruneStaleRoadNames()
                 return "road" to kind
             }
             if (t.metro) {
