@@ -83,6 +83,33 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/anythink_bk_gdt_file_path" />
         </provider>
+
+        <!-- 同意隐私政策前禁止 Tap 登录 SDK 自动初始化（会读 AndroidID） -->
+        <provider
+            android:name="com.taptap.sdk.kit.internal.TapTapKitInitProvider"
+            android:authorities="${applicationId}.TapTapKitInitProvider"
+            android:exported="false"
+            tools:node="remove" />
+        <provider
+            android:name="com.anythink.core.api.ATInitializationProvider"
+            android:authorities="${applicationId}.anythink.initatprovider"
+            android:exported="false"
+            tools:node="remove" />
+        <provider
+            android:name="com.smartdigimkt.sdk.api.SDMInitializationProvider"
+            android:authorities="${applicationId}.sdm.initatprovider"
+            android:exported="false"
+            tools:node="remove" />
+        <provider
+            android:name="com.fl.saas.adx.util.FLInitProvider"
+            android:authorities="${applicationId}.initprovider"
+            android:exported="false"
+            tools:node="remove" />
+        <provider
+            android:name="com.wangmai.appsdkdex.provider.WMLifecycleProvider"
+            android:authorities="${applicationId}.wmLifecycleProvider"
+            android:exported="false"
+            tools:node="remove" />
     </application>
 
 </manifest>

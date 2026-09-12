@@ -47,6 +47,9 @@ class MainActivity : ComponentActivity() {
         Ambience.init(this)
         SpeedBoost.init(this)
         AppState.privacyOk = Prefs.privacyAccepted
+        if (Prefs.privacyAccepted) {
+            TapSdkInitializer.ensureInitialized(this)
+        }
         if (GameData.current == null) {
             GameData.init(20260408)
         }

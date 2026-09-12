@@ -61,6 +61,7 @@ object AppState {
 
     var tutShown = false
     var privacyOk by mutableStateOf(false)
+    var privacyDocOpen by mutableStateOf(false)
     var loggedIn by mutableStateOf(false)
     var settingsOpen by mutableStateOf(false)
     var civicOpen by mutableStateOf(false)

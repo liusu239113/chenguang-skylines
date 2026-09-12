@@ -884,6 +884,7 @@ fun MapScreenContent(mapView: MapRenderView) {
         if (AppState.civicOpen) CivicPanel()
         if (AppState.achievementOpen) AchievementPanel()
         if (AppState.settingsOpen) SettingsPanel()
+        if (AppState.privacyDocOpen) PrivacyDocPanel(onClose = { AppState.privacyDocOpen = false })
         if (AppState.complaintOpen && Civic.pending != null) ComplaintPanel()
         if (AppState.adOfferOpen) AdOfferDialog()
         if (AppState.bankOpen) BankPanel()

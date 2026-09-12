@@ -37,13 +37,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.arktools.adsdk.AdSdkConfig
 import com.dshx.game.she.AppState
 import com.dshx.game.she.ComplianceManager
 import com.dshx.game.she.Config
 import com.dshx.game.she.Prefs
+import com.dshx.game.she.PrivacyDocs
 import com.dshx.game.she.Sfx
 import com.dshx.game.she.TapSdkInitializer
+import com.dshx.game.she.ThirdPartySdk
 import com.dshx.game.she.ui.theme.LocalGameFont
 import com.dshx.game.she.ui.toColor
 import com.taptap.sdk.kit.internal.callback.TapTapCallback
@@ -55,7 +56,11 @@ import com.taptap.sdk.login.TapTapLogin
 @Composable
 fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
     val C = Config.COLORS
-    val ctx = LocalContext.current
+    var showDoc by remember { mutableStateOf(false) }
+    if (showDoc) {
+        PrivacyDocPanel(onClose = { showDoc = false })
+        return
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -64,42 +69,44 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
+                .fillMaxWidth(0.94f)
                 .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
-                .padding(18.dp),
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                "隐私政策与用户协议",
+                "隐私政策",
                 fontSize = 17.sp, fontWeight = FontWeight.Bold,
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 320.dp)
+                    .heightIn(max = 420.dp)
                     .verticalScroll(rememberScrollState())
                     .background(C.chipBg.toColor(), RoundedCornerShape(12.dp))
                     .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("欢迎使用「模拟市长：城市经营」。进入前请阅读并同意：", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-                Text("收集信息：设备型号与系统版本、广告标识（OAID/AndroidID）、网络类型、本地存档、崩溃日志。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-                Text("用途：提供游戏服务、展示广告维持免费运营、优化与修复问题。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-                Text("第三方：优量汇、AdGain、优推、TapTap 登录等 SDK 可能读取 AndroidID / OAID 用于广告与登录鉴权。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-                if (AdSdkConfig.privacyPolicyUrl.isNotEmpty()) {
-                    Text(
-                        "查看完整隐私政策",
-                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                        color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current,
-                        modifier = Modifier.clickable {
-                            try {
-                                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AdSdkConfig.privacyPolicyUrl)))
-                            } catch (_: Throwable) {}
-                        }
-                    )
+                Text("欢迎使用「模拟市长：城市经营」。进入前请阅读并同意本《隐私政策》。不同意请退出，我们不会开始收集。", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                Text("处理目的：提供城市建设游戏、TapTap 登录与防沉迷、激励视频广告、本地存档、崩溃排查。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                Text("处理方式：仅在您点击「同意并继续」之后，通过本应用及下列第三方 SDK 处理信息。同意前不会初始化 TapTap 登录 SDK，也不会读取 AndroidID。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                Text("处理范围：设备型号、系统版本、网络类型、OAID/AndroidID（登录鉴权与广告归因）、本地存档、崩溃日志。不收集通讯录、精确位置、IMEI、已安装应用列表。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                Text(
+                    "接入第三方 SDK 情况说明",
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                )
+                for (sdk in PrivacyDocs.SDKS) {
+                    SdkCard(sdk)
                 }
+                Text(
+                    "查看完整《隐私政策》",
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.clickable { showDoc = true }
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 Box(
@@ -127,6 +134,103 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
                 ) {
                     Text("同意并继续", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SdkCard(sdk: ThirdPartySdk) {
+    val C = Config.COLORS
+    val ctx = LocalContext.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(C.panelWhite.toColor(), RoundedCornerShape(10.dp))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(sdk.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+        Text("开发者全称：" + sdk.vendor, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+        Text("使用目的：" + sdk.purpose, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+        Text("调用权限：" + sdk.permission, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+        Text("个人信息类型及方式：" + sdk.collect, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+        Text("使用场景与频次时机：" + sdk.timing, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+        Text(
+            "隐私政策链接：" + sdk.policyUrl,
+            fontSize = 10.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current,
+            modifier = Modifier.clickable {
+                try {
+                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(sdk.policyUrl)))
+                } catch (_: Throwable) {}
+            }
+        )
+    }
+}
+
+@Composable
+fun PrivacyDocPanel(onClose: () -> Unit) {
+    val C = Config.COLORS
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.uiBackdrop.toColor()),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .heightIn(max = 640.dp)
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "《隐私政策》",
+                    fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd).clickable { onClose() }.padding(4.dp)
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("更新日期：2026年9月13日　生效日期：2026年9月13日", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                Text("进入游戏前请完整阅读。不同意请退出。我们不会在您点击「同意并继续」之前初始化 TapTap 登录 SDK 或广告 SDK，也不会在同意前读取 AndroidID。", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                Text("一、处理目的、方式与范围", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                Text("目的：提供城市建设游戏、TapTap 登录与防沉迷、激励视频广告、本地存档、崩溃排查。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                Text("方式：仅在您同意后，通过本应用及下列第三方 SDK 处理信息。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                Text("范围：设备型号、系统版本、网络类型、OAID/AndroidID、本地存档、崩溃日志。不收集通讯录、精确位置、IMEI、已安装应用列表。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                Text("二、我们自行处理的信息", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                Text("本地存档与音量设置仅保存在本机。不收集真实姓名、身份证号、银行账号。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                Text("三、接入第三方 SDK 情况说明", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                for (sdk in PrivacyDocs.SDKS) {
+                    SdkCard(sdk)
+                }
+                Text("四、您的权利", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                Text("可在游戏【设置】再次查阅本政策。不同意请卸载本应用。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                Text("五、未成年人", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                Text("本游戏接入 TapTap 合规认证。未完成实名或处于限制时段，将无法进入游戏。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.chipBg.toColor(), RoundedCornerShape(20.dp))
+                    .clickable { onClose() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("返回", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             }
         }
     }

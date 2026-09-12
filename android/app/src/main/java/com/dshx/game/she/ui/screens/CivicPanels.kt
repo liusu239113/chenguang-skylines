@@ -497,6 +497,14 @@ fun SettingsPanel() {
                     .fillMaxWidth()
                     .height(40.dp)
                     .background(C.chipBg.toColor(), RoundedCornerShape(20.dp))
+                    .clickable { AppState.privacyDocOpen = true },
+                contentAlignment = Alignment.Center
+            ) { Text("查看《隐私政策》", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.chipBg.toColor(), RoundedCornerShape(20.dp))
                     .clickable { AppState.settingsOpen = false },
                 contentAlignment = Alignment.Center
             ) { Text("关闭", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
