@@ -502,15 +502,20 @@ object GameData {
         cov = cov.copy(power = cov.power * supplyFactor.toFloat(), water = cov.water * waterFactor.toFloat())
         s.lastCoverage = cov
         s.education = min(100.0, s.education + (eduScore * 0.08) * (if (cov.education > 0.3f) 1.0 else 0.2) - 0.04)
-        s.health = min(100.0, max(20.0, 50.0 + healthScore * 0.6 - s.pollution * 0.35 + (cov.health * 18)))
+        s.health = min(
+            100.0,
+            max(20.0, 50.0 + healthScore * 0.6 - s.pollution * 0.35 + (cov.health * 18) +
+                Networks.policyShare("no_smoke") * 8.0)
+        )
         s.jobs = st.comCap + st.indCap + st.offCap
         val trafficLoad = s.population / 12.0 + st.comCount * 1.6 + st.indCount * 2.0 + st.offCount * 1.4
         val cap = max(12.0, st.roadCapacity.toDouble())
+        val densityTraffic = 1.0 + Networks.policyShare("high_density") * 0.28
         s.congestion = max(
             0.0,
             min(
                 1.0,
-                trafficLoad / cap * policyMul("trafficMul") *
+                trafficLoad / cap * policyMul("trafficMul") * densityTraffic *
                     (1.0 - min(0.55, transitScore / 40.0 + Transit.coverageBoost()))
             )
         )
@@ -660,9 +665,9 @@ object GameData {
         }
         var net = rawGross - spend
         val gross = rawGross
-        // 日常经营利润软顶：人口越高允许越高，但一年堆不出几十亿。
+        // 日常经营利润软顶：随人口开方增长，一年堆不出几十亿，也不能让日常一直亏。
         if (!sandbox && rawGross > 0.4) {
-            val profitCap = 3.0 + (s.population / 180.0) * 4.5 + (s.population / 700.0) * 6.0
+            val profitCap = 1.2 + kotlin.math.sqrt(s.population) * 0.42
             if (net > profitCap) {
                 spend += (net - profitCap)
                 net = profitCap
@@ -1270,6 +1275,9 @@ object GameData {
             "funds" -> s.funds
             "buildings" -> (st.resCount + st.comCount + st.indCount + st.offCount).toDouble()
             "happy" -> s.happiness
+            "edu" -> s.education
+            "jobs" -> s.jobs
+            "trade" -> s.dayIncomeTrade * 30.0
             else -> 0.0
         }
     }

@@ -430,13 +430,18 @@ object Config {
     data class QuestDef(val type: String, val name: String, val reward: Int, val target: Double)
 
     val QUESTS: List<QuestDef> = listOf(
-        QuestDef("pop", "人口达到", 800, 300.0),
-        QuestDef("pop", "人口达到", 1500, 800.0),
+        QuestDef("pop", "人口达到", 500, 300.0),
+        QuestDef("pop", "人口达到", 900, 800.0),
+        QuestDef("pop", "人口达到", 2000, 1500.0),
         QuestDef("buildings", "建成建筑", 600, 40.0),
         QuestDef("buildings", "建成建筑", 1200, 100.0),
         QuestDef("funds", "资金达到", 600, 12000.0),
         QuestDef("happy", "满意度达到", 800, 70.0),
-        QuestDef("happy", "满意度达到", 1500, 88.0)
+        QuestDef("happy", "满意度达到", 1500, 88.0),
+        QuestDef("edu", "教育达到", 700, 55.0),
+        QuestDef("edu", "教育达到", 1200, 75.0),
+        QuestDef("jobs", "岗位达到", 900, 600.0),
+        QuestDef("trade", "月贸易额达到", 1200, 1500.0)
     )
 
     // -----------------------------------------------------------------------

@@ -216,6 +216,30 @@ object Networks {
 
     fun policyAt(x: Int, y: Int): String = districtAt(x, y)?.policy ?: ""
 
+    fun setPolicy(id: Int, key: String): Boolean {
+        val d = districts.firstOrNull { it.id == id } ?: return false
+        d.policy = key
+        return true
+    }
+
+    /** 全城某政策的覆盖建筑数（用于把区划政策折算成全城效果） */
+    fun policyShare(policy: String): Double {
+        val w = World.current ?: return 0.0
+        var hit = 0
+        var all = 0
+        for (y in 1..w.rows) {
+            for (x in 1..w.cols) {
+                val t = w.grid[y - 1][x - 1]
+                if (t.building == null) continue
+                all++
+                val id = t.district
+                if (id == 0) continue
+                if (districts.firstOrNull { it.id == id }?.policy == policy) hit++
+            }
+        }
+        return if (all == 0) 0.0 else hit.toDouble() / all
+    }
+
     fun policyName(key: String): String =
         DISTRICT_POLICIES.firstOrNull { it.first == key }?.second ?: "无"
 

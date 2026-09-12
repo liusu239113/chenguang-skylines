@@ -25,6 +25,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -1091,7 +1095,10 @@ private fun PlanDrawer(mapView: MapRenderView) {
         )
     }
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 380.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
@@ -1137,6 +1144,57 @@ private fun PlanDrawer(mapView: MapRenderView) {
             "公交草稿 " + Transit.draft.size + " 站 · 线路 " + Transit.lines.size + " 条",
             fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
         )
+
+        var distTick by remember { mutableStateOf(0) }
+        val active = Networks.ensureDistrict()
+        Text(
+            "区划政策 · 当前「" + active.name + "」",
+            fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+        )
+        Text(
+            "先涂区划再选政策，只对该区生效。禁烟令抬健康、电动车降污染但维护贵、旧城区禁止升级但吸引游客、工业规划增产增污染、高密住宅加速升级但更堵。",
+            fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+        )
+        for (row in Networks.DISTRICT_POLICIES.chunked(2)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (p in row) {
+                    UIHelper.PickChip(
+                        text = p.second,
+                        sub = if (active.policy == p.first) "已启用" else p.third,
+                        selected = active.policy == p.first,
+                        width = 150.dp
+                    ) {
+                        Sfx.play("sfx_click", 0.5f)
+                        Networks.setPolicy(active.id, p.first)
+                        distTick++
+                        AppState.bumpLive()
+                        AppState.bumpMap()
+                        mapView.setToast(active.name + "： " + p.second)
+                    }
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            UIHelper.PickChip("新建分区", "第 " + (Networks.districts.size + 1) + " 区", false, width = 86.dp) {
+                val d = Networks.addDistrict("")
+                distTick++
+                AppState.bumpLive()
+                mapView.setToast("已新建「" + d.name + "」，涂区划时生效")
+            }
+            UIHelper.PickChip(
+                "切到一区",
+                Networks.districts.firstOrNull()?.name ?: "-",
+                false,
+                width = 86.dp
+            ) {
+                Networks.activeDistrict = Networks.districts.firstOrNull()?.id ?: 0
+                distTick++
+                AppState.bumpLive()
+                mapView.setToast("已切回「" + (Networks.districts.firstOrNull()?.name ?: "-") + "」")
+            }
+        }
+        if (distTick < 0) Text("")
     }
 }
 
@@ -1301,7 +1359,7 @@ private fun HelpPanel() {
             HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。设施会清掉底下分区，不会被后长出来的楼盖掉。小学点在占地内任意一格即可。【办公】要中学以上学历才进得去，收益比商业高。【推平】拆楼会连底下分区一起清掉。")
             HelpRow("电", "风电/煤电按造价和占地覆盖一片区域，不用铺电缆。点【数】开电力热力图能看到圈。")
             HelpRow("水", "水塔/抽水站按半径抽取地下水供水，不必靠河。点地图只是预览，底部「确认建造」才扣费。诊所人口 25 解锁，垃圾场 40 解锁。")
-            HelpRow("规", "【规划】只选公交/区划/种树。选完面板会关，才能在地图上点。")
+            HelpRow("规", "【规划】里选公交/区划/种树/抬升。区划涂完还能给每个区选政策：禁烟令抬健康、电动车降污染、旧城区禁升楼但吸引游客、工业规划增产出也增污染、高密住宅加速升级但更堵。")
             HelpRow("策", "【数/?/策/银/账】在状态栏左下。【银】贷款；【账】看每天每月收支。人口过 180 后维护和造价逐步加重。暂停用顶栏 ‖；1x 比以前慢一半；2x/3x 都要看广告。右上 ≡ 在顶栏下方，点开建筑详情时会先藏起来。")
             HelpRow("存", "每月结算和切出游戏都会自动写入当前槽位。主菜单「继续游戏」读最近一档。右上【≡】也可手动保存。")
             Box(
@@ -2135,7 +2193,7 @@ private fun PausePanel() {
                 AppState.menuOpen = false
                 AppState.bankOpen = true
             }
-            PauseBtn("看广告领奖励（礼包+280万/加倍税/满意+8/拨款+220万）", C.accentGold.toColor(), Color.White) {
+            PauseBtn("看广告领奖励（礼包+120万/加倍税/满意+8/拨款+90万）", C.accentGold.toColor(), Color.White) {
                 Sfx.play("sfx_click")
                 AppState.menuOpen = false
                 AppState.settingsOpen = true
