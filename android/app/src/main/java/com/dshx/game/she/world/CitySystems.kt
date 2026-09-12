@@ -72,9 +72,10 @@ object CitySystems {
                 val crimeGain = ((if (police) 0 else 4) + unemployed * 8 + eduLow * 6).toInt()
                 b.crime = max(0, min(100, b.crime + crimeGain - policeN * 2 - (s.budgetSafety - 80) / 10))
                 if (b.zone == "industrial") {
-                    val pm = Networks.districtMul("pollution", x, y)
-                    t.groundPol = min(100, t.groundPol + (5.0 * pm).toInt().coerceAtLeast(1))
+                    t.groundPol = min(100, t.groundPol + 5)
                 }
+                val specPol = Config.specOf(t.spec)?.pollution ?: 0.0
+                if (specPol > 0.0) t.groundPol = min(100, t.groundPol + specPol.toInt().coerceAtLeast(1))
             }
             if (t.terrain == "forest") t.groundPol = max(0, t.groundPol - 6)
             if (t.terrain == "water") {

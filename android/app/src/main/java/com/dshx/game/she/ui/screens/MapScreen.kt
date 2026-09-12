@@ -82,7 +82,7 @@ object MapScreen {
             "bulldoze" -> Tool("bulldoze")
             "service" -> AppState.selService?.let { Tool("service", id = it) }
             "bus" -> Tool("bus")
-            "district" -> Tool("district")
+            "spec" -> Tool("spec", id = AppState.specKind)
             "tree" -> Tool("tree")
             "raise" -> Tool("raise")
             "lower" -> Tool("lower")
@@ -593,8 +593,8 @@ fun MapScreenContent(mapView: MapRenderView) {
                     val tile = World.tile(sel.first, sel.second)
                     if (tile?.metro == true) UIHelper.InfoRow("地铁隧", "已挖")
                     if (tile?.rail == true) UIHelper.InfoRow("铁轨", "已铺")
-                    Networks.districtAt(sel.first, sel.second)?.let { d ->
-                        UIHelper.InfoRow("区划", d.name + " · " + Networks.policyName(d.policy))
+                    Config.specOf(tile?.spec ?: "")?.let { sp ->
+                        UIHelper.InfoRow("产业专精", sp.name + " 每天 +" + sp.income + " 万")
                     }
                     if (!World.isUnlocked(sel.first, sel.second) && World.tile(sel.first, sel.second)?.road != "highway") {
                         UIHelper.InfoRow("解锁", World.lockedHint(), C.accentRed.toColor())
@@ -717,7 +717,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                 val active = when {
                     it.first == "zone" -> AppState.mode == "zone" && AppState.zoneKey == it.third
                     it.first == "plan" -> AppState.planOpen ||
-                        AppState.mode in listOf("bus", "district", "tree", "raise", "lower")
+                        AppState.mode in listOf("bus", "spec", "tree", "raise", "lower")
                     else -> AppState.mode == it.first
                 }
                 UIHelper.ToolItem(it.second, active, width = 40.dp) {
@@ -1087,7 +1087,7 @@ private fun PlanDrawer(mapView: MapRenderView) {
         mapView.setToast(
             when (mode) {
                 "bus" -> "点公交站连线，面板已关，可看地图"
-                "district" -> "在地图上涂区划，面板已关"
+                "spec" -> "在对应分区上刷专精，格子立刻变色"
                 "tree" -> "点空地点树"
                 "raise" -> "点空地抬升地形"
                 "lower" -> "点空地降低地形"
@@ -1115,23 +1115,14 @@ private fun PlanDrawer(mapView: MapRenderView) {
             UIHelper.PickChip("公交线", "${Transit.draft.size}站", AppState.mode == "bus", width = 86.dp) {
                 pickAndClose("bus")
             }
-            UIHelper.PickChip(
-                "区划",
-                Networks.districts.firstOrNull()?.name ?: "一区",
-                AppState.mode == "district",
-                width = 86.dp
-            ) {
-                Networks.ensureDistrict()
-                pickAndClose("district", "district")
-            }
             UIHelper.PickChip("种树", "1万/格", AppState.mode == "tree", width = 86.dp) {
                 pickAndClose("tree")
             }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             UIHelper.PickChip("抬升", "3万/格", AppState.mode == "raise", width = 86.dp) {
                 pickAndClose("raise")
             }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             UIHelper.PickChip("降低", "3万/格", AppState.mode == "lower", width = 86.dp) {
                 pickAndClose("lower")
             }
@@ -1146,56 +1137,40 @@ private fun PlanDrawer(mapView: MapRenderView) {
             fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
         )
 
-        var distTick by remember { mutableStateOf(0) }
-        val active = Networks.ensureDistrict()
         Text(
-            "区划政策 · 当前「" + active.name + "」",
+            "产业专精 · 刷在已有分区上",
             fontSize = 13.sp, fontWeight = FontWeight.Bold,
             color = C.textDark.toColor(), fontFamily = LocalGameFont.current
         )
         Text(
-            "先涂区划再选政策，只对该区生效。禁烟令抬健康、电动车降污染但维护贵、旧城区禁止升级但吸引游客、工业规划增产增污染、高密住宅加速升级但更堵。",
+            "先划住宅/商业/工业/办公，再刷对应专精。格子立刻变色，当天账本「产业专精」进账。全城法令在左上【策】。",
             fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
         )
-        for (row in Networks.DISTRICT_POLICIES.chunked(2)) {
+        val specInc = Networks.specTotals().first
+        Text(
+            "今日专精进账约 " + String.format("%.1f", specInc) + " 万 · 文旅" + Networks.specCount("tourism") +
+                " 商圈" + Networks.specCount("retail") + " 工业园" + Networks.specCount("factory") +
+                " 科教园" + Networks.specCount("campus"),
+            fontSize = 10.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current
+        )
+        for (row in Config.SPECS.chunked(2)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (p in row) {
+                    val zoneName = Config.GROWN[p.zone]?.name ?: p.zone
                     UIHelper.PickChip(
-                        text = p.second,
-                        sub = if (active.policy == p.first) "已启用" else p.third,
-                        selected = active.policy == p.first,
+                        text = p.name,
+                        sub = zoneName + " " + p.cost + "万/格  +" + p.income + "万/日",
+                        selected = AppState.mode == "spec" && AppState.specKind == p.id,
                         width = 150.dp
                     ) {
                         Sfx.play("sfx_click", 0.5f)
-                        Networks.setPolicy(active.id, p.first)
-                        distTick++
-                        AppState.bumpLive()
-                        AppState.bumpMap()
-                        mapView.setToast(active.name + "： " + p.second)
+                        AppState.specKind = p.id
+                        pickAndClose("spec")
+                        mapView.setToast("刷" + p.name + "：点已划的" + zoneName + "格子")
                     }
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            UIHelper.PickChip("新建分区", "第 " + (Networks.districts.size + 1) + " 区", false, width = 86.dp) {
-                val d = Networks.addDistrict("")
-                distTick++
-                AppState.bumpLive()
-                mapView.setToast("已新建「" + d.name + "」，涂区划时生效")
-            }
-            UIHelper.PickChip(
-                "切到一区",
-                Networks.districts.firstOrNull()?.name ?: "-",
-                false,
-                width = 86.dp
-            ) {
-                Networks.activeDistrict = Networks.districts.firstOrNull()?.id ?: 0
-                distTick++
-                AppState.bumpLive()
-                mapView.setToast("已切回「" + (Networks.districts.firstOrNull()?.name ?: "-") + "」")
-            }
-        }
-        if (distTick < 0) Text("")
     }
 }
 
@@ -1360,7 +1335,7 @@ private fun HelpPanel() {
             HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。设施会清掉底下分区，不会被后长出来的楼盖掉。小学点在占地内任意一格即可。【办公】要中学以上学历才进得去，收益比商业高。【推平】拆楼会连底下分区一起清掉。")
             HelpRow("电", "风电/煤电按造价和占地覆盖一片区域，不用铺电缆。点【数】开电力热力图能看到圈。")
             HelpRow("水", "水塔/抽水站按半径抽取地下水供水，不必靠河。点地图只是预览，底部「确认建造」才扣费。诊所人口 25 解锁，垃圾场 40 解锁。")
-            HelpRow("规", "【规划】里选公交/区划/种树/抬升。区划涂完还能给每个区选政策：禁烟令抬健康、电动车降污染、旧城区禁升楼但吸引游客、工业规划增产出也增污染、高密住宅加速升级但更堵。")
+            HelpRow("规", "【规划】里选公交/种树/抬升，以及产业专精。专精刷在已划的住宅/商业/工业/办公上，格子立刻变色，当天【账】能看见「产业专精」进账。全城法令在左上【策】，不要和专精搞混。")
             HelpRow("策", "【数/?/策/银/账】在状态栏左下。【银】贷款；【账】看每天每月收支。人口过 180 后维护和造价逐步加重。暂停用顶栏 ‖；1x 比以前慢一半；2x/3x 都要看广告。右上 ≡ 在顶栏下方，点开建筑详情时会先藏起来。")
             HelpRow("存", "每月结算和切出游戏都会自动写入当前槽位。主菜单「继续游戏」读最近一档。右上【≡】也可手动保存。")
             Box(
@@ -1409,14 +1384,15 @@ private fun overlayLabel(cat: String): String = when (cat) {
     "landvalue" -> "地价"
     "metro" -> "地铁"
     "rail" -> "铁轨"
-    "district" -> "区划"
+    "spec" -> "产业专精"
     else -> cat
 }
 
 private fun overlayHint(cat: String): String = when (cat) {
     "traffic" -> "绿畅行 · 黄缓行 · 红拥堵"
     "landvalue" -> "绿高地价 · 红受污染拉低"
-    "metro", "rail", "district" -> "只显示对应网络"
+    "metro", "rail" -> "只显示对应网络"
+    "spec" -> "已刷专精的分区会叠色"
     else -> "绿=已覆盖 · 红=未覆盖 · 圈=该座设施半径，圈内哪坨归哪座一看就明"
 }
 
@@ -2003,7 +1979,7 @@ private fun DataPanel() {
                 Config.ServiceCat.POWER, Config.ServiceCat.WATER, Config.ServiceCat.GARBAGE,
                 Config.ServiceCat.HEALTH, Config.ServiceCat.EDUCATION, Config.ServiceCat.SAFETY,
                 Config.ServiceCat.TRANSIT, Config.ServiceCat.DEATH, Config.ServiceCat.AMENITY,
-                Config.ServiceCat.LANDMARK, "traffic", "landvalue", "metro", "rail", "district"
+                Config.ServiceCat.LANDMARK, "traffic", "landvalue", "metro", "rail", "spec"
             )
             cats.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -445,6 +445,43 @@ object Config {
     )
 
     // -----------------------------------------------------------------------
+    // 产业专精（刷在已有分区上，立刻扣费、格子变色、第二天账本增收）
+    // -----------------------------------------------------------------------
+    data class SpecDef(
+        val id: String,
+        val name: String,
+        val zone: String,
+        val cost: Int,
+        val income: Double,
+        val happy: Double,
+        val pollution: Double,
+        val edu: Double,
+        val color: RGBA,
+        val desc: String
+    )
+
+    val SPECS: List<SpecDef> = listOf(
+        SpecDef(
+            "tourism", "文旅街区", "residential", 8, 0.22, 0.08, 0.0, 0.0,
+            RGBA(210, 140, 55), "刷住宅区。游客消费进账，满意微升。"
+        ),
+        SpecDef(
+            "retail", "商圈", "commercial", 10, 0.36, 0.02, 0.0, 0.0,
+            RGBA(55, 115, 200), "刷商业区。店铺加营业额，当天账本能看见。"
+        ),
+        SpecDef(
+            "factory", "工业园", "industrial", 12, 0.48, -0.04, 0.9, 0.0,
+            RGBA(155, 85, 40), "刷工业区。产出高，污染也上去。"
+        ),
+        SpecDef(
+            "campus", "科教园", "office", 14, 0.30, 0.04, 0.0, 0.06,
+            RGBA(55, 130, 95), "刷办公区。教育每天涨，办公收入升。"
+        )
+    )
+
+    fun specOf(id: String): SpecDef? = if (id.isEmpty()) null else SPECS.firstOrNull { it.id == id }
+
+    // -----------------------------------------------------------------------
     // 政策（对照《详细拆解文档》：启用后必须持续改数值，不能只弹一次新闻）
     // -----------------------------------------------------------------------
     data class PolicyEffect(

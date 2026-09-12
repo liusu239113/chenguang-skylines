@@ -6,13 +6,12 @@ import org.json.JSONObject
 import kotlin.math.max
 
 /**
- * 地下管网 + 区划政策（对照拆解文档 6.2 / 第九章）
- * 旧存档可能仍带水管/电缆格子；供电供水已改为设施半径覆盖。区划用格子笔刷。
+ * 地下管网。旧档可能仍带水管/电缆/区划字段，读档保留但不玩区划政策。
  */
 class District(
     val id: Int,
     var name: String,
-    var policy: String = ""          // "" | no_smoke | ev | old_town | industry_plan | high_density
+    var policy: String = ""
 )
 
 object Networks {
@@ -25,15 +24,6 @@ object Networks {
     var sewerCount: Int = 0
     var metroCount: Int = 0
     var railCount: Int = 0
-
-    val DISTRICT_POLICIES = listOf(
-        Triple("", "无专属政策", "该区沿用全城法令"),
-        Triple("no_smoke", "禁烟令", "健康↑ 满意度略降"),
-        Triple("ev", "电动车鼓励", "污染↓ 维护费↑"),
-        Triple("old_town", "旧城区", "禁止升级，吸引游客"),
-        Triple("industry_plan", "工业空间规划", "工业产出↑ 污染↑"),
-        Triple("high_density", "高密住宅鼓励", "住宅升级↑ 拥堵↑")
-    )
 
     fun reset() {
         districts.clear()
@@ -53,6 +43,7 @@ object Networks {
                 w.grid[y][x].metro = false
                 w.grid[y][x].rail = false
                 w.grid[y][x].district = 0
+                w.grid[y][x].spec = ""
                 w.grid[y][x].groundPol = 0
                 w.grid[y][x].waterPol = 0
                 w.grid[y][x].onFire = false
@@ -186,72 +177,36 @@ object Networks {
         recount()
     }
 
-    fun ensureDistrict(): District {
-        if (districts.isEmpty()) {
-            districts.add(District(nextDistrictId++, "一区", ""))
+    fun specCount(id: String): Int {
+        val w = World.current ?: return 0
+        var n = 0
+        for (y in 0 until w.rows) for (x in 0 until w.cols) {
+            if (w.grid[y][x].spec == id) n++
         }
-        if (activeDistrict == 0) activeDistrict = districts.first().id
-        return districts.firstOrNull { it.id == activeDistrict } ?: districts.first()
+        return n
     }
 
-    fun addDistrict(name: String): District {
-        val d = District(nextDistrictId++, name.ifBlank { "新区" + nextDistrictId }, "")
-        districts.add(d)
-        activeDistrict = d.id
-        return d
+    fun specTotals(): Triple<Double, Double, Double> {
+        var income = 0.0
+        var happy = 0.0
+        var edu = 0.0
+        val w = World.current ?: return Triple(0.0, 0.0, 0.0)
+        for (y in 0 until w.rows) for (x in 0 until w.cols) {
+            val def = Config.specOf(w.grid[y][x].spec) ?: continue
+            income += def.income
+            happy += def.happy
+            edu += def.edu
+        }
+        return Triple(income, happy, edu)
     }
 
-    fun paintDistrict(x: Int, y: Int, id: Int = activeDistrict): Boolean {
-        val t = World.tile(x, y) ?: return false
-        if (t.terrain == "water") return false
-        t.district = id
-        return true
-    }
-
-    fun districtAt(x: Int, y: Int): District? {
-        val id = World.tile(x, y)?.district ?: 0
-        if (id == 0) return null
-        return districts.firstOrNull { it.id == id }
-    }
-
-    fun policyAt(x: Int, y: Int): String = districtAt(x, y)?.policy ?: ""
-
-    fun setPolicy(id: Int, key: String): Boolean {
-        val d = districts.firstOrNull { it.id == id } ?: return false
-        d.policy = key
-        return true
-    }
-
-    /** 全城某政策的覆盖建筑数（用于把区划政策折算成全城效果） */
-    fun policyShare(policy: String): Double {
+    fun specPollution(): Double {
         val w = World.current ?: return 0.0
-        var hit = 0
-        var all = 0
-        for (y in 1..w.rows) {
-            for (x in 1..w.cols) {
-                val t = w.grid[y - 1][x - 1]
-                if (t.building == null) continue
-                all++
-                val id = t.district
-                if (id == 0) continue
-                if (districts.firstOrNull { it.id == id }?.policy == policy) hit++
-            }
+        var p = 0.0
+        for (y in 0 until w.rows) for (x in 0 until w.cols) {
+            p += Config.specOf(w.grid[y][x].spec)?.pollution ?: 0.0
         }
-        return if (all == 0) 0.0 else hit.toDouble() / all
-    }
-
-    fun policyName(key: String): String =
-        DISTRICT_POLICIES.firstOrNull { it.first == key }?.second ?: "无"
-
-    fun districtMul(key: String, x: Int, y: Int): Double {
-        return when (policyAt(x, y)) {
-            "no_smoke" -> if (key == "health") 1.12 else if (key == "happy") 0.97 else 1.0
-            "ev" -> if (key == "pollution") 0.82 else if (key == "upkeep") 1.10 else 1.0
-            "old_town" -> if (key == "upgrade") 0.0 else if (key == "tourism") 1.15 else 1.0
-            "industry_plan" -> if (key == "industry") 1.20 else if (key == "pollution") 1.30 else 1.0
-            "high_density" -> if (key == "upgrade") 1.80 else if (key == "traffic") 1.20 else if (key == "demandR") 1.18 else 1.0
-            else -> 1.0
-        }
+        return p
     }
 
     fun toJson(): JSONObject {

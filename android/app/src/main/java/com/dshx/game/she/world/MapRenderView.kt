@@ -33,7 +33,7 @@ import kotlin.math.sqrt
 // ============================================================================
 
 data class Tool(
-    val kind: String,               // road | zone | bulldoze | service | pipe | cable | bus | district
+    val kind: String,               // road | zone | bulldoze | service | pipe | cable | bus | spec
     val roadKind: String? = null,
     val zoneKey: String? = null,
     val id: String? = null
@@ -341,9 +341,9 @@ class MapRenderView @JvmOverloads constructor(
                 if (ok) Sfx.play("sfx_click", 0.35f) else if (msg != null) setToast(msg)
                 return ok
             }
-            "district" -> {
-                val (ok, msg) = GameData.paintDistrict(tx, ty)
-                if (ok) Sfx.play("sfx_click", 0.25f) else if (msg != null) setToast(msg)
+            "spec" -> {
+                val (ok, msg) = GameData.paintSpec(tx, ty, t.id ?: "retail")
+                if (ok) Sfx.play("sfx_click", 0.35f) else if (msg != null) setToast(msg)
                 return ok
             }
             "bus" -> {
@@ -386,7 +386,11 @@ class MapRenderView @JvmOverloads constructor(
                 tile != null && (tile.building != null || tile.road != null || tile.metro || tile.rail)
             }
             "service" -> World.canPlaceService(t.id ?: return false, tx, ty).first
-            "district" -> World.tile(tx, ty)?.terrain != "water"
+            "spec" -> {
+                val def = Config.specOf(t.id ?: "")
+                val tile = World.tile(tx, ty)
+                tile != null && def != null && tile.zone == def.zone
+            }
             "bus" -> Transit.isStopCell(tx, ty)
             "tree" -> {
                 val tile = World.tile(tx, ty)
@@ -712,49 +716,32 @@ class MapRenderView @JvmOverloads constructor(
         return paint.measureText(text)
     }
 
-    private fun drawStreetSign(canvas: Canvas, cx: Float, cy: Float, name: String, kind: String, vertical: Boolean) {
+    private fun drawStreetNameOnRoad(canvas: Canvas, tx: Int, ty: Int, name: String, vertical: Boolean) {
         if (name.isEmpty()) return
-        val fs = when (kind) {
-            "highway" -> min(13.5f, cell * 0.48f)
-            "avenue" -> min(13f, cell * 0.46f)
-            else -> min(12.5f, cell * 0.44f)
-        }
-        val padX = 5f
-        val padY = 2.4f
-        val bg = when (kind) {
-            "highway" -> RGBA(236, 236, 238, 232)
-            "avenue" -> RGBA(255, 248, 214, 232)
-            else -> RGBA(255, 252, 236, 232)
-        }
-        val ink = when (kind) {
-            "highway" -> RGBA(42, 48, 70)
-            "avenue" -> RGBA(92, 62, 18)
-            else -> RGBA(48, 46, 40)
-        }
+        val sx = worldToScreenX((tx - 1).toFloat())
+        val sy = worldToScreenY((ty - 1).toFloat())
+        val save = canvas.save()
+        canvas.clipRect(sx + 1f, sy + 1f, sx + cell - 1f, sy + cell - 1f)
+        val cx = sx + cell * 0.5f
+        val cy = sy + cell * 0.5f
+        val fs = min(cell * 0.28f, 8.5f)
+        val ink = RGBA(248, 248, 242)
         if (vertical) {
             val chars = name.toList()
-            val chH = fs * 0.96f
-            val tw = fs * 0.95f
-            val th = chH * chars.size
-            fillRoundRect(canvas, cx - tw / 2 - padX, cy - th / 2 - padY, tw + padX * 2, th + padY * 2, 3.5f, bg)
-            strokeRoundRect(
-                canvas, cx - tw / 2 - padX, cy - th / 2 - padY, tw + padX * 2, th + padY * 2, 3.5f,
-                RGBA(70, 64, 48), 180, 1.1f
-            )
-            var y = cy - th / 2 + chH * 0.5f
+            val chH = min(fs * 0.92f, (cell - 4f) / max(1, chars.size))
+            var y = cy - (chars.size - 1) * chH * 0.5f
             for (ch in chars) {
-                drawText(canvas, cx, y, fs, ink, ch.toString(), TAlign.CENTER, 250)
+                drawText(canvas, cx, y, fs, ink, ch.toString(), TAlign.CENTER, 210)
                 y += chH
             }
         } else {
-            val tw = measure(name, fs)
-            fillRoundRect(canvas, cx - tw / 2 - padX, cy - fs / 2 - padY, tw + padX * 2, fs + padY * 2, 3.5f, bg)
-            strokeRoundRect(
-                canvas, cx - tw / 2 - padX, cy - fs / 2 - padY, tw + padX * 2, fs + padY * 2, 3.5f,
-                RGBA(70, 64, 48), 180, 1.1f
-            )
-            drawText(canvas, cx, cy, fs, ink, name, TAlign.CENTER, 250)
+            var shown = name
+            while (shown.length > 1 && measure(shown, fs) > cell - 4f) {
+                shown = shown.dropLast(1)
+            }
+            drawText(canvas, cx, cy, fs, ink, shown, TAlign.CENTER, 210)
         }
+        canvas.restoreToCount(save)
     }
 
     // -----------------------------------------------------------------------
@@ -793,15 +780,20 @@ class MapRenderView @JvmOverloads constructor(
                 val sx = worldToScreenX((tx - 1).toFloat())
                 val sy = worldToScreenY((ty - 1).toFloat())
                 fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, zoneBaseColor(t, tx, ty))
+                val spec = Config.specOf(t.spec)
+                if (spec != null && t.road == null) {
+                    fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, spec.color.withAlpha(70))
+                    fillRect(canvas, sx, sy, cell * 0.22f, cell * 0.22f, spec.color.withAlpha(210))
+                }
                 if (!World.isUnlocked(tx, ty) && t.road != "highway") {
                     fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, RGBA(28, 36, 42, 150))
                 }
             }
         }
 
-        // ---- 1.4) 区划底纹 / 地铁隧 / 铁轨 ----
-        val showNet = overlay in listOf("metro", "rail", "district") ||
-            tool?.kind in listOf("metro", "rail", "district") ||
+        // ---- 1.4) 地铁隧 / 铁轨 ----
+        val showNet = overlay in listOf("metro", "rail") ||
+            tool?.kind in listOf("metro", "rail") ||
             (tool?.kind == "road" && (tool?.roadKind == "metro" || tool?.roadKind == "rail"))
         if (showNet) {
             for (ty in y0..y1) {
@@ -809,10 +801,6 @@ class MapRenderView @JvmOverloads constructor(
                     val t = w.grid[ty - 1][tx - 1]
                     val sx = worldToScreenX((tx - 1).toFloat())
                     val sy = worldToScreenY((ty - 1).toFloat())
-                    if (t.district != 0 && (tool?.kind == "district" || overlay == "district")) {
-                        val hue = (t.district * 47) % 180
-                        fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, RGBA(80 + hue / 3, 140, 200 - hue / 4, 55))
-                    }
                     if ((overlay == "metro" || tool?.roadKind == "metro" || tool?.kind == "metro") && t.metro) {
                         fillRect(canvas, sx + cell * 0.1f, sy + cell * 0.42f, cell * 0.8f, cell * 0.16f, RGBA(40, 80, 160, 190))
                     }
@@ -970,6 +958,18 @@ class MapRenderView @JvmOverloads constructor(
             if (railPt.isNotEmpty()) {
                 fillLines(canvas, railPt.toFloatArray(), RGBA(48, 48, 52, 240), 255, max(2.2f, cell * 0.16f))
                 fillLines(canvas, railPt.toFloatArray(), RGBA(210, 210, 214, 220), 255, max(0.8f, cell * 0.04f))
+            }
+            if (typeface != null && cell >= 12f) {
+                for (line in w.roadLines) {
+                    val n = min(line.segX.size, line.segY.size)
+                    if (n <= 0) continue
+                    val idx = if (n <= 2) 0 else n / 3
+                    val mx = line.segX[idx]
+                    val my = line.segY[idx]
+                    if (mx < x0 || mx > x1 || my < y0 || my > y1) continue
+                    if (World.tile(mx, my)?.road == null) continue
+                    drawStreetNameOnRoad(canvas, mx, my, line.name, line.dir == "v")
+                }
             }
             if (cross.isNotEmpty()) {
                 val cycle = (Growth.simTime * 1.2).toInt() % 4
@@ -1209,6 +1209,18 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
+        // 专精角标画在楼顶前，刷完立刻看得见
+        if (cell >= 8) {
+            for (ty in y0..y1) {
+                for (tx in x0..x1) {
+                    val spec = Config.specOf(w.grid[ty - 1][tx - 1].spec) ?: continue
+                    val sx = worldToScreenX((tx - 1).toFloat())
+                    val sy = worldToScreenY((ty - 1).toFloat())
+                    fillRect(canvas, sx + 1f, sy + 1f, cell * 0.28f, cell * 0.28f, spec.color.withAlpha(230))
+                }
+            }
+        }
+
         // ---- 4.5) 覆盖热力图（电力/供水/垃圾/医疗/教育/安全/交通/地价） ----
         if (overlay == "traffic") {
             // 拥堵热力图（道路流量红黄绿）
@@ -1255,7 +1267,18 @@ class MapRenderView @JvmOverloads constructor(
                     )
                 }
             }
-        } else if (overlay.isNotEmpty() && overlay !in listOf("district", "metro", "rail")) {
+        } else if (overlay == "spec") {
+            for (ty in y0..y1) {
+                for (tx in x0..x1) {
+                    val t = w.grid[ty - 1][tx - 1]
+                    val spec = Config.specOf(t.spec) ?: continue
+                    fillRect(
+                        canvas, worldToScreenX(tx - 1f), worldToScreenY(ty - 1f),
+                        cell, cell, spec.color.withAlpha(120)
+                    )
+                }
+            }
+        } else if (overlay.isNotEmpty() && overlay !in listOf("metro", "rail")) {
             val hue = overlayHue(overlay)
             val green = hue.withAlpha(95)
             val red = RGBA(210, 70, 60, 70)
@@ -1303,20 +1326,7 @@ class MapRenderView @JvmOverloads constructor(
 
         // ---- 5) 标签 ----
         if (typeface != null) {
-            if (cell >= 10f) {
-                for (line in w.roadLines) {
-                    val n = min(line.segX.size, line.segY.size)
-                    if (n <= 0) continue
-                    val idx = if (n <= 2) 0 else n / 3
-                    val midX = line.segX[idx]
-                    val midY = line.segY[idx]
-                    val lx = worldToScreenX(midX - 0.5f)
-                    val ly = worldToScreenY(midY - 0.5f)
-                    if (lx < -80 || lx > viewW + 80 || ly < -40 || ly > viewH + 40) continue
-                    drawStreetSign(canvas, lx, ly, line.name, line.kind, line.dir == "v")
-                }
-            }
-            // 建筑名改在 drawBuilding 里贴前墙，这里不再另画，避免飘到格子外
+            // 路名已画在路面层；建筑名贴前墙。这里只画预置 POI
             // 预置 POI 标签
             for (lb in w.labels) {
                 val sx = worldToScreenX(lb.x - 0.5f)

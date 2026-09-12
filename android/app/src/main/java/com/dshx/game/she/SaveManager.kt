@@ -200,7 +200,7 @@ object SaveManager {
         for (y in 1..w.rows) {
             for (x in 1..w.cols) {
                 val t = w.grid[y - 1][x - 1]
-                if (t.zone == "none" && t.road == null && t.building == null && !t.pipe && !t.cable && !t.sewer && !t.metro && !t.rail && t.district == 0) continue
+                if (t.zone == "none" && t.road == null && t.building == null && !t.pipe && !t.cable && !t.sewer && !t.metro && !t.rail && t.district == 0 && t.spec.isEmpty()) continue
                 val o = JSONObject().put("x", x).put("y", y).put("zone", t.zone)
                 t.road?.let { o.put("road", it) }
                 if (t.pipe) o.put("pipe", true)
@@ -209,6 +209,7 @@ object SaveManager {
                 if (t.metro) o.put("metro", true)
                 if (t.rail) o.put("rail", true)
                 if (t.district != 0) o.put("district", t.district)
+                if (t.spec.isNotEmpty()) o.put("spec", t.spec)
                 if (t.groundPol > 0) o.put("groundPol", t.groundPol)
                 if (t.waterPol > 0) o.put("waterPol", t.waterPol)
                 t.building?.let { b ->
@@ -282,6 +283,7 @@ object SaveManager {
                 t.metro = o.optBoolean("metro", false)
                 t.rail = o.optBoolean("rail", false)
                 t.district = o.optInt("district", 0)
+                t.spec = o.optString("spec", "")
                 t.groundPol = o.optInt("groundPol", 0)
                 t.waterPol = o.optInt("waterPol", 0)
                 t.building = null

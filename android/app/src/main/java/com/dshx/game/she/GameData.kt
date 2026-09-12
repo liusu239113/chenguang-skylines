@@ -437,7 +437,8 @@ object GameData {
         val crimePen = -s.crime * 0.12
         val sewerPen = -(1.0 - s.sewerCoverage) * 8.0
         val rankHappy = if (s.rankLevel >= 6) 4.0 else 0.0
-        val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06 + crimePen + sewerPen + rankHappy
+        val specHappy = Networks.specTotals().second
+        val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06 + crimePen + sewerPen + rankHappy + specHappy
         val target = max(
             Config.RESOURCES.happinessMin,
             min(
@@ -487,9 +488,9 @@ object GameData {
                 }
             }
         }
-        for (d in Networks.districts) {
-            if (d.policy == "old_town") tradeIncome += 6.0
-        }
+        val specPack = Networks.specTotals()
+        val specIncome = specPack.first
+        val specEdu = specPack.third
         val bldN = max(1, st.resCount + st.comCount + st.indCount + st.offCount)
         val needP = (bldN * policyMul("powerUseMul")).toInt()
         val needW = bldN
@@ -501,21 +502,19 @@ object GameData {
         val waterFactor = min(1.0, waterCap.toDouble() / needW)
         cov = cov.copy(power = cov.power * supplyFactor.toFloat(), water = cov.water * waterFactor.toFloat())
         s.lastCoverage = cov
-        s.education = min(100.0, s.education + (eduScore * 0.08) * (if (cov.education > 0.3f) 1.0 else 0.2) - 0.04)
+        s.education = min(100.0, s.education + (eduScore * 0.08) * (if (cov.education > 0.3f) 1.0 else 0.2) + specEdu - 0.04)
         s.health = min(
             100.0,
-            max(20.0, 50.0 + healthScore * 0.6 - s.pollution * 0.35 + (cov.health * 18) +
-                Networks.policyShare("no_smoke") * 8.0)
+            max(20.0, 50.0 + healthScore * 0.6 - s.pollution * 0.35 + (cov.health * 18))
         )
         s.jobs = st.comCap + st.indCap + st.offCap
         val trafficLoad = s.population / 12.0 + st.comCount * 1.6 + st.indCount * 2.0 + st.offCount * 1.4
         val cap = max(12.0, st.roadCapacity.toDouble())
-        val densityTraffic = 1.0 + Networks.policyShare("high_density") * 0.28
         s.congestion = max(
             0.0,
             min(
                 1.0,
-                trafficLoad / cap * policyMul("trafficMul") * densityTraffic *
+                trafficLoad / cap * policyMul("trafficMul") *
                     (1.0 - min(0.55, transitScore / 40.0 + Transit.coverageBoost()))
             )
         )
@@ -593,7 +592,7 @@ object GameData {
             val fill = if (lv.cap > 0) b.occupied().toDouble() / lv.cap else occRatio
             when (b.zone) {
                 "commercial" -> bizCom += lv.income * fill
-                "industrial" -> bizInd += lv.income * fill * Networks.districtMul("industry", e.x, e.y)
+                "industrial" -> bizInd += lv.income * fill
                 "office" -> bizOff += lv.income * fill
             }
         }
@@ -643,7 +642,7 @@ object GameData {
         }
         val rankUpkeep = if (s.rankLevel >= 4) 0.94 else 1.0
         // 维护不跟人口叠乘，避免后期每天亏几百。中后期用收入打折 + 支出占比封顶放缓。
-        val keepMul = policyMul("upkeepMul") * (0.9 + Networks.districts.count { it.policy == "ev" } * 0.04) * rankUpkeep
+        val keepMul = policyMul("upkeepMul") * rankUpkeep
         roadKeep *= keepMul
         serviceKeep *= keepMul
         grownKeep *= keepMul
@@ -685,14 +684,15 @@ object GameData {
         s.lastRoadUpkeep = if (sandbox) 0.0 else roadKeep * keepShare
         s.lastServiceUpkeep = if (sandbox) 0.0 else serviceKeep * keepShare
         s.lastGrownUpkeep = if (sandbox) 0.0 else grownKeep * keepShare
-        s.lastIncome = gross
+        s.lastIncome = gross + specIncome
         s.lastUpkeep = spend
-        s.lastNet = net
-        s.funds += net
-        if (net >= 0) s.totalIncome += net else s.totalSpent += -net
+        s.lastNet = net + specIncome
+        s.funds += net + specIncome
+        if (net + specIncome >= 0) s.totalIncome += net + specIncome else s.totalSpent += -(net + specIncome)
         post("income", "tax", "居民税", taxPart)
         post("income", "biz", "工商税收", bizPart)
         post("income", "trade", "贸易观光", tradePart)
+        post("income", "biz", "产业专精", specIncome)
         post("spend", "road", "道路维护", s.lastRoadUpkeep)
         post("spend", "service", "设施运营", s.lastServiceUpkeep)
         post("spend", "service", "城区养护", s.lastGrownUpkeep)
@@ -1140,10 +1140,24 @@ object GameData {
         return true to null
     }
 
-    fun paintDistrict(x: Int, y: Int): Pair<Boolean, String?> {
-        Networks.ensureDistrict()
-        Networks.paintDistrict(x, y)
-        return true to null
+    fun paintSpec(x: Int, y: Int, specId: String): Pair<Boolean, String?> {
+        val def = Config.specOf(specId) ?: return false to "未知专精"
+        val t = World.tile(x, y) ?: return false to "越界"
+        if (!World.isUnlocked(x, y)) return false to World.lockedHint()
+        val zoneName = Config.GROWN[def.zone]?.name ?: def.zone
+        if (t.zone != def.zone) return false to ("只能刷在" + zoneName + "分区上")
+        if (t.spec == specId) return true to null
+        val s = current ?: return false to "未开始"
+        if (!sandbox && s.funds < def.cost) {
+            AdOffers.offerShortfall(def.cost, def.name)
+            return false to ("资金不足（" + def.name + " " + def.cost + " 万/格）")
+        }
+        t.spec = specId
+        if (!sandbox) {
+            s.funds -= def.cost
+            post("spend", "zone", def.name, def.cost.toDouble())
+        }
+        return true to (def.name + "已落地，每天 +" + def.income + " 万")
     }
 
     fun tapBusStop(x: Int, y: Int): Pair<Boolean, String?> = Transit.addDraftStop(x, y)

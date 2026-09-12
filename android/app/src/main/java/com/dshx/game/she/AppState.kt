@@ -12,10 +12,11 @@ object AppState {
     /** menu | map | newspaper */
     var screen by mutableStateOf("menu")
 
-    /** view | road | zone | bulldoze | service | bus | district | tree | raise | lower */
+    /** view | road | zone | bulldoze | service | bus | spec | tree | raise | lower */
     var mode by mutableStateOf("view")
     var zoneKey by mutableStateOf("residential")
     var roadKind by mutableStateOf("local")
+    var specKind by mutableStateOf("retail")
     var selService by mutableStateOf<String?>(null)
 
     var serviceOpen by mutableStateOf(false)

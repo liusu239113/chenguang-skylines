@@ -25,7 +25,8 @@ class Tile {
     var sewer: Boolean = false        // 污水管
     var metro: Boolean = false        // 地铁隧道
     var rail: Boolean = false         // 地面铁轨
-    var district: Int = 0             // 区划 id，0=未划
+    var district: Int = 0             // 旧档兼容，不再玩
+    var spec: String = ""             // "" | tourism | retail | factory | campus
     var groundPol: Int = 0            // 地面污染 0-100
     var waterPol: Int = 0             // 水污染 0-100
     var onFire: Boolean = false
@@ -709,6 +710,7 @@ class World {
             if (!isUnlocked(x, y)) return false
             if (t.terrain == "water" || t.road != null || t.building != null) return false
             t.zone = zone
+            if (zone == "none" || Config.specOf(t.spec)?.zone != zone) t.spec = ""
             return true
         }
 
@@ -794,6 +796,7 @@ class World {
                     val t = w.grid[yy - 1][xx - 1]
                     t.building = null
                     t.zone = "none"
+                    t.spec = ""
                     t.onFire = false
                     val b = Building()
                     b.service = id
@@ -863,12 +866,14 @@ class World {
                             val cell = w.grid[yy - 1][xx - 1]
                             cell.building = null
                             cell.zone = "none"
+                            cell.spec = ""
                         }
                     }
                     return "service" to b.service
                 }
                 t.building = null
                 t.zone = "none"
+                t.spec = ""
                 return "grown" to b.zone
             }
             t.road?.let { kind ->
@@ -886,8 +891,9 @@ class World {
                 t.rail = false
                 return "road" to "rail"
             }
-            if (t.zone != "none") {
+            if (t.zone != "none" || t.spec.isNotEmpty()) {
                 t.zone = "none"
+                t.spec = ""
                 return "zone" to null
             }
             return null
