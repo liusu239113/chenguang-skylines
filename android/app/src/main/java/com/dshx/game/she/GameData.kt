@@ -139,6 +139,7 @@ object GameData {
 
     var speedIdx: Int = 1          // 默认 1x；2x/3x 需广告解锁
     var pendingLevelUp: Boolean = false
+    var pendingRankUp: Boolean = false
     var monthFlash: Boolean = false
 
     var seed: Int = 20260408
@@ -260,6 +261,7 @@ object GameData {
         World.current?._pop = 0
         speedIdx = 1
         pendingLevelUp = false
+        pendingRankUp = false
         monthFlash = false
         dayAcc = 0.0
         eventCooldown = 12
@@ -330,16 +332,20 @@ object GameData {
 
     fun refreshRank() {
         val s = current ?: return
-        var lv = 1
-        for (r in Config.RANKS) {
-            if (s.population >= r.popReq && s.happiness >= r.happyReq) lv = r.level
+        val next = Config.RANKS.firstOrNull { it.level == s.rankLevel + 1 } ?: return
+        if (s.population < next.popReq || s.happiness < next.happyReq) return
+        if (Civic.examPassed < next.level - 1) return
+        s.rankLevel = next.level
+        if (!sandbox && next.grant > 0) {
+            s.funds += next.grant
+            post("income", "other", next.name + "授衔", next.grant.toDouble())
         }
-        val examOk = Civic.examPassed >= lv - 1
-        if (lv > s.rankLevel && examOk) {
-            s.rankLevel = lv
-            val r = rankDef()
-            pushNews("营造职级提升", s.mayorName + " 的营造职级升为「" + r.name + "」。" + r.perk + "。", "营造")
+        val unlockTxt = if (next.unlockIds.isEmpty()) "" else {
+            " 新建设施：" + next.unlockIds.mapNotNull { World.serviceConfig(it)?.name }.joinToString("、") + "。"
         }
+        val grantTxt = if (next.grant > 0) " 营造基金到账 " + next.grant + " 万。" else ""
+        pushNews("营造职级提升", s.mayorName + " 升为「" + next.name + "」。" + next.perk + "。" + grantTxt + unlockTxt, "营造")
+        pendingRankUp = true
     }
 
     // -----------------------------------------------------------------------

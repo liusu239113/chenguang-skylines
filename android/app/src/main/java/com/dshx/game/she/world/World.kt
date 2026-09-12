@@ -755,6 +755,10 @@ class World {
 
         fun canPlaceService(id: String, x: Int, y: Int): Pair<Boolean, String?> {
             val s = serviceConfig(id) ?: return false to "未知设施"
+            if (!Config.rankUnlocksService(id, GameData.current?.rankLevel ?: 1)) {
+                val need = Config.RANKS.firstOrNull { it.unlockIds.contains(id) }
+                return false to ("需「" + (need?.name ?: "更高职级") + "」才能建")
+            }
             val anchor = findServiceAnchor(id, x, y)
             val ax = anchor?.first ?: x
             val ay = anchor?.second ?: y

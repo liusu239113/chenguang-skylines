@@ -552,16 +552,44 @@ object Config {
     )
 
     // 虚构市政职级（全城建设成就，无现实机构）
-    data class RankDef(val level: Int, val name: String, val popReq: Int, val happyReq: Int, val perk: String)
+    data class RankDef(
+        val level: Int,
+        val name: String,
+        val popReq: Int,
+        val happyReq: Int,
+        val perk: String,
+        val grant: Int = 0,
+        val unlockIds: List<String> = emptyList()
+    )
 
     val RANKS: List<RankDef> = listOf(
-        RankDef(1, "见习营造", 0, 0, "起步权限"),
-        RankDef(2, "街区营造", 80, 50, "贷款额度提升 · 通过营造测评"),
-        RankDef(3, "城区营造", 300, 55, "独特建筑预告 · 通过营造测评"),
-        RankDef(4, "都会营造", 800, 60, "维护费 -6% · 通过营造测评"),
-        RankDef(5, "总营造师", 2000, 65, "贸易收入 +8% · 通过营造测评"),
-        RankDef(6, "荣誉营造", 5000, 70, "满意度目标 +4 · 通过营造测评")
+        RankDef(1, "见习营造", 0, 0, "起步：公园、电站、水塔、诊所、小学"),
+        RankDef(
+            2, "街区营造", 80, 52, "解锁广场/中学/公交站 · 贷款额度提升 · 到账 180 万",
+            grant = 180, unlockIds = listOf("plaza", "middle_school", "bus_stop", "incinerator")
+        ),
+        RankDef(
+            3, "城区营造", 300, 58, "解锁医院/大学/地铁站 · 独特建筑预告 · 到账 420 万",
+            grant = 420, unlockIds = listOf("hospital", "university", "metro", "solar_plant")
+        ),
+        RankDef(
+            4, "都会营造", 800, 62, "解锁火车站/港口/证交所 · 维护费 -6% · 到账 900 万",
+            grant = 900, unlockIds = listOf("rail_station", "harbor", "stock_exchange", "prison")
+        ),
+        RankDef(
+            5, "总营造师", 2000, 68, "解锁机场/电视塔 · 贸易收入 +8% · 到账 1800 万",
+            grant = 1800, unlockIds = listOf("airport", "tv_tower", "nuclear_plant")
+        ),
+        RankDef(
+            6, "荣誉营造", 5000, 75, "解锁体育场 · 满意度目标 +4 · 到账 3600 万",
+            grant = 3600, unlockIds = listOf("stadium")
+        )
     )
+
+    fun rankUnlocksService(id: String, rankLevel: Int): Boolean {
+        val need = RANKS.filter { it.unlockIds.contains(id) }.minByOrNull { it.level }?.level ?: return true
+        return rankLevel >= need
+    }
 
     // -----------------------------------------------------------------------
     // 配色

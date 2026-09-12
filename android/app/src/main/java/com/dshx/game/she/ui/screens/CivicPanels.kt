@@ -37,6 +37,7 @@ import com.dshx.game.she.AppState
 import com.dshx.game.she.Civic
 import com.dshx.game.she.Config
 import com.dshx.game.she.GameData
+import com.dshx.game.she.MapRef
 import com.dshx.game.she.Prefs
 import com.dshx.game.she.Sfx
 import com.dshx.game.she.SpeedBoost
@@ -147,10 +148,40 @@ fun CivicPanel() {
             if (next != null) {
                 val popNeed = (next.popReq - s.population).coerceAtLeast(0.0).toInt()
                 val hapNeed = (next.happyReq - s.happiness).coerceAtLeast(0.0).toInt()
+                val examNeedLeft = ((next.level - 1) - Civic.examPassed).coerceAtLeast(0)
+                val ready = popNeed == 0 && hapNeed == 0 && examNeedLeft == 0
                 Text(
-                    "下一职「${next.name}」还差：人口 $popNeed · 满意 $hapNeed · 测评通过 ${((next.level - 1) - Civic.examPassed).coerceAtLeast(0)} 次。",
+                    if (ready) "下一职「${next.name}」已达标，点晋升立刻到账 ${next.grant} 万并解锁新建设施。"
+                    else "下一职「${next.name}」还差：人口 $popNeed · 满意 $hapNeed · 测评 $examNeedLeft 次。",
                     fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                 )
+                if (next.unlockIds.isNotEmpty()) {
+                    Text(
+                        "晋升解锁：" + next.unlockIds.mapNotNull { World.serviceConfig(it)?.name }.joinToString("、"),
+                        fontSize = 10.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current
+                    )
+                }
+                if (ready) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .background(C.accentRed.toColor(), RoundedCornerShape(22.dp))
+                            .clickable {
+                                Sfx.play("sfx_levelup")
+                                GameData.refreshRank()
+                                AppState.bumpLive()
+                                MapRef.view?.setToast("升为「" + GameData.rankDef().name + "」")
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "晋升为「${next.name}」 · 到账 ${next.grant} 万",
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                            fontFamily = LocalGameFont.current
+                        )
+                    }
+                }
             } else {
                 Text("已是最高营造职级。", fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
             }
@@ -196,6 +227,7 @@ fun CivicPanel() {
                 ) {
                     Text(
                         if (can) "开始营造测评（5 题）"
+                        else if (Civic.examPassed >= (next?.level ?: 1) - 1 && next != null) "测评已过，达标即可晋升"
                         else if (Civic.examCooldown > 0) "冷却 ${Civic.examCooldown} 天后再考"
                         else "人口/满意还不够，暂不可考",
                         fontSize = 13.sp, fontWeight = FontWeight.Bold,

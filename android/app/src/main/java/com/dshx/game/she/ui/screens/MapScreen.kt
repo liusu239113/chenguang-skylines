@@ -164,7 +164,11 @@ object MapScreen {
             uiTimer = 0f
             if (AppState.screen == "map") AppState.bumpLive()
         }
-        if (GameData.pendingLevelUp) {
+        if (GameData.pendingRankUp) {
+            GameData.pendingRankUp = false
+            Sfx.play("sfx_levelup")
+            view?.setToast("营造职级升为「" + GameData.rankDef().name + "」")
+        } else if (GameData.pendingLevelUp) {
             GameData.pendingLevelUp = false
             Sfx.play("sfx_levelup")
             view?.setToast("城市晋级 " + World.cityLevel().name + "！")
@@ -974,12 +978,22 @@ private fun DrawerContent(mapView: MapRenderView) {
                     items.chunked(3).forEach { rowItems ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             rowItems.forEach { sv ->
-                                val locked = sv.unlockPop > s.population.toInt()
+                                val popLocked = sv.unlockPop > s.population.toInt()
+                                val rankLocked = !Config.rankUnlocksService(sv.id, s.rankLevel)
+                                val locked = popLocked || rankLocked
                                 val price = GameData.serviceCost(sv.id)
                                 val poor = s.funds < price
+                                val lockTxt = when {
+                                    rankLocked -> {
+                                        val need = Config.RANKS.firstOrNull { it.unlockIds.contains(sv.id) }
+                                        "需" + (need?.name ?: "更高职级")
+                                    }
+                                    popLocked -> "人口" + sv.unlockPop
+                                    else -> "¥" + price + "万"
+                                }
                                 UIHelper.PickChip(
                                     text = sv.name,
-                                    sub = if (locked) "人口" + sv.unlockPop else "¥" + price + "万",
+                                    sub = lockTxt,
                                     selected = AppState.selService == sv.id,
                                     disabled = locked || poor,
                                     subColor = if (locked) C.textFaint.toColor()
@@ -987,7 +1001,11 @@ private fun DrawerContent(mapView: MapRenderView) {
                                     width = 92.dp
                                 ) {
                                     when {
-                                        locked -> mapView.setToast("人口达到 " + sv.unlockPop + " 后解锁")
+                                        rankLocked -> {
+                                            val need = Config.RANKS.firstOrNull { it.unlockIds.contains(sv.id) }
+                                            mapView.setToast("升到「" + (need?.name ?: "更高职级") + "」后解锁")
+                                        }
+                                        popLocked -> mapView.setToast("人口达到 " + sv.unlockPop + " 后解锁")
                                         poor -> mapView.setToast("资金不足")
                                         else -> {
                                             AppState.selService = sv.id
@@ -1329,7 +1347,7 @@ private fun HelpPanel() {
                 )
             }
             HelpRow("手", "手掌在确认条上方，点它退出建造并拖地图。划区/设施都要点底部「确认」才扣费。")
-            HelpRow("职", "点顶栏营造职级打开营造档案。人口、满意度和测评都达标才会晋升，不是现实官职。")
+            HelpRow("职", "点顶栏职级打开营造档案。达标后点「晋升」立刻升一级：到账营造基金，并解锁新建设施（广场/地铁/机场等）。")
             HelpRow("路", "开局十字是【两车道】，和建造菜单里同一种。泥土路无标线；两车道一条中虚线；四车道中央双黄、两侧白虚线，车分内外道并排。外环高速全天有过路车；接进城后才会进游客。")
             HelpRow("铁", "先在【服务】建火车站，再在【道路】里选铁轨去地图上画。地铁同理，先建地铁站。机场建好会有飞机。")
             HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。设施会清掉底下分区，不会被后长出来的楼盖掉。小学点在占地内任意一格即可。【办公】要中学以上学历才进得去，收益比商业高。【推平】拆楼会连底下分区一起清掉。")

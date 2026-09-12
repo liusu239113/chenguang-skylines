@@ -109,7 +109,8 @@ object Civic {
         if (examActive) return true
         if (examCooldown > 0) return false
         val next = Config.RANKS.firstOrNull { it.level == s.rankLevel + 1 } ?: return false
-        return s.population >= next.popReq * 0.6 && s.happiness >= next.happyReq - 8
+        if (examPassed >= next.level - 1) return false
+        return s.population >= next.popReq * 0.85 && s.happiness >= next.happyReq - 4
     }
 
     fun startExam() {
@@ -137,7 +138,7 @@ object Civic {
         if (examScore >= 4) {
             examPassed = max(examPassed, s.rankLevel)
             s.merit += 18
-            GameData.pushNews("营造测评通过", "你以 $examScore/5 通过营造测评，晋升通道已打开。", "营造")
+            GameData.pushNews("营造测评通过", "你以 $examScore/5 通过营造测评。人口和满意够了就会立刻升职。", "营造")
             GameData.refreshRank()
         } else {
             GameData.pushNews("营造测评未过", "本次 $examScore/5。可在冷却后重考。", "营造")
