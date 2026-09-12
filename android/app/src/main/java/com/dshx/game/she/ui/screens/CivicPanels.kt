@@ -39,6 +39,7 @@ import com.dshx.game.she.Config
 import com.dshx.game.she.GameData
 import com.dshx.game.she.MapRef
 import com.dshx.game.she.Prefs
+import com.dshx.game.she.PrivacyDocs
 import com.dshx.game.she.Sfx
 import com.dshx.game.she.SpeedBoost
 import com.dshx.game.she.ui.theme.LocalGameFont
@@ -497,7 +498,16 @@ fun SettingsPanel() {
                     .fillMaxWidth()
                     .height(40.dp)
                     .background(C.chipBg.toColor(), RoundedCornerShape(20.dp))
-                    .clickable { AppState.privacyDocOpen = true },
+                    .clickable {
+                        try {
+                            ctx.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(PrivacyDocs.POLICY_URL)
+                                )
+                            )
+                        } catch (_: Throwable) {}
+                    },
                 contentAlignment = Alignment.Center
             ) { Text("查看《隐私政策》", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
             Box(

@@ -9,7 +9,7 @@ class DshxApplication : Application() {
         AdSdkConfig.configure(
             appId = 2097866984871575553L,
             rewardVideoId = "2097867950530371585",
-            privacyPolicyUrl = PrivacyDocs.LOCAL_URL,
+            privacyPolicyUrl = PrivacyDocs.POLICY_URL,
             isDebug = false
         )
         Prefs.init(this)
