@@ -166,21 +166,21 @@ object GameData {
     fun difficultyDef(): Config.DifficultyDef =
         Config.DIFFICULTIES.firstOrNull { it.key == difficultyKey } ?: Config.DIFFICULTIES[1]
 
-    /** 人口 <180 前期不变；180~700 中期加重；700+ 后期再加重 */
+    /** 人口 <180 前期不变；中期缓加重；后期再加重。前期不让维护把税吃光。 */
     fun cityScale(): Double {
         val pop = current?.population ?: 0.0
         val mid = Config.ECONOMY.midPop.toDouble()
         val late = Config.ECONOMY.latePop.toDouble()
         return when {
             pop <= mid -> 1.0
-            pop <= late -> 1.0 + (pop - mid) / (late - mid) * 0.85
-            else -> 1.85 + min(1.35, (pop - late) / 2500.0)
+            pop <= late -> 1.0 + (pop - mid) / (late - mid) * 0.70
+            else -> 1.70 + min(1.10, (pop - late) / 2800.0)
         }
     }
 
     fun buildCostMul(): Double {
         val s = cityScale()
-        return if (s <= 1.0) 1.0 else 1.0 + (s - 1.0) * 1.15
+        return if (s <= 1.0) 1.0 else 1.0 + (s - 1.0) * 0.85
     }
 
     fun serviceCost(id: String): Int {
@@ -646,19 +646,28 @@ object GameData {
         val diff = difficultyDef()
         var eventIncomeMul = 1.0
         for (ev in s.activeEvents) eventIncomeMul *= ev.incomeMul
-        val lateIncomeCut = if (scale <= 1.0) 1.0 else 1.0 / (1.0 + (scale - 1.0) * 0.22)
-        val gross = income * diff.incomeMul * eventIncomeMul * lateIncomeCut
-        val spend = if (sandbox) 0.0 else upkeep * diff.upkeepMul
-        val net = gross - spend
+        val lateIncomeCut = if (scale <= 1.0) 1.0 else 1.0 / (1.0 + (scale - 1.0) * 0.28)
+        val rawGross = income * diff.incomeMul * eventIncomeMul * lateIncomeCut
+        var spend = if (sandbox) 0.0 else upkeep * diff.upkeepMul
+        // 前期：维护最多吃掉当日收入的 55%，避免一直亏；中后期才真正咬紧。
+        if (!sandbox && scale <= 1.0 && rawGross > 0.4) {
+            spend = min(spend, rawGross * 0.55)
+        } else if (!sandbox && scale < 1.35 && rawGross > 0.4) {
+            spend = min(spend, rawGross * (0.55 + (scale - 1.0) / 0.35 * 0.30))
+        }
+        val net = rawGross - spend
+        val gross = rawGross
         val taxPart = taxIncome * taxBoost * diff.incomeMul * eventIncomeMul * lateIncomeCut
         val bizPart = bizIncome * diff.incomeMul * eventIncomeMul * lateIncomeCut
         val tradePart = (tradeIncome + landmarkTour) * rankTrade * diff.incomeMul * eventIncomeMul * lateIncomeCut
         s.dayIncomeTax = taxPart
         s.dayIncomeBiz = bizPart
         s.dayIncomeTrade = tradePart
-        s.lastRoadUpkeep = if (sandbox) 0.0 else roadKeep * diff.upkeepMul
-        s.lastServiceUpkeep = if (sandbox) 0.0 else serviceKeep * diff.upkeepMul
-        s.lastGrownUpkeep = if (sandbox) 0.0 else grownKeep * diff.upkeepMul
+        val keepTotal = roadKeep + serviceKeep + grownKeep
+        val keepShare = if (sandbox || keepTotal <= 0.0) 0.0 else spend / keepTotal
+        s.lastRoadUpkeep = if (sandbox) 0.0 else roadKeep * keepShare
+        s.lastServiceUpkeep = if (sandbox) 0.0 else serviceKeep * keepShare
+        s.lastGrownUpkeep = if (sandbox) 0.0 else grownKeep * keepShare
         s.lastIncome = gross
         s.lastUpkeep = spend
         s.lastNet = net

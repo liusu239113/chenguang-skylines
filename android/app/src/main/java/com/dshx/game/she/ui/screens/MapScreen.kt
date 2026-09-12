@@ -392,6 +392,21 @@ fun MapScreenContent(mapView: MapRenderView) {
             }
         }
 
+        val showMenuBtn = !overlayOpen && !(AppState.mode == "view" && mapView.selectedX > 0)
+        if (showMenuBtn) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 168.dp, end = 12.dp)
+            ) {
+                UIHelper.RoundButton("≡", size = 40.dp, fontSize = 20.sp) {
+                    Sfx.play("sfx_click", 0.6f)
+                    AppState.menuOpen = !AppState.menuOpen
+                }
+            }
+        }
+
         // ---------------- 信息卡（查看模式） ----------------
         if (AppState.mode == "view" && mapView.selectedX > 0 && version >= 0) {
             Box(
@@ -604,22 +619,6 @@ fun MapScreenContent(mapView: MapRenderView) {
                     .noRippleClickable { }
             ) {
                 DrawerContent(mapView)
-            }
-        }
-
-        // ---------------- 暂停按钮 ----------------
-        val showingDetail = AppState.mode == "view" && mapView.selectedX > 0
-        if (!showingDetail) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(top = 8.dp, end = 12.dp)
-            ) {
-                UIHelper.RoundButton("≡", size = 40.dp, fontSize = 20.sp) {
-                    Sfx.play("sfx_click", 0.6f)
-                    AppState.menuOpen = !AppState.menuOpen
-                }
             }
         }
 
@@ -1303,7 +1302,7 @@ private fun HelpPanel() {
             HelpRow("电", "风电/煤电按造价和占地覆盖一片区域，不用铺电缆。点【数】开电力热力图能看到圈。")
             HelpRow("水", "水塔/抽水站按半径抽取地下水供水，不必靠河。点地图只是预览，底部「确认建造」才扣费。诊所人口 25 解锁，垃圾场 40 解锁。")
             HelpRow("规", "【规划】只选公交/区划/种树。选完面板会关，才能在地图上点。")
-            HelpRow("策", "【数/?/策/银/账】在状态栏左下。【银】贷款；【账】看每天每月收支明细。人口过 180 后维护和造价逐步加重，火车站等大件会更贵。暂停用顶栏 ‖；1x 比以前慢一半；2x/3x 都要看广告。详情关闭在左上角。")
+            HelpRow("策", "【数/?/策/银/账】在状态栏左下。【银】贷款；【账】看每天每月收支。人口过 180 后维护和造价逐步加重。暂停用顶栏 ‖；1x 比以前慢一半；2x/3x 都要看广告。右上 ≡ 在顶栏下方，点开建筑详情时会先藏起来。")
             HelpRow("存", "每月结算和切出游戏都会自动写入当前槽位。主菜单「继续游戏」读最近一档。右上【≡】也可手动保存。")
             Box(
                 modifier = Modifier
@@ -1603,6 +1602,32 @@ private fun BankPanel() {
 }
 
 @Composable
+private fun ledgerMoney(v: Double, income: Boolean): String {
+    val n = floor(kotlin.math.abs(v)).toInt()
+    val body = if (n >= 10000) String.format("%.1f亿", n / 10000.0) else n.toString() + "万"
+    return (if (income) "+" else "−") + body
+}
+
+@Composable
+private fun LedgerRow(name: String, amount: Double, income: Boolean) {
+    val C = Config.COLORS
+    if (kotlin.math.abs(amount) < 0.05) return
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(name, fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+        Text(
+            ledgerMoney(amount, income),
+            fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = if (income) C.accentGreen.toColor() else C.accentRed.toColor(),
+            fontFamily = LocalGameFont.current
+        )
+    }
+}
+
+@Composable
 private fun LedgerPanel() {
     val C = Config.COLORS
     val s = GameData.current ?: return
@@ -1610,11 +1635,8 @@ private fun LedgerPanel() {
     val today = GameData.dateLabel()
     val todayLines = s.dayBook.filter { it.date == today }.asReversed()
     val month = s.monthBooks.lastOrNull()
-    fun money(v: Double): String {
-        val n = floor(v)
-        val sign = if (n >= 0) "+" else ""
-        return sign + n.toInt() + "万"
-    }
+    val inTotal = s.dayIncomeTax + s.dayIncomeBiz + s.dayIncomeTrade
+    val outTotal = s.lastRoadUpkeep + s.lastServiceUpkeep + s.lastGrownUpkeep + s.lastLoanRepay
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1625,16 +1647,16 @@ private fun LedgerPanel() {
         Column(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .heightIn(max = 580.dp)
+                .heightIn(max = 600.dp)
                 .verticalScroll(rememberScrollState())
                 .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
                 .padding(16.dp)
                 .noRippleClickable { },
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "财务报表", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    "财务报表", fontSize = 17.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                 )
@@ -1644,54 +1666,102 @@ private fun LedgerPanel() {
                     modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.ledgerOpen = false }.padding(4.dp)
                 )
             }
-            Text(
-                "本日净 ${money(s.lastNet)} · 金库 ${UIHelper.fmtFunds(s.funds)}",
-                fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = if (s.lastNet >= 0) C.accentGreen.toColor() else C.accentRed.toColor(),
-                fontFamily = LocalGameFont.current
-            )
-            Text("今日收入", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("居民税 ${money(s.dayIncomeTax)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("工商税 ${money(s.dayIncomeBiz)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("贸易观光 ${money(s.dayIncomeTrade)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("今日支出", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("道路维护 ${money(-s.lastRoadUpkeep)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("设施运营 ${money(-s.lastServiceUpkeep)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("城区养护 ${money(-s.lastGrownUpkeep)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            if (s.lastLoanRepay > 0) {
-                Text("贷款还款 ${money(-s.lastLoanRepay)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(C.chipBg.toColor(), RoundedCornerShape(12.dp))
+                        .padding(10.dp)
+                ) {
+                    Text("金库", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                    Text(UIHelper.fmtFunds(s.funds), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.accentGold.toColor(), fontFamily = LocalGameFont.current)
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(C.chipBg.toColor(), RoundedCornerShape(12.dp))
+                        .padding(10.dp)
+                ) {
+                    Text("本日净", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                    Text(
+                        ledgerMoney(kotlin.math.abs(s.lastNet), s.lastNet >= 0),
+                        fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                        color = if (s.lastNet >= 0) C.accentGreen.toColor() else C.accentRed.toColor(),
+                        fontFamily = LocalGameFont.current
+                    )
+                }
             }
-            if (month != null) {
+            Text("今日", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("收入 +" + floor(inTotal).toInt() + "万", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
+                    LedgerRow("居民税", s.dayIncomeTax, true)
+                    LedgerRow("工商税", s.dayIncomeBiz, true)
+                    LedgerRow("贸易观光", s.dayIncomeTrade, true)
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("支出 −" + floor(outTotal).toInt() + "万", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
+                    LedgerRow("道路维护", s.lastRoadUpkeep, false)
+                    LedgerRow("设施运营", s.lastServiceUpkeep, false)
+                    LedgerRow("城区养护", s.lastGrownUpkeep, false)
+                    LedgerRow("贷款还款", s.lastLoanRepay, false)
+                }
+            }
+            if (month \!= null) {
                 Text(
-                    "${month.year}.${month.month.toString().padStart(2, '0')} 月报",
+                    "${month.year}年${month.month}月",
                     fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                 )
-                Text("税 ${money(month.tax)} · 工商 ${money(month.biz)} · 贸易 ${money(month.trade)} · 贷款入 ${money(month.loanIn)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-                Text("路养 ${money(-month.road)} · 设施 ${money(-month.service)} · 建造 ${money(-month.build)} · 划区 ${money(-month.zone)} · 还贷 ${money(-month.loanOut)}", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-                Text(
-                    "本月净 ${money(month.net())}",
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    color = if (month.net() >= 0) C.accentGreen.toColor() else C.accentRed.toColor(),
-                    fontFamily = LocalGameFont.current
-                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        LedgerRow("居民税", month.tax, true)
+                        LedgerRow("工商税", month.biz, true)
+                        LedgerRow("贸易观光", month.trade, true)
+                        LedgerRow("贷款入账", month.loanIn, true)
+                        LedgerRow("其他收入", month.otherIn, true)
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        LedgerRow("道路维护", month.road, false)
+                        LedgerRow("设施运营", month.service, false)
+                        LedgerRow("建造", month.build, false)
+                        LedgerRow("划区", month.zone, false)
+                        LedgerRow("还贷", month.loanOut, false)
+                        LedgerRow("其他支出", month.otherOut, false)
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("本月净", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                    Text(
+                        ledgerMoney(kotlin.math.abs(month.net()), month.net() >= 0),
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        color = if (month.net() >= 0) C.accentGreen.toColor() else C.accentRed.toColor(),
+                        fontFamily = LocalGameFont.current
+                    )
+                }
             }
-            Text("近期流水", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("今日流水", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             if (todayLines.isEmpty()) {
-                Text("今天还没有单独记账的建造/贷款流水。每日税和维护会在过日后写入。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                Text("过日结算、建造和贷款会记在这里。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
             } else {
-                for (line in todayLines.take(24)) {
-                    val col = if (line.kind == "income") C.accentGreen.toColor() else C.accentRed.toColor()
-                    val amt = if (line.kind == "income") money(line.amount) else money(-line.amount)
-                    Text("${line.name}  $amt", fontSize = 11.sp, color = col, fontFamily = LocalGameFont.current)
+                for (line in todayLines.take(18)) {
+                    LedgerRow(line.name, line.amount, line.kind == "income")
                 }
             }
             if (s.monthBooks.size > 1) {
                 Text("近几个月", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
                 for (b in s.monthBooks.asReversed().take(6)) {
-                    Text(
-                        "${b.year}.${b.month.toString().padStart(2, '0')}  入${floor(b.income()).toInt()} 出${floor(b.spend()).toInt()} 净${floor(b.net()).toInt()}",
-                        fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
-                    )
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${b.year}.${b.month.toString().padStart(2, '0')}", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                        Text(
+                            ledgerMoney(kotlin.math.abs(b.net()), b.net() >= 0),
+                            fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            color = if (b.net() >= 0) C.accentGreen.toColor() else C.accentRed.toColor(),
+                            fontFamily = LocalGameFont.current
+                        )
+                    }
                 }
             }
             Box(
