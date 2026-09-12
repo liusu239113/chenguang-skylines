@@ -1276,7 +1276,7 @@ object GameData {
             "buildings" -> (st.resCount + st.comCount + st.indCount + st.offCount).toDouble()
             "happy" -> s.happiness
             "edu" -> s.education
-            "jobs" -> s.jobs
+            "jobs" -> s.jobs.toDouble()
             "trade" -> s.dayIncomeTrade * 30.0
             else -> 0.0
         }
