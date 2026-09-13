@@ -7,22 +7,39 @@ data class PrivacyItem(
     val purpose: String
 )
 
-/** 第三方 SDK 条目 */
+/**
+ * 第三方 SDK 情况说明条目。
+ * 按审核要求：SDK名称、开发者名称（全称）、使用目的、使用场景、
+ * 调用权限说明、个人信息收集类型及方式、隐私政策链接、频次时机。
+ */
 data class SdkInfo(
     val name: String,
-    val vendor: String
-)
-
-/** 第三方 SDK 收集明细 */
-data class SdkDetail(
-    val name: String,
+    val vendor: String,
+    val purpose: String,
+    val scene: String,
+    val permission: String,
     val collect: String,
-    val purpose: String
+    val policyUrl: String,
+    val timing: String
 )
 
 object PrivacyDocs {
     /** 完整《隐私政策》跳外部浏览器 */
     const val POLICY_URL = "http://yanyususu.online:5555/doushi.html"
+
+    private const val AD_PURPOSE = "广告投放、广告监测、广告归因、反作弊"
+    private const val AD_SCENE = "展示激励视频广告时（用户主动点击观看）"
+    private const val AD_PERMISSION = "网络访问、网络状态；读取设备标识符用于广告归因"
+    private const val AD_COLLECT = "设备标识符（OAID、AndroidID）、设备信息、网络信息；由 SDK 自动收集"
+    private const val AD_TIMING = "用户同意《隐私政策》后，在广告加载与展示过程中"
+
+    private fun adSdk(
+        name: String,
+        vendor: String,
+        url: String,
+        purpose: String = AD_PURPOSE,
+        collect: String = AD_COLLECT
+    ) = SdkInfo(name, vendor, purpose, AD_SCENE, AD_PERMISSION, collect, url, AD_TIMING)
 
     val SELF_ITEMS: List<PrivacyItem> = listOf(
         PrivacyItem("位置信息", "精确位置信息（可选）", "广告定向投放"),
@@ -64,39 +81,41 @@ object PrivacyDocs {
     )
 
     val SDKS: List<SdkInfo> = listOf(
-        SdkInfo("穿山甲", "北京巨量引擎网络技术有限公司"),
-        SdkInfo("优量汇", "深圳市腾讯计算机系统有限公司"),
-        SdkInfo("快手联盟", "北京快手广告有限公司"),
-        SdkInfo("百度联盟", "北京百度网讯科技有限公司"),
-        SdkInfo("Sigmob", "北京创智汇聚科技股份有限公司"),
-        SdkInfo("优推", "北京乐游阳光科技有限公司"),
-        SdkInfo("塔酷", "广州塔酷信息科技有限公司"),
-        SdkInfo("Adgain", "北京数字悦动科技有限公司"),
-        SdkInfo("天璇", "上海优比客思科技有限公司"),
-        SdkInfo("Adview", "天津快友世纪科技有限公司"),
-        SdkInfo("Adscope（倍孜）", "上海倍孜网络技术有限公司"),
-        SdkInfo("UGdesk（多盟）", "多盟智胜网络技术（北京）有限公司"),
-        SdkInfo("脉盟", "上海孛樊信息科技有限公司"),
-        SdkInfo("Menta", "上海芒拓网络科技有限公司"),
-        SdkInfo("美数", "北京美数信息科技有限公司"),
-        SdkInfo("Funlink", "北京泛连科技有限公司"),
-        SdkInfo("宸星", "湖北众宸嘉实信息科技有限公司"),
-        SdkInfo("Oppo", "广东欢太科技有限公司"),
-        SdkInfo("小米", "小米新加坡科技有限公司"),
-        SdkInfo("Vivo", "广东天宸网络科技有限公司"),
-        SdkInfo("鲸鸿动能（华为）", "华为终端有限公司"),
-        SdkInfo("Qbmob", "杭州趣变网络科技有限公司"),
-        SdkInfo("Advista", "上海推易软件技术有限公司"),
-        SdkInfo("欢效", "北京欢效网络科技有限公司"),
-        SdkInfo("MediaPrime", "北京泛为信息科技有限公司"),
-        SdkInfo("聚推", "杭州推啊网络科技有限公司"),
-        SdkInfo("Tap登录", "易玩（上海）网络科技有限公司")
-    )
-
-    val SDK_DETAILS: List<SdkDetail> = listOf(
-        SdkDetail("优量汇SDK", "AndroidID、设备IP", "广告投放、广告效果监测、广告归因、反作弊"),
-        SdkDetail("AdGain SDK", "AndroidID、OAID、WiFi的BSSID", "广告投放、广告归因、反作弊、广告效果统计"),
-        SdkDetail("优推广告SDK", "OAID", "广告投放、广告效果统计、反作弊"),
-        SdkDetail("Tap登录SDK", "AndroidID", "实现账号登录功能、登录状态维护及账号安全验证")
+        adSdk("穿山甲", "北京巨量引擎网络技术有限公司", "https://csjplatform.com/supportcenter/5879"),
+        adSdk("优量汇", "深圳市腾讯计算机系统有限公司", "https://www.tencent.com/zh-cn/privacy-policy.html", collect = "AndroidID、设备IP"),
+        adSdk("快手联盟", "北京快手广告有限公司", "https://www.kuaishou.com/about/policy?tab=privacy"),
+        adSdk("百度联盟", "北京百度网讯科技有限公司", "https://union.baidu.com/bqt/#/policies"),
+        adSdk("Sigmob", "北京创智汇聚科技股份有限公司", "https://www.sigmob.com/policy.html"),
+        adSdk("优推", "北京乐游阳光科技有限公司", "https://youtui.gameley.com/agreement.html#ytpolice", collect = "OAID"),
+        adSdk("塔酷", "广州塔酷信息科技有限公司", "https://help.takuad.com/docs/1Mn1B7"),
+        adSdk("Adgain", "北京数字悦动科技有限公司", "https://www.adgain.cn/docs/privacy.html", collect = "AndroidID、OAID、WiFi的BSSID"),
+        adSdk("天璇", "上海优比客思科技有限公司", "https://www.ubixai.com/ubix_sdk_Merak_privacy.html"),
+        adSdk("Adview", "天津快友世纪科技有限公司", "https://www.adview.cn/user/compliance"),
+        adSdk("Adscope（倍孜）", "上海倍孜网络技术有限公司", "https://sdkdoc.beizi.biz/#/zh-cn/guide/UsePrivacy"),
+        adSdk("UGdesk（多盟）", "多盟智胜网络技术（北京）有限公司", "https://bluefocus.feishu.cn/wiki/"),
+        adSdk("脉盟", "上海孛樊信息科技有限公司", "https://static.adwangmai.com/privacy-MaxMindSDK.html"),
+        adSdk("Menta", "上海芒拓网络科技有限公司", "https://www.mentamob.com/policy.html"),
+        adSdk("美数", "北京美数信息科技有限公司", "https://www.atdplus.cn/html/sdk-privacy-agreement/"),
+        adSdk("Funlink", "北京泛连科技有限公司", "https://www.funlinkads.com/doc/privacy.pdf"),
+        adSdk("宸星", "湖北众宸嘉实信息科技有限公司", "https://privacy.adbiding.cn/privacy.html"),
+        adSdk("Oppo", "广东欢太科技有限公司", "https://u.oppomobile.com/home/_book/"),
+        adSdk("小米", "小米新加坡科技有限公司", "https://dev.mi.com/xiaomihyperos/documentation/detail?pId=2139"),
+        adSdk("Vivo", "广东天宸网络科技有限公司", "https://adnet.vivo.com.cn/home/agreement/18"),
+        adSdk("鲸鸿动能（华为）", "华为终端有限公司", "https://consumer.huawei.com/cn/privacy/privacy-statement-huawei/"),
+        adSdk("Qbmob", "杭州趣变网络科技有限公司", "https://www.qubiankeji.com/doc/sdkPrivacyPolicy.html"),
+        adSdk("Advista", "上海推易软件技术有限公司", "https://docs.divms.cn/guide/privacy.html"),
+        adSdk("欢效", "北京欢效网络科技有限公司", "https://tos.adhuanxiao.com/欢效广告SDK隐私政策.html"),
+        adSdk("MediaPrime", "北京泛为信息科技有限公司", "https://www.mediaprime.top/privacy"),
+        adSdk("聚推", "杭州推啊网络科技有限公司", "https://ssp-web.jutuiad.cn/#/public/PrivacyPolicy"),
+        SdkInfo(
+            name = "Tap登录",
+            vendor = "易玩（上海）网络科技有限公司",
+            purpose = "实现账号登录功能、登录状态维护及账号安全验证",
+            scene = "用户点击「TapTap 登录」时",
+            permission = "网络访问、网络状态",
+            collect = "AndroidID、设备信息（型号、系统版本、CPU、内存）、网络类型",
+            policyUrl = "https://developer.taptap.cn/docs/sdk/start/agreement/",
+            timing = "用户同意《隐私政策》并主动点击「TapTap 登录」后才初始化，登录时读取"
+        )
     )
 }

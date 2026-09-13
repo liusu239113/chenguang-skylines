@@ -106,36 +106,11 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
                     }
                 }
                 Text(
-                    "二、第三方 SDK 列表（共 " + PrivacyDocs.SDKS.size + " 个）",
+                    "二、接入第三方 SDK 情况说明（共 " + PrivacyDocs.SDKS.size + " 个）",
                     fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                 )
                 for (sdk in PrivacyDocs.SDKS) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(C.panelWhite.toColor(), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            sdk.name, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                            color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
-                            modifier = Modifier.weight(0.38f)
-                        )
-                        Text(
-                            sdk.vendor, fontSize = 10.sp, color = C.textMid.toColor(),
-                            fontFamily = LocalGameFont.current,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.weight(0.62f)
-                        )
-                    }
-                }
-                Text(
-                    "三、第三方 SDK 具体收集的信息及目的",
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current
-                )
-                for (d in PrivacyDocs.SDK_DETAILS) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -143,9 +118,14 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
                             .padding(8.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Text(d.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-                        Text("获取的信息：" + d.collect, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-                        Text("使用目的：" + d.purpose, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                        Text(sdk.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                        Text("开发者名称（全称）：" + sdk.vendor, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                        Text("使用目的：" + sdk.purpose, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                        Text("使用场景：" + sdk.scene, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                        Text("调用权限说明：" + sdk.permission, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                        Text("个人信息收集类型及方式：" + sdk.collect, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                        Text("隐私政策链接：" + sdk.policyUrl, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                        Text("频次时机：" + sdk.timing, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
                     }
                 }
                 Text(
