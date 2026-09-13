@@ -132,6 +132,8 @@ object Growth {
                 Random.nextDouble() < zoneDemand
             ) {
                 World.upgradeBuilding(e.x, e.y)
+                // 升级后向同分区相邻空地扩张，楼体变大（临街起楼 → 街区成片）
+                World.expandBuilding(e)
             }
         }
     }

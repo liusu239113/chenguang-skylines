@@ -459,6 +459,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     val car = Traffic.selected
                     val train = Traffic.selectedTrain
                     val plane = Traffic.selectedPlane
+                    val ship = Traffic.selectedShip
                     val svcCar = CitySystems.selected
                     when {
                         svcCar != null -> {
@@ -513,6 +514,16 @@ fun MapScreenContent(mapView: MapRenderView) {
                             UIHelper.InfoRow("类型", "民航客机")
                             UIHelper.InfoRow("起降", "机场上空盘旋进出")
                             UIHelper.InfoRow("说明", "建机场后才会有飞机")
+                        }
+                        ship != null -> {
+                            Text(
+                                ship.name,
+                                fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                            )
+                            UIHelper.InfoRow("类型", if (ship.loaded) "出港货船" else "进港货轮")
+                            UIHelper.InfoRow("航线", "水域边界 ↔ 港口 (" + ship.harborX + "," + ship.harborY + ")")
+                            UIHelper.InfoRow("说明", if (ship.loaded) "载货出港，结算水运贸易" else "空船进港装货")
                         }
                         else -> {
                     Text(
@@ -577,7 +588,15 @@ fun MapScreenContent(mapView: MapRenderView) {
                         if (tb.service == "hospital") UIHelper.InfoRow("救护车", "5 辆")
                         if (tb.service == "crematorium" || tb.service == "cemetery") UIHelper.InfoRow("灵车", "有人去世会出车接人")
                         if (cfg != null) {
-                            UIHelper.InfoRow("覆盖半径", World.coverRadius(cfg).toString() + " 格")
+                            val netCat = cfg.category == Config.ServiceCat.POWER ||
+                                cfg.category == Config.ServiceCat.WATER
+                            if (netCat) {
+                                UIHelper.InfoRow("输送方式", "只负责产能，靠道路预埋管线/地下管缆送到建筑")
+                            } else if (cfg.garbageCap > 0 || cfg.deathCap > 0) {
+                                UIHelper.InfoRow("作用方式", "全城收运，气味/烟尘按距离衰减，可放远郊")
+                            } else {
+                                UIHelper.InfoRow("覆盖半径", World.coverRadius(cfg).toString() + " 格")
+                            }
                             if (cfg.powerCap > 0) {
                                 val s0 = GameData.current
                                 UIHelper.InfoRow(
@@ -591,6 +610,11 @@ fun MapScreenContent(mapView: MapRenderView) {
                                     "供水容量",
                                     cfg.waterCap.toString() + "（全城 " + (s0?.waterCap ?: 0) + "/" + (s0?.waterNeed ?: 0) + "）"
                                 )
+                            }
+                            if (cfg.garbageCap > 0) UIHelper.InfoRow("收运能力", cfg.garbageCap.toString() + " 栋")
+                            if (cfg.deathCap > 0) UIHelper.InfoRow("殡葬容量", cfg.deathCap.toString())
+                            if (cfg.pollutionRadius > 0) {
+                                UIHelper.InfoRow("污染扩散", cfg.pollution.toString() + " · 半径 " + cfg.pollutionRadius + " 格（距离衰减）")
                             }
                         }
                     }

@@ -219,7 +219,10 @@ object Config {
         val unlockPop: Int = 0,           // 人口达到后解锁（里程碑）
         val pollution: Int = 0,           // 设施自身污染（燃煤电厂等）
         val powerCap: Int = 0,            // 发电容量（建筑数）
-        val waterCap: Int = 0             // 供水容量
+        val waterCap: Int = 0,            // 供水容量
+        val garbageCap: Int = 0,          // 垃圾处理容量（按建筑收运量计）
+        val deathCap: Int = 0,            // 殡葬容量
+        val pollutionRadius: Int = 0      // 污染扩散半径（靠距离衰减，不再压格子）
     )
 
     val SERVICES: List<ServiceDef> = listOf(
@@ -234,19 +237,19 @@ object Config {
         ServiceDef("solar_plant", "太阳能电站", 1600, 28, 7, 0, false, 2, 2,
             "光伏电站。按半径覆盖，容量 36，无污染。", ServiceCat.POWER, 300, 0, 36, 0),
         ServiceDef("coal_plant", "燃煤电厂", 1800, 56, 10, -3, false, 2, 2,
-            "容量 70，覆盖更广，稳定但污染重。", ServiceCat.POWER, 0, 8, 70, 0),
+            "容量 70。只产能，靠路网送电，可放远郊。", ServiceCat.POWER, 0, 8, 70, 0, 0, 0, 9),
         ServiceDef("nuclear_plant", "核电站", 9800, 120, 14, 0, false, 3, 3,
-            "容量 180，覆盖最广，维护昂贵。", ServiceCat.POWER, 4000, 1, 180, 0),
+            "容量 180，维护昂贵。只产能，靠路网送电。", ServiceCat.POWER, 4000, 1, 180, 0, 0, 0, 12),
         // ---- 供水 ----
         ServiceDef("water_tower", "水塔", 300, 12, 5, 0, false, 1, 1,
-            "抽取地下水。按半径覆盖周边。", ServiceCat.WATER, 0, 0, 0, 18),
+            "抽取地下水。只产能，靠路网水网送水。", ServiceCat.WATER, 0, 0, 0, 18),
         ServiceDef("pump_station", "抽水站", 600, 18, 8, 0, false, 1, 1,
-            "抽取地下水。覆盖半径更大，不必靠河。", ServiceCat.WATER, 0, 0, 0, 40),
+            "抽取地下水。只产能，容量 40，不必靠河。", ServiceCat.WATER, 0, 0, 0, 40),
         // ---- 垃圾 ----
         ServiceDef("landfill", "垃圾场", 350, 22, 6, 0, false, 1, 1,
-            "填埋生活垃圾，满载后污染加重。", ServiceCat.GARBAGE, 40, 3),
+            "收运 60 栋。气味按距离衰减，可放远郊。", ServiceCat.GARBAGE, 40, 3, 0, 0, 60, 0, 5),
         ServiceDef("incinerator", "焚烧厂", 2200, 52, 8, -2, false, 2, 2,
-            "烧掉垃圾并发电，有空气污染。", ServiceCat.GARBAGE, 300, 5, 12, 0),
+            "收运 160 栋并发电 12，烟尘按距离衰减。", ServiceCat.GARBAGE, 300, 5, 12, 0, 160, 0, 7),
         // ---- 医疗 ----
         ServiceDef("clinic", "诊所", 640, 28, 7, 5, false, 1, 1,
             "基础医疗，覆盖区健康与满意度提升。", ServiceCat.HEALTH, 25),
@@ -277,11 +280,11 @@ object Config {
             "航空枢纽，旅游收入与满意度。", ServiceCat.TRANSIT, 4000),
         // ---- 排污 / 殡葬 / 监狱 ----
         ServiceDef("sewage", "污水处理厂", 2400, 58, 8, 0, false, 2, 2,
-            "处理污水。未覆盖则污染水源、市民生病。", ServiceCat.WATER, 60, 2, 0, 0),
+            "服务 40 栋。臭气按距离衰减，不必贴住宅。", ServiceCat.WATER, 60, 2, 0, 0, 0, 0, 6),
         ServiceDef("cemetery", "墓地", 400, 4, 6, -1, false, 2, 2,
-            "存放遗体。满载后污染周边。", ServiceCat.DEATH, 80),
+            "安葬 80。阴气按距离衰减，可放城郊。", ServiceCat.DEATH, 80, 0, 0, 0, 0, 80, 3),
         ServiceDef("crematorium", "火葬场", 900, 12, 8, 0, false, 1, 1,
-            "焚化遗体，无堆积。需派出灵车。", ServiceCat.DEATH, 300),
+            "火化 200，无堆积。烟尘按距离衰减。", ServiceCat.DEATH, 300, 0, 0, 0, 0, 200, 4),
         ServiceDef("prison", "监狱", 3600, 48, 8, 0, false, 2, 2,
             "关押罪犯。容量满则犯人被释放。", ServiceCat.SAFETY, 400),
         // ---- 独特建筑 ----

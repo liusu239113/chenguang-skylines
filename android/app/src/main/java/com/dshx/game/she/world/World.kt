@@ -19,6 +19,7 @@ class Tile {
     var terrain: String = "grass"
     var zone: String = "none"
     var road: String? = null          // "dirt" | "local" | "avenue" | "highway"
+    var bridge: Boolean = false       // 跨水桥：水面上的道路
     var building: Building? = null
     var pipe: Boolean = false         // 地下水管
     var cable: Boolean = false        // 地下电缆
@@ -527,7 +528,10 @@ class World {
             if (!isUnlocked(x, y) && kind != "highway") return false to lockedHint()
             if (kind == "metro" && !hasService("metro")) return false to "先建地铁站才能挖隧道"
             if (kind == "rail" && !hasService("rail_station")) return false to "先建火车站才能铺铁轨"
-            if (t.terrain == "water" && kind != "metro") return false to "不能铺在水上"
+            if (t.terrain == "water" && kind != "metro") {
+                // 跨水架桥：水域可以修桥（造价更高），地铁本来就是地下
+                return true to null
+            }
             if (t.building != null) return false to "先拆除这里的建筑"
             val exist = t.road
             if (exist != null) {
@@ -541,7 +545,6 @@ class World {
         fun setRoad(x: Int, y: Int, kind: String): Boolean {
             val t = tile(x, y) ?: return false
             if (t.building != null) return false
-            if (t.terrain == "water" && kind != "metro") return false
             if (kind == "metro") {
                 t.metro = true
                 return true
@@ -551,9 +554,19 @@ class World {
                 t.zone = "none"
                 return true
             }
+            if (t.terrain == "water") {
+                // 跨水桥：水面铺路，标记为桥
+                t.road = kind
+                t.bridge = true
+                t.zone = "none"
+                nameNewStreet(x, y, kind)
+                Networks.invalidateGrid()
+                return true
+            }
             t.road = kind
             t.zone = "none"
             nameNewStreet(x, y, kind)
+            Networks.invalidateGrid()
             return true
         }
 
@@ -811,6 +824,7 @@ class World {
             }
             if (s.id == "metro") Networks.seedMetroAround(ax, ay, s.sizeW, s.sizeH)
             if (s.id == "rail_station") Networks.seedRailAround(ax, ay, s.sizeW, s.sizeH)
+            Networks.invalidateGrid()
             return true
         }
 
@@ -826,6 +840,10 @@ class World {
             b.zone = zone
             b.level = level
             b.born = born
+            b.ax = x
+            b.ay = y
+            b.w = 1
+            b.h = 1
             if (zone == "residential") b.residents = 2
             else b.workers = 1
             t.building = b
@@ -842,14 +860,77 @@ class World {
             return true
         }
 
-        /** 全部建筑锚点：grown 逐格，service 仅在锚点 */
+        /** 相邻同分区空地，可被既有建筑吸收扩张 */
+        private fun expandable(t: Tile?): Boolean {
+            if (t == null) return false
+            if (t.building != null || t.road != null || t.terrain == "water") return false
+            return t.zone != "none"
+        }
+
+        /**
+         * 升级时占地扩张：向同分区相邻空格扩一格，楼体变大、外观同步升级。
+         * 返回是否真的扩了。
+         */
+        fun expandBuilding(e: BuildingEntry): Boolean {
+            val b = e.b
+            if (b.isService) return false
+            if (b.level < 2) return false
+            val w = current ?: return false
+            // 目标尺寸：2 级 2×1 或 1×2，3 级 2×2 或 1×3
+            val maxW = if (b.level >= 3) 2 else 1
+            val maxH = if (b.level >= 3) 3 else 2
+            if (b.w >= maxW && b.h >= maxH) return false
+            val bx = b.ax
+            val by = b.ay
+            fun zoneAt(x: Int, y: Int): Tile? = if (inBounds(x, y)) w.grid[y - 1][x - 1] else null
+            // 优先向右扩宽
+            if (b.w < maxW) {
+                var ok = true
+                for (yy in by until by + b.h) {
+                    val t = zoneAt(bx + b.w, yy)
+                    if (!expandable(t) || t!!.zone != b.zone) ok = false
+                }
+                if (ok) {
+                    for (yy in by until by + b.h) {
+                        val t = zoneAt(bx + b.w, yy)!!
+                        t.building = b
+                        t.zone = b.zone
+                    }
+                    b.w += 1
+                    return true
+                }
+            }
+            // 再向下扩高
+            if (b.h < maxH) {
+                var ok = true
+                for (xx in bx until bx + b.w) {
+                    val t = zoneAt(xx, by + b.h)
+                    if (!expandable(t) || t!!.zone != b.zone) ok = false
+                }
+                if (ok) {
+                    for (xx in bx until bx + b.w) {
+                        val t = zoneAt(xx, by + b.h)!!
+                        t.building = b
+                        t.zone = b.zone
+                    }
+                    b.h += 1
+                    return true
+                }
+            }
+            return false
+        }
+
+        /** 建筑是否是多格成长楼（占地 > 1） */
+        fun isBigGrown(b: Building): Boolean = !b.isService && (b.w > 1 || b.h > 1)
+
+        /** 全部建筑锚点：多格建筑（设施 / 扩张后的成长楼）只在锚点返回一次 */
         fun allBuildings(): List<BuildingEntry> {
             val w = current ?: return emptyList()
             val out = mutableListOf<BuildingEntry>()
             for (y in 1..w.rows) {
                 for (x in 1..w.cols) {
                     val b = w.grid[y - 1][x - 1].building ?: continue
-                    if (b.isService) {
+                    if (b.isService || isBigGrown(b)) {
                         if (b.ax == x && b.ay == y) out.add(BuildingEntry(x, y, b))
                     } else {
                         out.add(BuildingEntry(x, y, b))
@@ -875,16 +956,30 @@ class World {
                     }
                     return "service" to b.service
                 }
-                t.building = null
-                t.zone = "none"
-                t.spec = ""
+                // 多格成长楼：整块占地一起清
+                if (isBigGrown(b)) {
+                    for (yy in b.ay until b.ay + b.h) {
+                        for (xx in b.ax until b.ax + b.w) {
+                            val c = w.grid[yy - 1][xx - 1]
+                            c.building = null
+                            c.zone = "none"
+                            c.spec = ""
+                        }
+                    }
+                } else {
+                    t.building = null
+                    t.zone = "none"
+                    t.spec = ""
+                }
                 return "grown" to b.zone
             }
             t.road?.let { kind ->
                 t.road = null
+                t.bridge = false
                 t.metro = false
                 t.rail = false
                 pruneStaleRoadNames()
+                Networks.invalidateGrid()
                 return "road" to kind
             }
             if (t.metro) {
@@ -920,6 +1015,8 @@ class World {
                             s.pollution += serviceConfig(b.service)?.pollution ?: 0
                         }
                     } else {
+                        // 多格成长楼只在锚点统计一次，避免重复计入容量
+                        if (isBigGrown(b) && (b.ax != x || b.ay != y)) continue
                         val lv = Config.GROWN[b.zone]?.levels?.getOrNull(b.level - 1) ?: continue
                         if (b.abandoned) continue
                         when (b.zone) {
@@ -981,6 +1078,14 @@ class World {
         }
 
         fun isCoveredBy(x: Int, y: Int, category: String): Boolean {
+            // 电力/供水：接入「道路预埋管线 + 地下电缆/水管」即通，不再看厂站半径
+            if (category == Config.ServiceCat.POWER) return Networks.isPowered(x, y)
+            if (category == Config.ServiceCat.WATER) return Networks.isWatered(x, y)
+            // 垃圾/殡葬：有产能即全城可服务（靠车辆沿路收运），不再看半径
+            if (category == Config.ServiceCat.GARBAGE) {
+                return Networks.garbageCapacity() > 0 && Networks.isRoadLinked(x, y)
+            }
+            if (category == Config.ServiceCat.DEATH) return Networks.deathCapacity() > 0
             for (e in allBuildings()) {
                 if (!e.b.isService) continue
                 val cfg = serviceConfig(e.b.service) ?: continue
@@ -995,12 +1100,33 @@ class World {
         }
 
         fun coveringFacility(x: Int, y: Int, category: String): BuildingEntry? {
+            // 电网/水网/垃圾/殡葬：接入即算覆盖，返回最近的相关设施
+            if (category == Config.ServiceCat.POWER && !Networks.isPowered(x, y)) return null
+            if (category == Config.ServiceCat.WATER && !Networks.isWatered(x, y)) return null
+            if (category == Config.ServiceCat.GARBAGE && Networks.garbageCapacity() <= 0) return null
+            if (category == Config.ServiceCat.DEATH && Networks.deathCapacity() <= 0) return null
             var best: BuildingEntry? = null
             var bestD = Float.MAX_VALUE
             for (e in allBuildings()) {
                 if (!e.b.isService) continue
                 val cfg = serviceConfig(e.b.service) ?: continue
                 if (cfg.category != category) continue
+                val networkCat = category == Config.ServiceCat.POWER ||
+                    category == Config.ServiceCat.WATER ||
+                    category == Config.ServiceCat.GARBAGE ||
+                    category == Config.ServiceCat.DEATH
+                if (networkCat) {
+                    // 网络类：不限半径，取最近设施
+                    val (cx, cy) = coverCenter(e)
+                    val dx = (x - 1f + 0.5f) - cx
+                    val dy = (y - 1f + 0.5f) - cy
+                    val d = dx * dx + dy * dy
+                    if (d < bestD) {
+                        bestD = d
+                        best = e
+                    }
+                    continue
+                }
                 val (cx, cy) = coverCenter(e)
                 val dx = (x - 1f + 0.5f) - cx
                 val dy = (y - 1f + 0.5f) - cy
@@ -1028,21 +1154,20 @@ class World {
         fun coverage(): Coverage {
             val w = current ?: return Coverage(1f, 1f, 1f, 1f, 1f, 1f, 1f)
             val grown = allBuildings().filter { !it.b.isService }
-            fun ratio(cat: String): Float {
-                if (grown.isEmpty()) return 1f
-                val covered = bfsCovered(cat)
-                var n = 0
-                for (g in grown) if ((g.y * w.cols + g.x) in covered) n++
-                return n.toFloat() / grown.size
-            }
+            if (grown.isEmpty()) return Coverage(1f, 1f, 1f, 1f, 1f, 1f, 1f)
+            fun count(cat: String): Int = grown.count { isCoveredBy(it.x, it.y, cat) }
+            val garbageOk = Networks.garbageCapacity()
+            val deathOk = Networks.deathCapacity()
             return Coverage(
-                ratio(Config.ServiceCat.POWER),
-                ratio(Config.ServiceCat.WATER),
-                ratio(Config.ServiceCat.GARBAGE),
-                ratio(Config.ServiceCat.HEALTH),
-                ratio(Config.ServiceCat.EDUCATION),
-                ratio(Config.ServiceCat.SAFETY),
-                ratio(Config.ServiceCat.DEATH)
+                count(Config.ServiceCat.POWER).toFloat() / grown.size,
+                count(Config.ServiceCat.WATER).toFloat() / grown.size,
+                // 垃圾：接电 + 有产能，产能不够按比例打折
+                (count(Config.ServiceCat.GARBAGE).toFloat() / grown.size *
+                    min(1f, garbageOk.toFloat() / max(1, grown.size / 4))).coerceIn(0f, 1f),
+                count(Config.ServiceCat.HEALTH).toFloat() / grown.size,
+                count(Config.ServiceCat.EDUCATION).toFloat() / grown.size,
+                count(Config.ServiceCat.SAFETY).toFloat() / grown.size,
+                (if (deathOk > 0) 1f else 0f)
             )
         }
 

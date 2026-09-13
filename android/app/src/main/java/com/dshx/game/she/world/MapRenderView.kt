@@ -250,6 +250,7 @@ class MapRenderView @JvmOverloads constructor(
             Traffic.selected = car
             Traffic.selectedTrain = null
             Traffic.selectedPlane = null
+            Traffic.selectedShip = null
             CitySystems.selected = null
             selectedX = car.x
             selectedY = car.y
@@ -263,6 +264,7 @@ class MapRenderView @JvmOverloads constructor(
             Traffic.selectedTrain = train
             Traffic.selected = null
             Traffic.selectedPlane = null
+            Traffic.selectedShip = null
             CitySystems.selected = null
             selectedX = train.x
             selectedY = train.y
@@ -284,12 +286,27 @@ class MapRenderView @JvmOverloads constructor(
             onTileChanged?.invoke()
             return true
         }
+        val ship = Traffic.hitShip(wx, wy)
+        if (ship != null) {
+            Traffic.selectedShip = ship
+            Traffic.selected = null
+            Traffic.selectedTrain = null
+            Traffic.selectedPlane = null
+            CitySystems.selected = null
+            selectedX = ship.x.toInt()
+            selectedY = ship.y.toInt()
+            hasSelection = true
+            Sfx.play("sfx_horn", 0.6f)
+            onTileChanged?.invoke()
+            return true
+        }
         val svc = CitySystems.hitTest(wx, wy)
         if (svc != null) {
             CitySystems.selected = svc
             Traffic.selected = null
             Traffic.selectedTrain = null
             Traffic.selectedPlane = null
+            Traffic.selectedShip = null
             selectedX = svc.x
             selectedY = svc.y
             hasSelection = true
@@ -788,6 +805,22 @@ class MapRenderView @JvmOverloads constructor(
                 if (!World.isUnlocked(tx, ty) && t.road != "highway") {
                     fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, RGBA(28, 36, 42, 150))
                 }
+                // 跨水桥：水面上的抬高甲板 + 桥墩，和地面道路分层
+                if (t.bridge && t.road != null) {
+                    val lift = cell * 0.20f
+                    val deck = when (t.road) {
+                        "highway" -> C.roadHighway
+                        "avenue" -> C.roadAvenue
+                        "dirt" -> C.roadDirt
+                        else -> C.roadLocal
+                    }
+                    // 桥墩（四角短柱）
+                    fillRect(canvas, sx + cell * 0.16f, sy + cell * 0.42f, cell * 0.12f, cell * 0.34f, RGBA(96, 96, 100))
+                    fillRect(canvas, sx + cell * 0.72f, sy + cell * 0.42f, cell * 0.12f, cell * 0.34f, RGBA(96, 96, 100))
+                    // 甲板（整体上移 lift）
+                    fillRect(canvas, sx, sy - lift, cell + 0.5f, cell + 0.5f, RGBA(40, 44, 50))
+                    fillRect(canvas, sx, sy - lift, cell + 0.5f, cell * 0.5f, deck)
+                }
             }
         }
 
@@ -866,8 +899,10 @@ class MapRenderView @JvmOverloads constructor(
             for (ty in y0..y1) {
                 for (tx in x0..x1) {
                     val t = w.grid[ty - 1][tx - 1]
+                    // 桥面整体抬高，标线跟着抬，避免画到水面下
+                    val lift = if (t.bridge) cell * 0.20f else 0f
                     val sx = worldToScreenX((tx - 1).toFloat())
-                    val sy = worldToScreenY((ty - 1).toFloat())
+                    val sy = worldToScreenY((ty - 1).toFloat()) - lift
                     val cx = sx + cell * 0.5f
                     val cy = sy + cell * 0.5f
                     if (t.rail) {
@@ -1027,6 +1062,7 @@ class MapRenderView @JvmOverloads constructor(
                 val v = dirs[c.dir]
                 var sx = worldToScreenX(c.x - 1 + v[0] * c.prog + 0.5f)
                 var sy = worldToScreenY(c.y - 1 + v[1] * c.prog + 0.5f)
+                if (World.tile(c.x, c.y)?.bridge == true) sy -= cell * 0.20f
                 val kind = World.tile(c.x, c.y)?.road ?: "local"
                 val inner = cell * when (kind) {
                     "highway" -> 0.12f
@@ -1117,6 +1153,38 @@ class MapRenderView @JvmOverloads constructor(
                     strokeRoundRect(canvas, sx - cell * 0.42f, sy - cell * 0.32f, cell * 0.84f, cell * 0.64f, 4f, RGBA(220, 80, 50), 255, 1.4f)
                 }
             }
+            // 货船：只在水域航道上
+            for (sp in Traffic.ships) {
+                val (wx, wy) = Traffic.shipScreenCell(sp)
+                val sx = worldToScreenX(wx)
+                val sy = worldToScreenY(wy)
+                val horiz = sp.dir == 0 || sp.dir == 2
+                val hull = RGBA(58, 74, 96)
+                val deck = RGBA(126, 110, 88)
+                val L = cell * 0.52f
+                val W = cell * 0.20f
+                if (horiz) {
+                    fillRoundRect(canvas, sx - L / 2, sy - W / 2, L, W, W * 0.4f, hull)
+                    fillRoundRect(canvas, sx - L * 0.3f, sy - W * 0.34f, L * 0.34f, W * 0.68f, 2f, deck)
+                    fillRect(canvas, sx + L * 0.08f, sy - W * 0.24f, L * 0.3f, W * 0.48f, if (sp.loaded) RGBA(90, 150, 110) else RGBA(150, 140, 120))
+                } else {
+                    fillRoundRect(canvas, sx - W / 2, sy - L / 2, W, L, W * 0.4f, hull)
+                    fillRoundRect(canvas, sx - W * 0.34f, sy - L * 0.3f, W * 0.68f, L * 0.34f, 2f, deck)
+                    fillRect(canvas, sx - W * 0.24f, sy + L * 0.08f, W * 0.48f, L * 0.3f, if (sp.loaded) RGBA(90, 150, 110) else RGBA(150, 140, 120))
+                }
+                // 尾迹
+                strokeColor(RGBA(240, 244, 248, 120), 180, max(1f, cell * 0.03f))
+                if (horiz) {
+                    val tail = if (sp.dir == 0) -1f else 1f
+                    canvas.drawLine(sx + tail * L * 0.6f, sy, sx + tail * L * 1.1f, sy, paint)
+                } else {
+                    val tail = if (sp.dir == 1) -1f else 1f
+                    canvas.drawLine(sx, sy + tail * L * 0.6f, sx, sy + tail * L * 1.1f, paint)
+                }
+                if (Traffic.selectedShip === sp) {
+                    strokeRoundRect(canvas, sx - L * 0.62f, sy - L * 0.62f, L * 1.24f, L * 1.24f, 5f, RGBA(220, 80, 50), 255, 1.6f)
+                }
+            }
         }
 
         // 市民通勤只体现在车辆上，不画路上行人圆点。
@@ -1127,11 +1195,13 @@ class MapRenderView @JvmOverloads constructor(
                 val t = w.grid[ty - 1][tx - 1]
                 val bl = t.building ?: continue
                 val isService = bl.isService
-                val anchor = (!isService) || (bl.ax == tx && bl.ay == ty)
+                val big = World.isBigGrown(bl)
+                val anchored = isService || big
+                val anchor = (!anchored) || (bl.ax == tx && bl.ay == ty)
                 if (!anchor) continue
                 boxFlip = ((tx * 3 + ty * 5) and 1) == 1
-                val sx = worldToScreenX((if (isService) bl.ax else tx) - 1f)
-                val sy = worldToScreenY((if (isService) bl.ay else ty) - 1f)
+                val sx = worldToScreenX((if (anchored) bl.ax else tx) - 1f)
+                val sy = worldToScreenY((if (anchored) bl.ay else ty) - 1f)
                 val bw = cell * bl.w
                 val bh = cell * bl.h
                 val base: RGBA
@@ -1310,16 +1380,23 @@ class MapRenderView @JvmOverloads constructor(
                 val (ccx, ccy) = World.coverCenter(e)
                 val cx = worldToScreenX(ccx)
                 val cy = worldToScreenY(ccy)
+                // 电厂/水厂只产能，靠路网输送，不再画地面覆盖圈
+                val networkBased = cfg.category == Config.ServiceCat.POWER ||
+                    cfg.category == Config.ServiceCat.WATER
                 val r = cell * (World.coverRadius(cfg) + 0.5f)
-                fillCircle(canvas, cx, cy, r, hue.withAlpha(22))
-                strokeCircle(canvas, cx, cy, r, hue.withAlpha(210), 255, 2.0f)
+                if (!networkBased) {
+                    fillCircle(canvas, cx, cy, r, hue.withAlpha(22))
+                    strokeCircle(canvas, cx, cy, r, hue.withAlpha(210), 255, 2.0f)
+                }
                 val capTxt = when {
-                    cfg.powerCap > 0 -> cfg.name + " 电" + cfg.powerCap + " 半径" + World.coverRadius(cfg)
-                    cfg.waterCap > 0 -> cfg.name + " 水" + cfg.waterCap + " 半径" + World.coverRadius(cfg)
+                    cfg.powerCap > 0 -> cfg.name + " 电" + cfg.powerCap + "（靠路网）"
+                    cfg.waterCap > 0 -> cfg.name + " 水" + cfg.waterCap + "（靠路网）"
+                    cfg.garbageCap > 0 -> cfg.name + " 收运" + cfg.garbageCap
+                    cfg.deathCap > 0 -> cfg.name + " 容量" + cfg.deathCap + "（按距离衰减）"
                     else -> cfg.name + " 半径" + World.coverRadius(cfg) + "格"
                 }
                 if (typeface != null && cell >= 9) {
-                    drawText(canvas, cx, cy - r - 8f, max(10f, cell * 0.38f), hue.shade(0.45), capTxt, TAlign.CENTER, 235)
+                    drawText(canvas, cx, cy - (if (networkBased) cell * 0.7f else r + 8f), max(10f, cell * 0.38f), hue.shade(0.45), capTxt, TAlign.CENTER, 235)
                 }
             }
         }
@@ -1357,9 +1434,13 @@ class MapRenderView @JvmOverloads constructor(
                 val gh = cell * sc.sizeH
                 val cx = worldToScreenX(GameData.serviceDraftX - 1 + sc.sizeW / 2f)
                 val cy = worldToScreenY(GameData.serviceDraftY - 1 + sc.sizeH / 2f)
-                val cr = World.coverRadius(sc).toFloat()
-                fillCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 26))
-                strokeCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 90), 255, 1f)
+                val netBased = sc.category == Config.ServiceCat.POWER ||
+                    sc.category == Config.ServiceCat.WATER
+                if (!netBased) {
+                    val cr = World.coverRadius(sc).toFloat()
+                    fillCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 26))
+                    strokeCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 90), 255, 1f)
+                }
                 fillRect(canvas, sx, sy, gw, gh, C.ghostOk)
                 strokeColor(RGBA(110, 220, 140, 230), 255, 1.8f)
                 canvas.drawRect(sx, sy, sx + gw, sy + gh, paint)
@@ -1398,16 +1479,23 @@ class MapRenderView @JvmOverloads constructor(
                     gh = cell * sc.sizeH
                     val cx = worldToScreenX(hoverX - 1 + sc.sizeW / 2f)
                     val cy = worldToScreenY(hoverY - 1 + sc.sizeH / 2f)
+                    val netBased = sc.category == Config.ServiceCat.POWER ||
+                        sc.category == Config.ServiceCat.WATER
                     val cr = World.coverRadius(sc).toFloat()
-                    fillCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 26))
-                    strokeCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 90), 255, 1f)
+                    if (!netBased) {
+                        fillCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 26))
+                        strokeCircle(canvas, cx, cy, cell * (cr + 0.5f), RGBA(96, 200, 140, 90), 255, 1f)
+                    }
                     val capTxt = when {
-                        sc.powerCap > 0 -> "电容量 " + sc.powerCap + " · 半径 " + World.coverRadius(sc)
-                        sc.waterCap > 0 -> "水容量 " + sc.waterCap + " · 半径 " + World.coverRadius(sc)
+                        sc.powerCap > 0 -> "电 " + sc.powerCap + " · 靠路网送到建筑"
+                        sc.waterCap > 0 -> "水 " + sc.waterCap + " · 靠路网送到建筑"
+                        sc.garbageCap > 0 -> "收运 " + sc.garbageCap + " 栋 · 气味按距离衰减"
+                        sc.deathCap > 0 -> "容量 " + sc.deathCap + " · 按距离衰减"
                         else -> "半径 " + World.coverRadius(sc) + " 格"
                     }
                     if (typeface != null) {
-                        drawText(canvas, cx, cy + cell * (cr + 0.5f) + 10f, 11f, RGBA(40, 90, 60), capTxt, TAlign.CENTER, 230)
+                        val ty = if (netBased) cy + cell * 0.8f else cy + cell * (cr + 0.5f) + 10f
+                        drawText(canvas, cx, ty, 11f, RGBA(40, 90, 60), capTxt, TAlign.CENTER, 230)
                     }
                 }
             }
@@ -1782,9 +1870,38 @@ class MapRenderView @JvmOverloads constructor(
                 }
             }
             bl.zone == "office" -> {
-                val wall = if (variant == 0) RGBA(168, 196, 224) else RGBA(150, 176, 210)
-                drawSolidBox(canvas, bx + bw * 0.14f, by + bh * 0.08f, bw * 0.72f, bh * 0.82f, hpx, wall)
-                drawSolidBox(canvas, bx + bw * 0.22f, by + bh * 0.16f, bw * 0.56f, bh * 0.18f, hpx * 0.22f, RGBA(180, 210, 230))
+                val wall = when (variant) {
+                    0 -> RGBA(168, 196, 224)
+                    1 -> RGBA(150, 176, 210)
+                    else -> RGBA(186, 190, 212)
+                }
+                val glass = when (variant) {
+                    0 -> RGBA(180, 210, 230)
+                    1 -> RGBA(150, 196, 224)
+                    else -> RGBA(206, 214, 236)
+                }
+                when (variant) {
+                    0 -> {
+                        // 板楼：横向长条 + 带形窗
+                        drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.18f, bw * 0.84f, bh * 0.66f, hpx, wall)
+                        drawSolidBox(canvas, bx + bw * 0.14f, by + bh * 0.28f, bw * 0.72f, bh * 0.14f, hpx * 0.20f, glass)
+                        drawSolidBox(canvas, bx + bw * 0.14f, by + bh * 0.50f, bw * 0.72f, bh * 0.14f, hpx * 0.20f, glass)
+                    }
+                    1 -> {
+                        // 双塔：一高一低
+                        drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.16f, bw * 0.36f, bh * 0.68f, hpx * 1.18f, wall)
+                        drawSolidBox(canvas, bx + bw * 0.52f, by + bh * 0.28f, bw * 0.34f, bh * 0.56f, hpx * 0.82f, wall.shade(0.92))
+                        drawSolidBox(canvas, bx + bw * 0.16f, by + bh * 0.26f, bw * 0.24f, bh * 0.12f, hpx * 0.22f, glass)
+                        drawSolidBox(canvas, bx + bw * 0.58f, by + bh * 0.38f, bw * 0.22f, bh * 0.12f, hpx * 0.20f, glass)
+                    }
+                    else -> {
+                        // 退台塔楼：上小下大，分段收进
+                        drawSolidBox(canvas, bx + bw * 0.20f, by + bh * 0.08f, bw * 0.60f, bh * 0.52f, hpx * 1.24f, wall)
+                        drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.52f, bw * 0.80f, bh * 0.36f, hpx * 0.66f, wall.shade(0.94))
+                        drawSolidBox(canvas, bx + bw * 0.28f, by + bh * 0.16f, bw * 0.44f, bh * 0.12f, hpx * 0.22f, glass)
+                        drawSolidBox(canvas, bx + bw * 0.16f, by + bh * 0.60f, bw * 0.68f, bh * 0.10f, hpx * 0.18f, glass)
+                    }
+                }
             }
             else -> drawSolidBox(canvas, bx, by, bw, bh, hpx, base)
         }
@@ -1889,17 +2006,79 @@ class MapRenderView @JvmOverloads constructor(
         drawBox(canvas, cx + cell * 0.02f, cy - cell * 0.10f, cell * 0.24f, cell * 0.22f, cell * 0.12f, leafA)
     }
 
+    /** 丘陵：2.5D 三角山体（受光坡 + 背光坡 + 雪顶 + 山脚碎石），和建筑同一套斜二测透视 */
     private fun drawHillBlocks(canvas: Canvas, sx: Float, sy: Float, tx: Int, ty: Int) {
-        val h = cell * (0.18f + (World.elevation(tx, ty) % 80) / 220f)
-        val rock = RGBA(132, 128, 118)
-        fillRoundRect(canvas, sx + cell * 0.10f, sy + cell * 0.42f, cell * 0.80f, cell * 0.38f, 4f, RGBA(28, 34, 30, 35))
-        drawBox(canvas, sx + cell * 0.12f, sy + cell * 0.32f, cell * 0.76f, cell * 0.50f, h * 0.45f, RGBA(138, 148, 118))
-        drawBox(canvas, sx + cell * 0.22f, sy + cell * 0.18f, cell * 0.52f, cell * 0.34f, h, RGBA(158, 168, 132))
-        if (hash01(tx, ty, 4) > 0.45f) {
-            drawBox(canvas, sx + cell * 0.58f, sy + cell * 0.46f, cell * 0.16f, cell * 0.14f, cell * 0.08f, rock)
+        val elev = World.elevation(tx, ty)
+        val t = (elev % 90) / 90f
+        val flip = boxFlip
+        val baseY = sy + cell * 0.90f
+        val cx = sx + cell * 0.5f
+        val peakH = cell * (0.52f + t * 0.42f)
+        val halfW = cell * (0.40f + t * 0.05f)
+        val apexY = baseY - peakH
+
+        // 落地阴影（朝背光侧偏移）
+        val shOff = if (flip) cell * 0.05f else -cell * 0.05f
+        path.reset()
+        path.moveTo(cx - halfW * 0.94f + shOff, baseY + cell * 0.045f)
+        path.lineTo(cx + halfW * 0.94f + shOff, baseY + cell * 0.045f)
+        path.lineTo(cx + halfW * 0.30f, baseY - cell * 0.015f)
+        path.lineTo(cx - halfW * 0.30f, baseY - cell * 0.015f)
+        path.close()
+        fillPath(canvas, path, RGBA(28, 34, 30, 62))
+
+        // 受光坡（左）/ 背光坡（右），boxFlip 决定明暗朝向
+        val litCol = RGBA(156, 168, 126)
+        val darkCol = RGBA(104, 118, 94)
+        val litX = if (flip) cx + halfW else cx - halfW
+        val darkX = if (flip) cx - halfW else cx + halfW
+
+        path.reset()
+        path.moveTo(cx, apexY)
+        path.lineTo(litX, baseY)
+        path.lineTo(cx, baseY)
+        path.close()
+        fillPath(canvas, path, litCol)
+
+        path.reset()
+        path.moveTo(cx, apexY)
+        path.lineTo(cx, baseY)
+        path.lineTo(darkX, baseY)
+        path.close()
+        fillPath(canvas, path, darkCol)
+
+        // 山脊
+        strokeColor(RGBA(188, 198, 156), 130, max(0.8f, cell * 0.024f))
+        canvas.drawLine(cx, apexY, cx, baseY, paint)
+
+        // 雪顶：越高越明显
+        if (elev >= 150) {
+            val snowY = apexY + peakH * 0.30f
+            val snowW = halfW * 0.34f
+            val jitter = (hash01(tx, ty, 11) - 0.5f) * peakH * 0.10f
+            path.reset()
+            path.moveTo(cx, apexY)
+            path.lineTo(cx + snowW, snowY + jitter)
+            path.lineTo(cx + snowW * 0.36f, snowY - peakH * 0.06f + jitter)
+            path.lineTo(cx - snowW * 0.36f, snowY + peakH * 0.05f + jitter)
+            path.lineTo(cx - snowW, snowY - peakH * 0.02f + jitter)
+            path.close()
+            fillPath(canvas, path, RGBA(240, 245, 249, 232))
         }
-        if (hash01(tx, ty, 7) > 0.62f) {
-            drawBox(canvas, sx + cell * 0.18f, sy + cell * 0.50f, cell * 0.12f, cell * 0.10f, cell * 0.06f, rock.shade(0.9))
+
+        // 山脚碎石
+        val rock = RGBA(126, 124, 116)
+        if (hash01(tx, ty, 4) > 0.45f) {
+            fillRoundRect(
+                canvas, cx - halfW * 0.72f, baseY - cell * 0.11f,
+                cell * 0.12f, cell * 0.09f, 2f, rock
+            )
+        }
+        if (hash01(tx, ty, 7) > 0.60f) {
+            fillRoundRect(
+                canvas, cx + halfW * 0.52f, baseY - cell * 0.09f,
+                cell * 0.10f, cell * 0.08f, 2f, rock.shade(0.9)
+            )
         }
     }
 

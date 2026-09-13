@@ -49,6 +49,9 @@ object CitySystems {
             it.b.service == "clinic" || it.b.service == "hospital"
         }
 
+        // 先按距离衰减扩散污染，再统计平均值
+        diffusePollution(w)
+
         // 污水覆盖：污水管 + 处理厂
         var sewerHits = 0
         var sewerNeed = 0
@@ -58,7 +61,8 @@ object CitySystems {
         for (y in 1..w.rows) for (x in 1..w.cols) {
             val t = w.grid[y - 1][x - 1]
             val b = t.building
-            if (b != null && !b.isService) {
+            // 多格成长楼只在锚点结算一次
+            if (b != null && !b.isService && (b.w <= 1 && b.h <= 1 || (b.ax == x && b.ay == y))) {
                 sewerNeed++
                 if (t.sewer && sewageN > 0) sewerHits++ else {
                     t.waterPol = min(100, t.waterPol + 4)
@@ -71,11 +75,6 @@ object CitySystems {
                 val police = World.isCoveredBy(x, y, Config.ServiceCat.SAFETY)
                 val crimeGain = ((if (police) 0 else 4) + unemployed * 8 + eduLow * 6).toInt()
                 b.crime = max(0, min(100, b.crime + crimeGain - policeN * 2 - (s.budgetSafety - 80) / 10))
-                if (b.zone == "industrial") {
-                    t.groundPol = min(100, t.groundPol + 5)
-                }
-                val specPol = Config.specOf(t.spec)?.pollution ?: 0.0
-                if (specPol > 0.0) t.groundPol = min(100, t.groundPol + specPol.toInt().coerceAtLeast(1))
             }
             if (t.terrain == "forest") t.groundPol = max(0, t.groundPol - 6)
             if (t.terrain == "water") {
@@ -182,6 +181,62 @@ object CitySystems {
         // 地铁运量
         if (Networks.metroCount > 8) {
             s.congestion = max(0.0, s.congestion - 0.08)
+        }
+    }
+
+    /**
+     * 污染扩散：工业楼与污染设施按「距离衰减」影响周边格子，
+     * 不再直接把自己格子上的污染压给邻居。范围内越远影响越小。
+     */
+    private fun diffusePollution(w: World) {
+        // 按格缓存新增污染，最后统一写入，避免顺序偏差
+        val add = HashMap<Int, Double>()
+        fun emit(sx: Int, sy: Int, strength: Double, radius: Int) {
+            if (strength <= 0.0 || radius <= 0) return
+            for (dy in -radius..radius) {
+                for (dx in -radius..radius) {
+                    val d = kotlin.math.sqrt((dx * dx + dy * dy).toDouble())
+                    if (d > radius) continue
+                    val x = sx + dx
+                    val y = sy + dy
+                    if (!World.inBounds(x, y)) continue
+                    val falloff = 1.0 - d / (radius + 0.5)
+                    val v = strength * falloff * falloff
+                    if (v <= 0.0) continue
+                    val k = (y - 1) * w.cols + (x - 1)
+                    add[k] = (add[k] ?: 0.0) + v
+                }
+            }
+        }
+        for (e in World.allBuildings()) {
+            val b = e.b
+            if (b.isService) {
+                val cfg = World.serviceConfig(b.service) ?: continue
+                if (cfg.pollution > 0 && cfg.pollutionRadius > 0) {
+                    emit(e.x, e.y, cfg.pollution.toDouble(), cfg.pollutionRadius)
+                }
+            } else if (b.zone == "industrial") {
+                emit(e.x, e.y, 7.0, 3)
+            }
+            val specPol = Config.specOf(World.tile(e.x, e.y)?.spec ?: "")?.pollution ?: 0.0
+            if (specPol > 0.0) emit(e.x, e.y, specPol, 3)
+        }
+        if (add.isEmpty()) {
+            // 无污染源时缓慢自净
+            for (y in 0 until w.rows) for (x in 0 until w.cols) {
+                val t = w.grid[y][x]
+                if (t.groundPol > 0) t.groundPol = max(0, t.groundPol - 1)
+            }
+            return
+        }
+        for (y in 0 until w.rows) for (x in 0 until w.cols) {
+            val t = w.grid[y][x]
+            val k = y * w.cols + x
+            val inc = add[k] ?: 0.0
+            var v = t.groundPol * 0.55 + inc
+            if (t.terrain == "forest") v *= 0.35
+            if (t.terrain == "water") v *= 0.5
+            t.groundPol = min(100, max(0, v.toInt()))
         }
     }
 

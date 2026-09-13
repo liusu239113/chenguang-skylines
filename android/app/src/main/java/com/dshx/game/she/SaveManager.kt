@@ -203,6 +203,7 @@ object SaveManager {
                 if (t.zone == "none" && t.road == null && t.building == null && !t.pipe && !t.cable && !t.sewer && !t.metro && !t.rail && t.district == 0 && t.spec.isEmpty()) continue
                 val o = JSONObject().put("x", x).put("y", y).put("zone", t.zone)
                 t.road?.let { o.put("road", it) }
+                if (t.bridge) o.put("bridge", true)
                 if (t.pipe) o.put("pipe", true)
                 if (t.cable) o.put("cable", true)
                 if (t.sewer) o.put("sewer", true)
@@ -217,9 +218,10 @@ object SaveManager {
                         .put("residents", b.residents).put("workers", b.workers)
                         .put("abandoned", b.abandoned).put("ageDays", b.ageDays)
                     b.zone?.let { bo.put("zone", it) }
-                    b.service?.let {
-                        bo.put("service", it).put("ax", b.ax).put("ay", b.ay)
-                            .put("w", b.w).put("h", b.h)
+                    b.service?.let { bo.put("service", it) }
+                    // 设施与多格成长楼都要记锚点/占地，读档才能还原
+                    if (b.isService || b.w > 1 || b.h > 1) {
+                        bo.put("ax", b.ax).put("ay", b.ay).put("w", b.w).put("h", b.h)
                     }
                     o.put("building", bo)
                 }
@@ -267,7 +269,8 @@ object SaveManager {
         // 重建地形 + 空状态
         GameData.init(GameData.seed)
 
-        // 覆盖格子
+        // 覆盖格子（多格建筑按锚点共用同一对象）
+        val sharedBuildings = HashMap<String, Building>()
         val tiles = json.optJSONArray("tiles")
         if (tiles != null) {
             for (i in 0 until tiles.length()) {
@@ -277,6 +280,7 @@ object SaveManager {
                 val t = World.tile(x, y) ?: continue
                 t.zone = o.optString("zone", "none")
                 if (o.has("road")) t.road = o.optString("road") else t.road = null
+                t.bridge = o.optBoolean("bridge", false)
                 t.pipe = o.optBoolean("pipe", false)
                 t.cable = o.optBoolean("cable", false)
                 t.sewer = o.optBoolean("sewer", false)
@@ -289,6 +293,19 @@ object SaveManager {
                 t.building = null
                 if (o.has("building")) {
                     val bo = o.getJSONObject("building")
+                    val ax = bo.optInt("ax", x)
+                    val ay = bo.optInt("ay", y)
+                    val bw = bo.optInt("w", 1)
+                    val bh = bo.optInt("h", 1)
+                    val key = "$ax,$ay,${bo.optString("service")},${bo.optString("zone")}"
+                    // 多格建筑：非锚点格复用锚点对象，避免读档后变成多栋
+                    if ((bw > 1 || bh > 1) && (ax != x || ay != y)) {
+                        val shared = sharedBuildings[key]
+                        if (shared != null) {
+                            t.building = shared
+                            continue
+                        }
+                    }
                     val b = Building()
                     b.level = bo.optInt("level", 1)
                     b.born = bo.optDouble("born", 0.0)
@@ -297,14 +314,13 @@ object SaveManager {
                     b.abandoned = bo.optBoolean("abandoned", false)
                     b.ageDays = bo.optInt("ageDays", 0)
                     if (bo.has("zone")) b.zone = bo.optString("zone")
-                    if (bo.has("service")) {
-                        b.service = bo.optString("service")
-                        b.ax = bo.optInt("ax", x)
-                        b.ay = bo.optInt("ay", y)
-                        b.w = bo.optInt("w", 1)
-                        b.h = bo.optInt("h", 1)
-                    }
+                    if (bo.has("service")) b.service = bo.optString("service")
+                    b.ax = ax
+                    b.ay = ay
+                    b.w = bw
+                    b.h = bh
                     t.building = b
+                    if (bw > 1 || bh > 1) sharedBuildings[key] = b
                 }
             }
         }
