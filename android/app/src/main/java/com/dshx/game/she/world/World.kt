@@ -18,8 +18,10 @@ import kotlin.math.min
 class Tile {
     var terrain: String = "grass"
     var zone: String = "none"
-    var road: String? = null          // "dirt" | "local" | "avenue" | "highway"
+    var road: String? = null          // "dirt" | "local" | "avenue" | "highway" | "overpass"
     var bridge: Boolean = false       // 跨水桥：水面上的道路
+    var elevated: Boolean = false     // 立交桥：本格是抬高的桥面
+    var underRoad: String? = null     // 立交桥下穿的地面道路（四面互通，底盘照常通行）
     var building: Building? = null
     var pipe: Boolean = false         // 地下水管
     var cable: Boolean = false        // 地下电缆
@@ -543,7 +545,7 @@ class World {
         // -------------------------------------------------------------------
         /** 返回 true 可修；false + msg（无 msg 表示静默跳过） */
         private val ROAD_RANK = mapOf(
-            "dirt" to 0, "local" to 1, "avenue" to 2, "highway" to 3, "metro" to 2, "rail" to 2
+            "dirt" to 0, "local" to 1, "avenue" to 2, "highway" to 3, "overpass" to 4, "metro" to 2, "rail" to 2
         )
 
         fun hasService(id: String): Boolean = allBuildings().any { it.b.service == id }
@@ -553,6 +555,12 @@ class World {
             if (!isUnlocked(x, y) && kind != "highway") return false to lockedHint()
             if (kind == "metro" && !hasService("metro")) return false to "先建地铁站才能挖隧道"
             if (kind == "rail" && !hasService("rail_station")) return false to "先建火车站才能铺铁轨"
+            if (kind == "overpass") {
+                // 立交桥是抬高的一层：可以跨过任何已有道路，四面都能上下
+                if (t.elevated) return false to null
+                if (t.building != null) return false to "先拆除这里的建筑"
+                return true to null
+            }
             if (t.terrain == "water" && kind != "metro") {
                 // 跨水架桥：水域可以修桥（造价更高），地铁本来就是地下
                 return true to null
@@ -560,6 +568,10 @@ class World {
             if (t.building != null) return false to "先拆除这里的建筑"
             val exist = t.road
             if (exist != null) {
+                if (t.elevated) {
+                    // 已经有高架在上面：只能改高架本身的等级，不能改下面的地面路
+                    return false to "这里上面是立交桥"
+                }
                 val a = ROAD_RANK[exist] ?: 0
                 val b = ROAD_RANK[kind] ?: 0
                 if (kind != "metro" && kind != "rail" && b <= a) return false to null
@@ -579,145 +591,189 @@ class World {
                 t.zone = "none"
                 return true
             }
+            if (kind == "overpass") {
+                // 抬高的一层：地面路原样保留（变成下穿道），上面再叠一条高架
+                if (t.road != null && t.road != "overpass") t.underRoad = t.road
+                t.road = "overpass"
+                t.elevated = true
+                if (t.terrain == "water") t.bridge = true
+                t.zone = "none"
+                t.building = null
+                markStreetsDirty()
+                Networks.invalidateGrid()
+                return true
+            }
             if (t.terrain == "water") {
                 // 跨水桥：水面铺路，标记为桥
                 t.road = kind
                 t.bridge = true
                 t.zone = "none"
-                nameNewStreet(x, y, kind)
+                markStreetsDirty()
                 Networks.invalidateGrid()
                 return true
             }
             t.road = kind
             t.zone = "none"
-            nameNewStreet(x, y, kind)
+            markStreetsDirty()
             Networks.invalidateGrid()
             return true
+        }
+
+        private val DIRS4 = arrayOf(intArrayOf(1, 0), intArrayOf(-1, 0), intArrayOf(0, 1), intArrayOf(0, -1))
+
+        // 道路改名脏标记：铺/推路面时置脏，真正要用名字时再整张重建（一次 BFS，很便宜）
+        private var streetsDirty = true
+
+        fun markStreetsDirty() {
+            streetsDirty = true
         }
 
         fun roadNameAt(x: Int, y: Int): String? {
             val w = current ?: return null
             if (tile(x, y)?.road == null) return null
+            ensureStreets()
+            val k = (y - 1) * w.cols + (x - 1)
             for (line in w.roadLines) {
                 val n = min(line.segX.size, line.segY.size)
                 for (i in 0 until n) {
-                    if (line.segX[i] == x && line.segY[i] == y) return line.name
+                    if ((line.segY[i] - 1) * w.cols + (line.segX[i] - 1) == k) return line.name
                 }
             }
             return null
         }
 
-        /** 新修街道自动命名：接到已有路则沿用路名，否则开一条新街 */
-        private fun nameNewStreet(x: Int, y: Int, kind: String) {
-            if (kind == "metro" || kind == "rail") return
-            val w = current ?: return
-            val existing = roadNameAt(x, y)
-            if (existing != null) return
-            val dirs = arrayOf(intArrayOf(1, 0), intArrayOf(-1, 0), intArrayOf(0, 1), intArrayOf(0, -1))
-            for (d in dirs) {
-                val nx = x + d[0]
-                val ny = y + d[1]
-                val neighbor = tile(nx, ny)?.road
-                if (neighbor == null || neighbor == "metro") continue
-                val name = roadNameAt(nx, ny) ?: continue
-                for (line in w.roadLines) {
-                    if (line.name != name) continue
-                    val n = min(line.segX.size, line.segY.size)
-                    val xs = IntArray(n + 1)
-                    val ys = IntArray(n + 1)
-                    for (i in 0 until n) {
-                        xs[i] = line.segX[i]
-                        ys[i] = line.segY[i]
-                    }
-                    xs[n] = x
-                    ys[n] = y
-                    val idx = w.roadLines.indexOf(line)
-                    if (idx >= 0) {
-                        w.roadLines[idx] = RoadLine(
-                            name = line.name,
-                            kind = if (kind == "highway" || line.kind == "highway") "highway"
-                            else if (kind == "avenue" || line.kind == "avenue") "avenue"
-                            else line.kind,
-                            segX = xs,
-                            segY = ys,
-                            dir = line.dir,
-                            labelX = line.labelX,
-                            labelY = line.labelY
-                        )
-                    }
-                    return
-                }
+        fun ensureStreets() {
+            if (streetsDirty) {
+                streetsDirty = false
+                rebuildStreetNames()
             }
-            val horiz = (tile(x - 1, y)?.road != null) || (tile(x + 1, y)?.road != null)
-            val name = pickName(GameData.seed, w.roadLines.size * 11 + x * 3 + y)
-            w.roadLines.add(
-                RoadLine(
-                    name = name,
-                    kind = kind,
-                    segX = intArrayOf(x),
-                    segY = intArrayOf(y),
-                    dir = if (horiz) "h" else "v",
-                    labelX = if (horiz) x else 0,
-                    labelY = if (horiz) 0 else y
-                )
-            )
         }
 
-        /** 推平或读档后：格子上没路了，路名一起去掉 */
-        fun pruneStaleRoadNames() {
+        /**
+         * 重建街道命名：把连成一片的道路当成「一条街」，整条街共用一个路名，
+         * 只有一格的路不算街道（不给名字）。方向按整段的实际走向判定，
+         * 不会再出现横向的街竖着写字。
+         */
+        private fun rebuildStreetNames() {
             val w = current ?: return
-            var i = 0
-            while (i < w.roadLines.size) {
-                val line = w.roadLines[i]
+            val cols = w.cols
+            if (cols <= 0 || w.rows <= 0) return
+
+            // 1) 高速保留原有名字（只清理被推平的格子），单独成段
+            val kept = ArrayList<RoadLine>()
+            val done = HashSet<Int>()
+            for (line in w.roadLines) {
+                if (line.kind != "highway") continue
                 val n = min(line.segX.size, line.segY.size)
                 val xs = ArrayList<Int>(n)
                 val ys = ArrayList<Int>(n)
-                for (k in 0 until n) {
-                    val sx = line.segX[k]
-                    val sy = line.segY[k]
-                    if (tile(sx, sy)?.road == null) continue
+                for (i in 0 until n) {
+                    val sx = line.segX[i]
+                    val sy = line.segY[i]
+                    if (!inBounds(sx, sy)) continue
+                    if (w.grid[sy - 1][sx - 1].road != "highway") continue
                     xs.add(sx)
                     ys.add(sy)
+                    done.add((sy - 1) * cols + (sx - 1))
                 }
-                if (xs.isEmpty()) {
-                    w.roadLines.removeAt(i)
-                    continue
-                }
-                if (xs.size != n) {
-                    var lx = 0
-                    var ly = 0
-                    for (k in xs.indices) {
-                        lx += xs[k]
-                        ly += ys[k]
-                    }
-                    lx /= xs.size
-                    ly /= ys.size
-                    w.roadLines[i] = RoadLine(
-                        name = line.name,
-                        kind = line.kind,
-                        segX = xs.toIntArray(),
-                        segY = ys.toIntArray(),
-                        dir = line.dir,
-                        labelX = if (line.dir == "h") lx else line.labelX,
-                        labelY = if (line.dir == "v") ly else line.labelY
+                if (xs.size >= 2) {
+                    kept.add(
+                        RoadLine(
+                            line.name, line.kind, xs.toIntArray(), ys.toIntArray(),
+                            line.dir, line.labelX, line.labelY
+                        )
                     )
                 }
-                i++
             }
-        }
 
-        /** 给还没挂名的城区路补名字（开局赠路、旧档） */
-        fun ensureStreetNames() {
-            val w = current ?: return
-            pruneStaleRoadNames()
-            for (y in 1..w.rows) {
-                for (x in 1..w.cols) {
-                    val kind = w.grid[y - 1][x - 1].road ?: continue
-                    if (kind == "highway") continue
-                    if (roadNameAt(x, y) != null) continue
-                    nameNewStreet(x, y, kind)
+            // 2) 旧名字按格记录，扩路/并路时沿用老名字，避免路名乱跳
+            val oldName = HashMap<Int, String>()
+            for (line in w.roadLines) {
+                if (line.kind == "highway") continue
+                val n = min(line.segX.size, line.segY.size)
+                for (i in 0 until n) {
+                    oldName[(line.segY[i] - 1) * cols + (line.segX[i] - 1)] = line.name
                 }
             }
+
+            // 3) 连通段 BFS：一段街一个名字
+            val fresh = ArrayList<RoadLine>()
+            val seen = HashSet<Int>()
+            val q = ArrayDeque<Int>()
+            var counter = 0
+            for (y in 1..w.rows) {
+                for (x in 1..cols) {
+                    val start = (y - 1) * cols + (x - 1)
+                    if (seen.contains(start) || done.contains(start)) continue
+                    val kind = w.grid[y - 1][x - 1].road ?: continue
+                    if (kind == "highway") continue
+                    seen.add(start)
+                    q.clear()
+                    q.add(start)
+                    val seg = ArrayList<Int>(16)
+                    val votes = HashMap<String, Int>()
+                    var minX = x
+                    var maxX = x
+                    var minY = y
+                    var maxY = y
+                    while (q.isNotEmpty()) {
+                        val cur = q.removeFirst()
+                        seg.add(cur)
+                        val cx = cur % cols + 1
+                        val cy = cur / cols + 1
+                        if (cx < minX) minX = cx
+                        if (cx > maxX) maxX = cx
+                        if (cy < minY) minY = cy
+                        if (cy > maxY) maxY = cy
+                        oldName[cur]?.let { votes[it] = (votes[it] ?: 0) + 1 }
+                        for (d in DIRS4) {
+                            val nx = cx + d[0]
+                            val ny = cy + d[1]
+                            if (!inBounds(nx, ny)) continue
+                            val nk = (ny - 1) * cols + (nx - 1)
+                            if (seen.contains(nk) || done.contains(nk)) continue
+                            val nkKind = w.grid[ny - 1][nx - 1].road ?: continue
+                            if (nkKind == "highway") continue
+                            seen.add(nk)
+                            q.add(nk)
+                        }
+                    }
+                    if (seg.size < 2) continue          // 单格路不成街，不命名
+                    var bestName: String? = null
+                    var bestVote = -1
+                    for ((nm, v) in votes) {
+                        if (v > bestVote) {
+                            bestVote = v
+                            bestName = nm
+                        }
+                    }
+                    val name = bestName ?: pickName(GameData.seed, counter * 11 + minX * 3 + minY + 7)
+                    counter++
+                    val sxs = IntArray(seg.size)
+                    val sys = IntArray(seg.size)
+                    for (i in seg.indices) {
+                        sxs[i] = seg[i] % cols + 1
+                        sys[i] = seg[i] / cols + 1
+                    }
+                    val dir = if (maxX - minX >= maxY - minY) "h" else "v"
+                    fresh.add(RoadLine(name, kind, sxs, sys, dir, sxs[0], sys[0]))
+                }
+            }
+            w.roadLines.clear()
+            w.roadLines.addAll(kept)
+            w.roadLines.addAll(fresh)
+        }
+
+        /** 兼容旧调用：确保路名和当前路网一致 */
+        fun ensureStreetNames() {
+            markStreetsDirty()
+            ensureStreets()
+        }
+
+        /** 兼容旧调用：清掉推平路段的旧名字 */
+        fun pruneStaleRoadNames() {
+            markStreetsDirty()
+            ensureStreets()
         }
 
         fun roadCapacity(x: Int, y: Int): Int = Config.ROAD[tile(x, y)?.road]?.capacity ?: 0
@@ -849,7 +905,9 @@ class World {
                     if (b != null && (b.isService || !b.abandoned)) return false to "该位置被占用"
                 }
             }
-            if (s.category != Config.ServiceCat.AMENITY) {
+            // 只有要派车出入的设施才必须临路（垃圾车/灵车/消防/警车/救护），
+            // 电厂、水塔、抽水站、排污厂这类靠管网输送的不再强制临路
+            if (s.needsRoad && s.category != Config.ServiceCat.AMENITY) {
                 var adjacent = false
                 outer@ for (yy in ay - 1..ay + s.sizeH) {
                     for (xx in ax - 1..ax + s.sizeW) {
@@ -859,7 +917,7 @@ class World {
                         }
                     }
                 }
-                if (!adjacent) return false to "需建在道路旁（接入电网/管网）"
+                if (!adjacent) return false to (s.name + "要用车，需建在道路旁")
             }
             // 抽水站/水厂/污水厂必须临水：取水与排放都要接水域
             if (s.nearWater) {
@@ -1054,6 +1112,16 @@ class World {
                 t.bridge = false
                 t.metro = false
                 t.rail = false
+                // 立交桥：推掉高架后，下面的地面路露出来照常走
+                t.elevated = false
+                val under = t.underRoad
+                t.underRoad = null
+                if (under != null) {
+                    t.road = under
+                    pruneStaleRoadNames()
+                    Networks.invalidateGrid()
+                    return "road" to "overpass"
+                }
                 pruneStaleRoadNames()
                 Networks.invalidateGrid()
                 return "road" to kind

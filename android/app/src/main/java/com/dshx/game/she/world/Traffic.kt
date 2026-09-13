@@ -3,6 +3,7 @@ package com.dshx.game.she.world
 import com.dshx.game.she.Config
 import com.dshx.game.she.GameData
 import com.dshx.game.she.RGBA
+import com.dshx.game.she.Sfx
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
@@ -64,7 +65,9 @@ class PlaneCraft(
     var phase: Float,
     var ax: Int,
     var ay: Int,
-    var flight: String
+    var flight: String,
+    var ambient: Boolean = false,     // 过境航班：没有机场也会从城市上空飞过
+    var soundPlayed: Boolean = false
 )
 
 /** 货船：港口建成、水域连通地图边界后来往，带来水运贸易 */
@@ -79,7 +82,10 @@ class ShipCraft(
     var harborX: Int,
     var harborY: Int,
     var loaded: Boolean = false,
-    var name: String = ""
+    var name: String = "",
+    var ambient: Boolean = false,     // 过境货轮：没建港口也会路过跑一圈
+    var legs: Int = 0,
+    var soundPlayed: Boolean = false
 )
 
 object Traffic {
@@ -128,6 +134,11 @@ object Traffic {
         selectedShip = null
         visitorsToday = 0
         localMoving = 0
+        shipVisits = 0
+        flightVisits = 0
+        passengersToday = 0
+        tradeToday = 0.0
+        tradeAccum = 0.0
         for (i in roadFlow.indices) roadFlow[i] = 0
     }
 
@@ -139,11 +150,90 @@ object Traffic {
         syncTrains()
         syncPlanes()
         syncShips(dt)
+        syncAmbientTraffic(dt)
         driveCars(dt)
         driveTrains(dt)
         flyPlanes(dt)
         sailShips(dt)
         decayFlow()
+    }
+
+    // ------------------------------------------------------------------
+    // 过境交通：没有港口/机场也会有货轮路过海面、客机从城市上空飞过。
+    // 有港口机场时还能顺带赚一点转口贸易和旅客消费。
+    // ------------------------------------------------------------------
+    private var ambientShipT = 18f
+    private var ambientPlaneT = 30f
+    var shipVisits = 0            // 累计到港船次（含过境）
+    var flightVisits = 0          // 累计航班架次
+    var passengersToday = 0       // 今日客运量（船+飞机+火车）
+    var tradeToday = 0.0          // 今日外贸额
+    var tradeAccum = 0.0          // 当日实时累计的船运/航班贸易额（结算日清空）
+
+    private fun syncAmbientTraffic(dt: Float) {
+        val w = World.current ?: return
+        // ---- 过境货轮 ----
+        ambientShipT -= dt
+        if (ambientShipT <= 0f) {
+            ambientShipT = 55f + Random.nextFloat() * 80f
+            if (ships.count { it.ambient } < 2) {
+                var spot: Pair<Int, Int>? = null
+                for (i in 0 until 60) {
+                    val x = 1 + Random.nextInt(w.cols)
+                    val y = 1 + Random.nextInt(w.rows)
+                    if (World.tile(x, y)?.terrain == "water") {
+                        spot = x to y
+                        break
+                    }
+                }
+                val sp = spot
+                if (sp != null) {
+                    val path = waterRouteToEdge(sp.first, sp.second)
+                    if (path != null && path.size >= 4) {
+                        val inbound = path.toMutableList()
+                        inbound.reverse()          // 从外海开进来
+                        val cols = w.cols
+                        val head = inbound.first()
+                        ships.add(
+                            ShipCraft(
+                                x = (head % cols + 1).toFloat(),
+                                y = (head / cols + 1).toFloat(),
+                                dir = 0,
+                                path = inbound,
+                                pathI = 0,
+                                prog = 0f,
+                                speed = 1.1f + Random.nextFloat() * 0.6f,
+                                harborX = sp.first,
+                                harborY = sp.second,
+                                loaded = Random.nextBoolean(),
+                                name = "远洋 " + (Random.nextInt(900) + 100),
+                                ambient = true
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        // ---- 过境航班 ----
+        ambientPlaneT -= dt
+        if (ambientPlaneT <= 0f) {
+            ambientPlaneT = 80f + Random.nextFloat() * 100f
+            if (planes.count { it.ambient } < 1) {
+                val fromLeft = Random.nextBoolean()
+                val y0 = 2f + Random.nextFloat() * (w.rows - 4)
+                val x0 = if (fromLeft) -8f else (w.cols + 8).toFloat()
+                val x1 = if (fromLeft) (w.cols + 8).toFloat() else -8f
+                planes.add(
+                    PlaneCraft(
+                        x = x0, y = y0, vx = 0f, vy = 0f,
+                        alt = 4.2f, phase = 0f,
+                        ax = x1.toInt(), ay = y0.toInt(),
+                        flight = "CX" + (100 + Random.nextInt(899)),
+                        ambient = true
+                    )
+                )
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -308,10 +398,30 @@ object Traffic {
                 }
             }
             if (s.pathI >= s.path.lastIndex) {
-                // 靠港：卸完货返航重来
-                GameData.current?.let { cs ->
-                    cs.dayIncomeTrade += if (s.loaded) 3.5 else 0.0
+                if (s.ambient) {
+                    // 过境货轮：进来转一圈就掉头出海，不给玩家添乱
+                    s.legs += 1
+                    if (s.legs >= 2) {
+                        ships.removeAt(i)
+                        if (selectedShip === s) selectedShip = null
+                        continue
+                    }
+                    if (!s.soundPlayed) {
+                        s.soundPlayed = true
+                        Sfx.play("sfx_ship", 0.55f)
+                        shipVisits++
+                    }
+                    s.path.reverse()
+                    s.pathI = 0
+                    s.prog = 0f
+                    s.loaded = !s.loaded
+                    continue
                 }
+                // 靠港：卸完货返航重来
+                tradeAccum += if (s.loaded) 3.5 else 1.2
+                shipVisits++
+                passengersToday += if (s.loaded) 12 else 6
+                Sfx.play("sfx_ship", 0.45f)
                 s.path.reverse()
                 s.pathI = 0
                 s.prog = 0f
@@ -948,16 +1058,49 @@ object Traffic {
     }
 
     private fun flyPlanes(dt: Float) {
-        for (p in planes) {
-            p.phase += dt * 0.28f
-            val r = 7.5f + 1.4f * sin(p.phase * 0.5f)
-            val tx = p.ax + r * cos(p.phase)
-            val ty = p.ay + r * sin(p.phase)
-            p.vx = (tx - p.x) * 0.9f
-            p.vy = (ty - p.y) * 0.9f
-            p.x += p.vx * dt
-            p.y += p.vy * dt
-            p.alt = 2.6f + 0.6f * sin(p.phase * 1.7f)
+        val w = World.current
+        for (i in planes.indices.reversed()) {
+            val p = planes[i]
+            if (p.ambient) {
+                // 过境航班：一条直线穿过城市上空，飞过去就消失
+                val dx = p.ax - p.x
+                val dy = p.ay - p.y
+                val d = kotlin.math.sqrt(dx * dx + dy * dy)
+                if (d < 2f) {
+                    planes.removeAt(i)
+                    if (selectedPlane === p) selectedPlane = null
+                    continue
+                }
+                val sp = 6.5f
+                p.vx = dx / d * sp
+                p.vy = dy / d * sp
+                p.x += p.vx * dt
+                p.y += p.vy * dt
+                p.alt = 4.2f + 0.3f * sin(p.phase)
+                p.phase += dt
+                // 飞到城市上空时拉一声掠空声
+                if (!p.soundPlayed && w != null && p.x > 2f && p.x < w.cols - 2f) {
+                    p.soundPlayed = true
+                    Sfx.play("sfx_plane", 0.5f)
+                    flightVisits++
+                    passengersToday += 40 + Random.nextInt(80)
+                    tradeAccum += 1.6
+                }
+            } else {
+                p.phase += dt * 0.28f
+                val r = 7.5f + 1.4f * sin(p.phase * 0.5f)
+                val tx = p.ax + r * cos(p.phase)
+                val ty = p.ay + r * sin(p.phase)
+                p.vx = (tx - p.x) * 0.9f
+                p.vy = (ty - p.y) * 0.9f
+                p.x += p.vx * dt
+                p.y += p.vy * dt
+                p.alt = 2.6f + 0.6f * sin(p.phase * 1.7f)
+                if (!p.soundPlayed) {
+                    p.soundPlayed = true
+                    flightVisits++
+                }
+            }
         }
         selectedPlane = selectedPlane?.takeIf { it in planes }
     }

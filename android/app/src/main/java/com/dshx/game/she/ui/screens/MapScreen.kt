@@ -621,6 +621,14 @@ fun MapScreenContent(mapView: MapRenderView) {
                                     cfg.waterCap.toString() + "（全城 " + (s0?.waterCap ?: 0) + "/" + (s0?.waterNeed ?: 0) + "）"
                                 )
                             }
+                            if (cfg.powerCap > 0 || cfg.waterCap > 0) {
+                                val wired = Networks.plantWired(tb.x, tb.y, cfg.powerCap > 0, tb.b.w, tb.b.h)
+                                UIHelper.InfoRow(
+                                    "接入状态",
+                                    if (wired) "已接入管网（产能已并网）"
+                                    else "未接线：用【规划 → " + (if (cfg.powerCap > 0) "电缆" else "水管") + "】铺一格挨着它才算接通"
+                                )
+                            }
                             if (cfg.garbageCap > 0) UIHelper.InfoRow("收运能力", cfg.garbageCap.toString() + " 栋")
                             if (cfg.deathCap > 0) UIHelper.InfoRow("殡葬容量", cfg.deathCap.toString())
                             if (cfg.pollutionRadius > 0) {
@@ -1087,6 +1095,20 @@ private fun DrawerContent(mapView: MapRenderView) {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                run {
+                    val r = Config.ROAD["overpass"]!!
+                    val price = GameData.roadCost("overpass")
+                    UIHelper.PickChip(
+                        text = "立交桥",
+                        sub = "¥" + price + " 容" + r.capacity,
+                        selected = AppState.roadKind == "overpass",
+                        width = 110.dp
+                    ) {
+                        AppState.roadKind = "overpass"
+                        MapScreen.syncTool()
+                        AppState.roadOpen = false
+                    }
+                }
                 val hasMetro = World.hasService("metro")
                 val hasRail = World.hasService("rail_station")
                 UIHelper.PickChip(
@@ -1450,14 +1472,23 @@ private fun overlayLabel(cat: String): String = when (cat) {
     "metro" -> "地铁"
     "rail" -> "铁轨"
     "spec" -> "产业专精"
+    "pipe" -> "水管"
+    "cable" -> "电缆"
+    "sewer" -> "污水"
+    "underground" -> "地下总览"
     else -> cat
 }
 
 private fun overlayHint(cat: String): String = when (cat) {
     "traffic" -> "绿畅行 · 黄缓行 · 红拥堵"
     "landvalue" -> "绿高地价 · 红受污染拉低"
-    "metro", "rail" -> "只显示对应网络"
+    "rail" -> "只显示铁轨网络"
     "spec" -> "已刷专精的分区会叠色"
+    "pipe" -> "蓝=水管 · 淡蓝=道路自带预埋管 · 走线要首尾相接"
+    "cable" -> "黄=电缆 · 淡黄=道路自带预埋缆 · 走线要首尾相接"
+    "sewer" -> "绿=污水管 · 排污厂要接进同一张水网"
+    "metro" -> "紫=地铁隧道 · 只显示地下，地表看不见"
+    "underground" -> "蓝水管 · 黄电缆 · 绿污水 · 紫地铁（地表压暗）"
     else -> "绿=已覆盖 · 红=未覆盖 · 圈=该座设施半径，圈内哪坨归哪座一看就明"
 }
 
@@ -2085,6 +2116,47 @@ private fun DataPanel() {
                     }
                 }
             }
+
+            // 地下管网图层：压暗地表，专门看水管/电缆/污水/地铁怎么走的
+            Text(
+                "地下管网图层", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (cat in listOf("underground", "pipe", "cable", "sewer")) {
+                    val active = AppState.overlay == cat
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                if (active) C.accentSoftBg.toColor() else C.chipBg.toColor(),
+                                RoundedCornerShape(10.dp)
+                            )
+                            .border(
+                                1.dp,
+                                if (active) C.accentRed.toColor() else C.border2.toColor(),
+                                RoundedCornerShape(10.dp)
+                            )
+                            .clickable {
+                                Sfx.play("sfx_click", 0.5f)
+                                AppState.overlay = if (active) "" else cat
+                                AppState.dataOpen = false
+                            }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            overlayLabel(cat), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            color = if (active) C.accentRed.toColor() else C.textDark.toColor(),
+                            fontFamily = LocalGameFont.current
+                        )
+                    }
+                }
+            }
+            Text(
+                overlayHint("underground"),
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
 
             Box(
                 modifier = Modifier

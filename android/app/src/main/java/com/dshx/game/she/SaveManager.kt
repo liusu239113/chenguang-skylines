@@ -204,6 +204,8 @@ object SaveManager {
                 val o = JSONObject().put("x", x).put("y", y).put("zone", t.zone)
                 t.road?.let { o.put("road", it) }
                 if (t.bridge) o.put("bridge", true)
+                t.underRoad?.let { o.put("underRoad", it) }
+                if (t.elevated) o.put("elevated", true)
                 if (t.pipe) {
                     o.put("pipe", true)
                     if (t.pipeMask != 0) o.put("pipeMask", t.pipeMask)
@@ -287,6 +289,8 @@ object SaveManager {
                 t.zone = o.optString("zone", "none")
                 if (o.has("road")) t.road = o.optString("road") else t.road = null
                 t.bridge = o.optBoolean("bridge", false)
+                t.underRoad = if (o.has("underRoad")) o.optString("underRoad") else null
+                t.elevated = o.optBoolean("elevated", false)
                 t.pipe = o.optBoolean("pipe", false)
                 t.cable = o.optBoolean("cable", false)
                 t.pipeMask = o.optInt("pipeMask", 0)

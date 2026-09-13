@@ -260,11 +260,19 @@ object GameData {
         s.loanDaily = 0.0
         World.current?._pop = 0
         if (sandbox) {
-            // 沙盒 GM：资金拉满、人口锁 5000、满意度锁高，方便测试
+            // 沙盒 GM：资金拉满、人口锁 5000、满意度锁高、营造等级拉满（全设施解锁）
             s.funds = Config.SANDBOX.FUNDS
             s.population = Config.SANDBOX.pop.toDouble()
             World.current?._pop = Config.SANDBOX.pop
             s.happiness = Config.SANDBOX.happy
+            val top = Config.RANKS.maxByOrNull { it.level }
+            if (top != null) {
+                s.rankLevel = top.level
+                Civic.examPassed = top.level      // 免考，直接满级
+            }
+            s.merit = max(s.merit, 9999.0)
+            s.education = max(s.education, 100.0)
+            s.health = max(s.health, 100.0)
         }
         speedIdx = 1
         pendingLevelUp = false
@@ -478,9 +486,9 @@ object GameData {
             weather = kotlin.random.Random.nextInt(3)
         }
         var cov = World.coverage()
-        // 电力/供水供需：容量 vs 建筑数，不足则覆盖比例打折
-        var powerCap = 0
-        var waterCap = 0
+        // 电力/供水供需：只有真正接进管网的厂站才算产能（没拉线接进来的电厂不发电）
+        var powerCap = Networks.connectedCapacity(true)
+        var waterCap = Networks.connectedCapacity(false)
         var eduScore = 0.0
         var healthScore = 0.0
         var transitScore = 0.0
@@ -488,8 +496,6 @@ object GameData {
         for (e in World.allBuildings()) {
             if (!e.b.isService) continue
             val cfg = World.serviceConfig(e.b.service) ?: continue
-            powerCap += cfg.powerCap
-            waterCap += cfg.waterCap
             when (cfg.category) {
                 Config.ServiceCat.EDUCATION -> eduScore += cfg.radius * 0.8
                 Config.ServiceCat.HEALTH -> healthScore += cfg.radius * 0.7
@@ -695,10 +701,13 @@ object GameData {
 
         val taxPart = taxIncome * taxBoost * diff.incomeMul * eventIncomeMul * lateIncomeCut
         val bizPart = bizIncome * diff.incomeMul * eventIncomeMul * lateIncomeCut
+        // 实际发生的船运/航班外贸额也算进今日贸易，然后清零重新累计
         val tradePart = (tradeIncome + landmarkTour) * rankTrade * diff.incomeMul * eventIncomeMul * lateIncomeCut
         s.dayIncomeTax = taxPart
         s.dayIncomeBiz = bizPart
-        s.dayIncomeTrade = tradePart
+        s.dayIncomeTrade = tradePart + Traffic.tradeAccum
+        Traffic.tradeAccum = 0.0
+        Traffic.passengersToday = 0
         val keepTotal = roadKeep + serviceKeep + grownKeep
         val keepShare = if (sandbox || keepTotal <= 0.0) 0.0 else spend / keepTotal
         s.lastRoadUpkeep = if (sandbox) 0.0 else roadKeep * keepShare
@@ -753,9 +762,14 @@ object GameData {
         val target = if (s.population < 1) 52.0 else computeHappinessTarget(st)
         s.happiness += (target - s.happiness) * 0.12
         if (sandbox) {
-            // 沙盒：满意度不掉，测试时不用管民生
+            // 沙盒：满意度不掉、资金不变、职级保持满级（全设施解锁）
             s.happiness = Config.SANDBOX.happy
             s.funds = Config.SANDBOX.FUNDS
+            val top = Config.RANKS.maxByOrNull { it.level }
+            if (top != null && s.rankLevel < top.level) {
+                s.rankLevel = top.level
+                Civic.examPassed = top.level
+            }
         }
 
         // 火灾只在人口能解锁消防站后发生，且只点燃成长建筑，不拆公园/设施

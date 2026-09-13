@@ -303,13 +303,16 @@ object Networks {
             val isPower = cfg.powerCap > 0
             val isWater = cfg.waterCap > 0
             if (!isPower && !isWater) continue
+            // 厂站必须靠玩家自己铺的电缆/水管接进管网：光挨着马路不算接通，
+            // 免得"还没拉线就全城来电"。接进来之后借着马路把水电送到全城。
             for (dy in -1..e.b.h) {
                 for (dx in -1..e.b.w) {
                     val x = e.x + dx
                     val y = e.y + dy
                     if (!World.inBounds(x, y)) continue
-                    if (isPower && conduitPower(x, y)) powerSeeds.add(idx(x, y, cols))
-                    if (isWater && conduitWater(x, y)) waterSeeds.add(idx(x, y, cols))
+                    val t = World.tile(x, y) ?: continue
+                    if (isPower && t.cable) powerSeeds.add(idx(x, y, cols))
+                    if (isWater && t.pipe) waterSeeds.add(idx(x, y, cols))
                 }
             }
         }
@@ -402,6 +405,56 @@ object Networks {
             if (linked) ok++
         }
         return ok
+    }
+
+    /** 某座厂站是否已经接线（自己铺的电缆/水管挨着它，或管网已经铺到它脚下） */
+    fun plantWired(ax: Int, ay: Int, power: Boolean, bw: Int = 1, bh: Int = 1): Boolean {
+        ensureGrid()
+        val w = World.current ?: return false
+        val cols = w.cols
+        val set = if (power) powerTiles else waterTiles
+        for (dy in -1..bh) {
+            for (dx in -1..bw) {
+                val x = ax + dx
+                val y = ay + dy
+                if (!World.inBounds(x, y)) continue
+                if ((y - 1) * cols + (x - 1) in set) return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * 真正接进管网的产能合计：厂站周围没有自己铺的电缆/水管就等于没接线，
+     * 这台机组不算产能（会直接体现为电力/供水不足）。
+     */
+    fun connectedCapacity(power: Boolean): Int {
+        ensureGrid()
+        val w = World.current ?: return 0
+        val cols = w.cols
+        val set = if (power) powerTiles else waterTiles
+        var cap = 0
+        for (e in World.allBuildings()) {
+            if (!e.b.isService) continue
+            val cfg = World.serviceConfig(e.b.service) ?: continue
+            val c = if (power) cfg.powerCap else cfg.waterCap
+            if (c <= 0) continue
+            var on = false
+            for (dy in -1..e.b.h) {
+                if (on) break
+                for (dx in -1..e.b.w) {
+                    val x = e.x + dx
+                    val y = e.y + dy
+                    if (!World.inBounds(x, y)) continue
+                    if ((y - 1) * cols + (x - 1) in set) {
+                        on = true
+                        break
+                    }
+                }
+            }
+            if (on) cap += c
+        }
+        return cap
     }
 
     /** 是否临路：垃圾车/灵车沿路收运的前提 */

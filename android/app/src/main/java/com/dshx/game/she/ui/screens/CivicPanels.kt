@@ -42,6 +42,7 @@ import com.dshx.game.she.Prefs
 import com.dshx.game.she.PrivacyDocs
 import com.dshx.game.she.Sfx
 import com.dshx.game.she.SpeedBoost
+import com.dshx.game.she.ui.UIHelper
 import com.dshx.game.she.ui.theme.LocalGameFont
 import com.dshx.game.she.ui.toColor
 import com.dshx.game.she.world.Traffic
@@ -107,6 +108,11 @@ fun CivicPanel() {
                     " · 繁荣 " + (World.current?.prosperity ?: 0) +
                     " · 路上车辆 " + Traffic.localMoving +
                     " · 外地车 " + Traffic.visitorsToday,
+                fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Text(
+                "到港货轮 " + Traffic.shipVisits + " 艘次 · 航班 " + Traffic.flightVisits + " 架次 · 今日客运 " +
+                    Traffic.passengersToday + " 人 · 今日贸易 " + UIHelper.fmtFunds(s.dayIncomeTrade),
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             for (r in Config.RANKS) {

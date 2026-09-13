@@ -725,6 +725,21 @@ class MapRenderView @JvmOverloads constructor(
         canvas.drawCircle(x, y, r, paint)
     }
 
+    /** 三角形填充（匝道斜坡等） */
+    private fun fillTri(
+        canvas: Canvas,
+        x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float,
+        c: RGBA, alpha: Int = c.a
+    ) {
+        path.reset()
+        path.moveTo(x1, y1)
+        path.lineTo(x2, y2)
+        path.lineTo(x3, y3)
+        path.close()
+        fillColor(c, alpha)
+        canvas.drawPath(path, paint)
+    }
+
     private fun fillPath(canvas: Canvas, p: Path, c: RGBA, alpha: Int = c.a) {
         fillColor(c, alpha)
         canvas.drawPath(p, paint)
@@ -776,30 +791,165 @@ class MapRenderView @JvmOverloads constructor(
         return paint.measureText(text)
     }
 
-    private fun drawStreetNameOnRoad(canvas: Canvas, tx: Int, ty: Int, name: String, vertical: Boolean) {
-        if (name.isEmpty()) return
-        val sx = worldToScreenX((tx - 1).toFloat())
-        val sy = worldToScreenY((ty - 1).toFloat())
-        val save = canvas.save()
-        canvas.clipRect(sx + 1f, sy + 1f, sx + cell - 1f, sy + cell - 1f)
+    /**
+     * 地下管网图层滤镜：压暗地表，把水管/电缆/污水/地铁画成发光线，
+     * 让玩家一眼看清线路怎么走的（正在铺的那一种最亮，其余变暗作参考）。
+     */
+    private fun drawUndergroundLayer(canvas: Canvas, w: World, x0: Int, x1: Int, y0: Int, y1: Int) {
+        val vx = worldToScreenX(x0 - 1f)
+        val vy = worldToScreenY(y0 - 1f)
+        fillRect(canvas, vx, vy, (x1 - x0 + 1) * cell, (y1 - y0 + 1) * cell, RGBA(8, 14, 24, 172))
+
+        val focus = when {
+            tool?.kind == "pipe" || overlay == "pipe" -> "pipe"
+            tool?.kind == "cable" || overlay == "cable" -> "cable"
+            overlay == "sewer" -> "sewer"
+            tool?.kind == "metro" || overlay == "metro" ||
+                (tool?.kind == "road" && tool?.roadKind == "metro") -> "metro"
+            else -> "all"
+        }
+        fun alphaOf(which: String): Int = if (focus == "all" || focus == which) 255 else 70
+
+        val aPipe = alphaOf("pipe")
+        val aCable = alphaOf("cable")
+        val aSewer = alphaOf("sewer")
+        val aMetro = alphaOf("metro")
+
+        // 1) 道路自带预埋管线：淡淡的一层底，示意这里已经通了
+        for (ty in y0..y1) {
+            for (tx in x0..x1) {
+                val t = w.grid[ty - 1][tx - 1]
+                if (t.road == null) continue
+                val sx = worldToScreenX(tx - 1f)
+                val sy = worldToScreenY(ty - 1f)
+                if (t.bridge) {
+                    fillRect(canvas, sx + cell * 0.1f, sy + cell * 0.44f, cell * 0.8f, cell * 0.12f, RGBA(90, 170, 230, aPipe / 4))
+                } else {
+                    fillRect(canvas, sx + cell * 0.08f, sy + cell * 0.42f, cell * 0.84f, cell * 0.16f, RGBA(90, 170, 230, aPipe / 4))
+                    fillRect(canvas, sx + cell * 0.42f, sy + cell * 0.08f, cell * 0.16f, cell * 0.84f, RGBA(230, 190, 90, aCable / 5))
+                }
+            }
+        }
+        // 2) 玩家铺的地下线路：按开口方向画成连通的折线
+        for (ty in y0..y1) {
+            for (tx in x0..x1) {
+                val t = w.grid[ty - 1][tx - 1]
+                val sx = worldToScreenX(tx - 1f)
+                val sy = worldToScreenY(ty - 1f)
+                if (t.pipe) drawNetNode(canvas, sx, sy, t.pipeMask, RGBA(80, 195, 255, aPipe))
+                if (t.cable) drawNetNode(canvas, sx, sy, t.cableMask, RGBA(255, 205, 80, aCable))
+                if (t.sewer) drawNetNode(canvas, sx, sy, 0, RGBA(160, 210, 120, aSewer))
+                if (t.metro) {
+                    val m = RGBA(150, 130, 245, aMetro)
+                    fillRect(canvas, sx + cell * 0.16f, sy + cell * 0.42f, cell * 0.68f, cell * 0.16f, m)
+                    fillRect(canvas, sx + cell * 0.42f, sy + cell * 0.16f, cell * 0.16f, cell * 0.68f, m)
+                }
+            }
+        }
+        // 3) 相关设施高亮：水厂/水塔/抽水站/排污厂 + 地铁站
+        for (e in World.allBuildings()) {
+            val cfg = World.serviceConfig(e.b.service ?: continue) ?: continue
+            val c = when {
+                cfg.waterCap > 0 || cfg.id == "water_tower" || cfg.id == "pump_station" -> RGBA(80, 195, 255, 255)
+                cfg.id == "sewage" -> RGBA(160, 210, 120, 255)
+                cfg.powerCap > 0 -> RGBA(255, 205, 80, 255)
+                cfg.id == "metro" -> RGBA(150, 130, 245, 255)
+                else -> continue
+            }
+            val sx = worldToScreenX(e.x - 1f)
+            val sy = worldToScreenY(e.y - 1f)
+            val bw = cell * e.b.w
+            val bh = cell * e.b.h
+            strokeRoundRect(canvas, sx + 2f, sy + 2f, bw - 4f, bh - 4f, 3f, c, 255, 2.2f)
+        }
+    }
+
+    /** 在管线格上画一个中心节点 + 朝开口方向伸出的短管（mask=0 视为四向全开） */
+    private fun drawNetNode(canvas: Canvas, sx: Float, sy: Float, mask: Int, col: RGBA) {
+        val m = if (mask == 0) 15 else mask
         val cx = sx + cell * 0.5f
         val cy = sy + cell * 0.5f
-        val fs = min(cell * 0.28f, 8.5f)
-        val ink = RGBA(248, 248, 242)
+        val th = max(1.8f, cell * 0.16f)
+        if (m and 1 != 0) fillRect(canvas, cx - th * 0.5f, sy + cell * 0.06f, th, cell * 0.46f, col)
+        if (m and 4 != 0) fillRect(canvas, cx - th * 0.5f, cy, th, cell * 0.44f, col)
+        if (m and 8 != 0) fillRect(canvas, sx + cell * 0.06f, cy - th * 0.5f, cell * 0.46f, th, col)
+        if (m and 2 != 0) fillRect(canvas, cx, cy - th * 0.5f, cell * 0.44f, th, col)
+        fillRect(canvas, cx - th * 0.85f, cy - th * 0.85f, th * 1.7f, th * 1.7f, col)
+    }
+
+    /**
+     * 路名沿道路方向书写：横街横排、竖街旋转 90°（不再出现「横街竖写」）。
+     * 名字写在连续直路的中间一段，按实际可写长度自动裁字，横跨多格但不压到建筑。
+     */
+    private fun drawStreetNameOnRoad(
+        canvas: Canvas, line: RoadLine, vx0: Int, vx1: Int, vy0: Int, vy1: Int
+    ) {
+        val name = line.name
+        if (name.isEmpty()) return
+        val n = min(line.segX.size, line.segY.size)
+        if (n < 2) return
+        val vertical = line.dir == "v"
+        // 1) 选一个视野内的标注格：优先取整段中间那一格
+        var bx = -1
+        var by = -1
+        var best = Int.MAX_VALUE
+        for (i in 0 until n) {
+            val tx = line.segX[i]
+            val ty = line.segY[i]
+            if (tx < vx0 || tx > vx1 || ty < vy0 || ty > vy1) continue
+            if (World.tile(tx, ty)?.road == null) continue
+            val d = if (i > n / 2) i - n / 2 else n / 2 - i
+            if (d < best) {
+                best = d
+                bx = tx
+                by = ty
+            }
+        }
+        if (bx < 0) return
+        // 2) 沿道路方向量出连续直段，名字写在这条直路上
+        var rx0 = bx
+        var rx1 = bx
+        var ry0 = by
+        var ry1 = by
         if (vertical) {
-            val chars = name.toList()
-            val chH = min(fs * 0.92f, (cell - 4f) / max(1, chars.size))
-            var y = cy - (chars.size - 1) * chH * 0.5f
-            for (ch in chars) {
-                drawText(canvas, cx, y, fs, ink, ch.toString(), TAlign.CENTER, 210)
-                y += chH
-            }
+            while (World.tile(bx, ry0 - 1)?.road != null) ry0--
+            while (World.tile(bx, ry1 + 1)?.road != null) ry1++
         } else {
-            var shown = name
-            while (shown.length > 1 && measure(shown, fs) > cell - 4f) {
-                shown = shown.dropLast(1)
+            while (World.tile(rx0 - 1, by)?.road != null) rx0--
+            while (World.tile(rx1 + 1, by)?.road != null) rx1++
+        }
+        val px0 = worldToScreenX(rx0 - 1f)
+        val px1 = worldToScreenX(rx1.toFloat())
+        val py0 = worldToScreenY(ry0 - 1f)
+        val py1 = worldToScreenY(ry1.toFloat())
+        val fs = min(cell * 0.32f, 10.0f)
+        val ink = RGBA(248, 248, 242)
+        var shown = name
+        val save = canvas.save()
+        if (vertical) {
+            // 竖街：把画布转 -90°，文字就沿着街道上下读
+            val cx = (px0 + px1) * 0.5f
+            val cy = (py0 + py1) * 0.5f
+            val len = (py1 - py0) - 6f
+            if (len < cell * 0.8f) {
+                canvas.restoreToCount(save)
+                return
             }
-            drawText(canvas, cx, cy, fs, ink, shown, TAlign.CENTER, 210)
+            canvas.rotate(-90f, cx, cy)
+            canvas.clipRect(cx - len * 0.5f, cy - cell * 0.46f, cx + len * 0.5f, cy + cell * 0.46f)
+            while (shown.length > 1 && measure(shown, fs) > len - 4f) shown = shown.dropLast(1)
+            drawText(canvas, cx, cy, fs, ink, shown, TAlign.CENTER, 215)
+        } else {
+            val cx = (px0 + px1) * 0.5f
+            val cy = (py0 + py1) * 0.5f
+            val len = (px1 - px0) - 6f
+            if (len < cell * 0.8f) {
+                canvas.restoreToCount(save)
+                return
+            }
+            canvas.clipRect(px0 + 3f, cy - cell * 0.46f, px1 - 3f, cy + cell * 0.46f)
+            while (shown.length > 1 && measure(shown, fs) > len - 4f) shown = shown.dropLast(1)
+            drawText(canvas, cx, cy, fs, ink, shown, TAlign.CENTER, 215)
         }
         canvas.restoreToCount(save)
     }
@@ -833,6 +983,11 @@ class MapRenderView @JvmOverloads constructor(
         val y0 = Config.clamp(tileAtY(0f), 1, w.rows)
         val y1 = Config.clamp(tileAtY(viewH), 1, w.rows)
 
+        // 地下图层：铺管/铺缆/修地铁时自动打开，也可以手动切覆盖图查看
+        val underLayer = overlay in listOf("pipe", "cable", "sewer", "metro", "underground") ||
+            tool?.kind in listOf("pipe", "cable", "sewer") ||
+            (tool?.kind == "road" && (tool?.roadKind == "metro"))
+
         // ---- 1) 底色 ----
         for (ty in y0..y1) {
             for (tx in x0..x1) {
@@ -848,8 +1003,9 @@ class MapRenderView @JvmOverloads constructor(
                 if (!World.isUnlocked(tx, ty) && t.road != "highway") {
                     fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, RGBA(28, 36, 42, 150))
                 }
-                // 跨水桥：抬高甲板 + 桥墩 + 落水阴影；两侧留缝让水露出来，避免像一段陆地
-                if (t.bridge && t.road != null) {
+                // 跨水桥：抬高甲板 + 桥墩 + 落水阴影
+                // 相邻桥格之间不留缝，整座桥是一整条连续的桥面（只在桥宽方向收窄露出水）
+                if (t.bridge && t.road != null && t.elevated != true) {
                     val lift = cell * 0.20f
                     val deck = when (t.road) {
                         "highway" -> C.roadHighway
@@ -857,21 +1013,76 @@ class MapRenderView @JvmOverloads constructor(
                         "dirt" -> C.roadDirt
                         else -> C.roadLocal
                     }
-                    val ix = sx + cell * 0.05f
-                    val iy = sy + cell * 0.05f
-                    val iw = cell * 0.90f
+                    val bL = World.tile(tx - 1, ty)?.let { it.bridge && it.road != null } == true
+                    val bR = World.tile(tx + 1, ty)?.let { it.bridge && it.road != null } == true
+                    val bU = World.tile(tx, ty - 1)?.let { it.bridge && it.road != null } == true
+                    val bD = World.tile(tx, ty + 1)?.let { it.bridge && it.road != null } == true
+                    val horiz = bL || bR
+                    val vert = bU || bD
+                    val inset = cell * 0.06f
+                    val wide = cell * 0.13f      // 桥宽方向收窄，两侧露出水面
+                    // 沿桥方向铺满（相邻桥格无缝），桥宽方向留边
+                    val dx0 = if (bL) sx else sx + (if (horiz) inset else wide)
+                    val dx1 = if (bR) sx + cell else sx + cell - (if (horiz) inset else wide)
+                    val dy0 = if (bU) sy else sy + (if (vert) inset else wide)
+                    val dy1 = if (bD) sy + cell else sy + cell - (if (vert) inset else wide)
+                    val iw = dx1 - dx0
+                    val ih = dy1 - dy0
                     // 落水阴影：桥面压在水上，影子偏右下
-                    fillRect(canvas, ix + cell * 0.05f, iy + cell * 0.05f - lift, iw, iw, RGBA(18, 26, 32, 78))
-                    // 桥墩：两根，从桥面一直探到水里
-                    val pierTop = iy + cell * 0.16f - lift
-                    fillRect(canvas, ix + cell * 0.10f, pierTop, cell * 0.10f, cell * 0.86f, RGBA(92, 94, 100))
-                    fillRect(canvas, ix + iw - cell * 0.20f, pierTop, cell * 0.10f, cell * 0.86f, RGBA(92, 94, 100))
+                    fillRect(canvas, dx0 + cell * 0.06f, dy0 + cell * 0.07f - lift, iw, ih, RGBA(16, 24, 30, 80))
+                    // 桥墩：沿桥方向每隔一格两根，从桥面探到水里
+                    val pierTop = dy0 + cell * 0.20f - lift
+                    fillRect(canvas, dx0 + iw * 0.22f, pierTop, cell * 0.09f, cell * 0.78f, RGBA(92, 94, 100))
+                    fillRect(canvas, dx0 + iw * 0.69f, pierTop, cell * 0.09f, cell * 0.78f, RGBA(92, 94, 100))
                     // 桥体侧沿（暗） → 桥面（亮），形成厚度感
-                    fillRect(canvas, ix, iy - lift + cell * 0.06f, iw, iw, RGBA(46, 50, 58))
-                    fillRect(canvas, ix, iy - lift, iw, cell * 0.88f, deck)
-                    // 桥头护栏
-                    fillRect(canvas, ix, iy - lift, iw, cell * 0.04f, RGBA(196, 200, 206, 190))
-                    fillRect(canvas, ix, iy - lift + cell * 0.84f, iw, cell * 0.04f, RGBA(196, 200, 206, 190))
+                    fillRect(canvas, dx0, dy0 - lift + cell * 0.07f, iw, ih, RGBA(44, 48, 56))
+                    fillRect(canvas, dx0, dy0 - lift, iw, ih, deck)
+                    // 护栏：沿桥方向两侧连续
+                    if (vert) {
+                        fillRect(canvas, dx0, dy0 - lift, cell * 0.055f, ih, RGBA(198, 202, 208, 200))
+                        fillRect(canvas, dx1 - cell * 0.055f, dy0 - lift, cell * 0.055f, ih, RGBA(198, 202, 208, 200))
+                    } else {
+                        fillRect(canvas, dx0, dy0 - lift, iw, cell * 0.055f, RGBA(198, 202, 208, 200))
+                        fillRect(canvas, dx0, dy1 - lift - cell * 0.055f, iw, cell * 0.055f, RGBA(198, 202, 208, 200))
+                    }
+                }
+                // 立交桥：抬高的一层。地面路从下面穿过，四个方向都有匝道连接
+                if (t.elevated && t.road == "overpass") {
+                    val lift = cell * 0.30f
+                    val deckCol = RGBA(92, 96, 104)
+                    // 桥下阴影（压在下穿道上面，显出净空）
+                    fillRect(canvas, sx + cell * 0.12f, sy + cell * 0.16f - lift, cell * 0.76f, cell * 0.76f, RGBA(12, 18, 26, 76))
+                    // 桥墩：四角，从桥面探到地面
+                    val pw = cell * 0.09f
+                    fillRect(canvas, sx + cell * 0.18f, sy + cell * 0.34f - lift, pw, cell * 0.56f, RGBA(96, 98, 104))
+                    fillRect(canvas, sx + cell * 0.73f, sy + cell * 0.34f - lift, pw, cell * 0.56f, RGBA(96, 98, 104))
+                    // 匝道：四面只要接得上地面路就画一段下坡，说明四个方向都能上下
+                    val ramp = RGBA(138, 142, 150, 235)
+                    val nM = World.tile(tx, ty - 1)
+                    val nS = World.tile(tx, ty + 1)
+                    val nW = World.tile(tx - 1, ty)
+                    val nE = World.tile(tx + 1, ty)
+                    if (nW?.road != null && nW.elevated != true) {
+                        fillTri(canvas, sx, sy + cell * 0.5f, sx + cell * 0.14f, sy + cell * 0.06f - lift, sx + cell * 0.14f, sy + cell * 0.94f - lift, ramp)
+                    }
+                    if (nE?.road != null && nE.elevated != true) {
+                        fillTri(canvas, sx + cell, sy + cell * 0.5f, sx + cell * 0.86f, sy + cell * 0.06f - lift, sx + cell * 0.86f, sy + cell * 0.94f - lift, ramp)
+                    }
+                    if (nM?.road != null && nM.elevated != true) {
+                        fillTri(canvas, sx + cell * 0.5f, sy, sx + cell * 0.06f, sy + cell * 0.14f - lift, sx + cell * 0.94f, sy + cell * 0.14f - lift, ramp)
+                    }
+                    if (nS?.road != null && nS.elevated != true) {
+                        fillTri(canvas, sx + cell * 0.5f, sy + cell, sx + cell * 0.06f, sy + cell * 0.86f - lift, sx + cell * 0.94f, sy + cell * 0.86f - lift, ramp)
+                    }
+                    // 桥面：厚度 + 路面
+                    fillRect(canvas, sx + cell * 0.02f, sy + cell * 0.06f - lift, cell * 0.96f, cell * 0.90f, RGBA(44, 48, 56))
+                    fillRect(canvas, sx + cell * 0.02f, sy - lift + cell * 0.02f, cell * 0.96f, cell * 0.80f, deckCol)
+                    // 护栏
+                    fillRect(canvas, sx + cell * 0.02f, sy - lift + cell * 0.02f, cell * 0.96f, cell * 0.05f, RGBA(198, 202, 208, 205))
+                    fillRect(canvas, sx + cell * 0.02f, sy - lift + cell * 0.77f, cell * 0.96f, cell * 0.05f, RGBA(198, 202, 208, 205))
+                    // 中央双黄线
+                    fillRect(canvas, sx + cell * 0.06f, sy - lift + cell * 0.405f, cell * 0.88f, cell * 0.022f, RGBA(236, 196, 70, 225))
+                    fillRect(canvas, sx + cell * 0.06f, sy - lift + cell * 0.435f, cell * 0.88f, cell * 0.022f, RGBA(236, 196, 70, 225))
                 }
             }
         }
@@ -971,11 +1182,12 @@ class MapRenderView @JvmOverloads constructor(
                             railPt.add(cx); railPt.add(sy + cell)
                         }
                     }
-                    val kind = t.road ?: continue
-                    val up = w.grid.getOrNull(ty - 2)?.get(tx - 1)?.road != null
-                    val down = w.grid.getOrNull(ty)?.get(tx - 1)?.road != null
-                    val left = w.grid[ty - 1].getOrNull(tx - 2)?.road != null
-                    val right = w.grid[ty - 1].getOrNull(tx)?.road != null
+                    // 立交桥格：地表画的是下面那条被跨过的路，标线也照它的来
+                    val kind = t.underRoad ?: t.road ?: continue
+                    val up = w.grid.getOrNull(ty - 2)?.get(tx - 1)?.let { it.road != null || it.underRoad != null } == true
+                    val down = w.grid.getOrNull(ty)?.get(tx - 1)?.let { it.road != null || it.underRoad != null } == true
+                    val left = w.grid[ty - 1].getOrNull(tx - 2)?.let { it.road != null || it.underRoad != null } == true
+                    val right = w.grid[ty - 1].getOrNull(tx)?.let { it.road != null || it.underRoad != null } == true
                     val horiz = left || right
                     val vert = up || down
                     val crossroad = horiz && vert
@@ -1047,15 +1259,9 @@ class MapRenderView @JvmOverloads constructor(
                 fillLines(canvas, railPt.toFloatArray(), RGBA(210, 210, 214, 220), 255, max(0.8f, cell * 0.04f))
             }
             if (typeface != null && cell >= 12f) {
+                World.ensureStreets()
                 for (line in w.roadLines) {
-                    val n = min(line.segX.size, line.segY.size)
-                    if (n <= 0) continue
-                    val idx = if (n <= 2) 0 else n / 3
-                    val mx = line.segX[idx]
-                    val my = line.segY[idx]
-                    if (mx < x0 || mx > x1 || my < y0 || my > y1) continue
-                    if (World.tile(mx, my)?.road == null) continue
-                    drawStreetNameOnRoad(canvas, mx, my, line.name, line.dir == "v")
+                    drawStreetNameOnRoad(canvas, line, x0, x1, y0, y1)
                 }
             }
             if (cross.isNotEmpty()) {
@@ -1114,16 +1320,18 @@ class MapRenderView @JvmOverloads constructor(
                 val v = dirs[c.dir]
                 var sx = worldToScreenX(c.x - 1 + v[0] * c.prog + 0.5f)
                 var sy = worldToScreenY(c.y - 1 + v[1] * c.prog + 0.5f)
-                if (World.tile(c.x, c.y)?.bridge == true) sy -= cell * 0.20f
-                val kind = World.tile(c.x, c.y)?.road ?: "local"
+                val ct = World.tile(c.x, c.y)
+                if (ct?.bridge == true) sy -= cell * 0.20f
+                else if (ct?.elevated == true) sy -= cell * 0.30f
+                val kind = ct?.road ?: "local"
                 val inner = cell * when (kind) {
                     "highway" -> 0.12f
-                    "avenue" -> 0.13f
+                    "avenue", "overpass" -> 0.13f
                     else -> 0.16f
                 }
                 val outer = cell * when (kind) {
                     "highway" -> 0.30f
-                    "avenue" -> 0.32f
+                    "avenue", "overpass" -> 0.32f
                     else -> 0.16f
                 }
                 val off = if (c.lane == 1) outer else inner
@@ -1171,23 +1379,55 @@ class MapRenderView @JvmOverloads constructor(
             }
             for (v in Transit.vehicles) {
                 val (wx, wy) = Transit.vehicleCell(v)
-                val sx = worldToScreenX(wx)
+                var sx = worldToScreenX(wx)
                 var sy = worldToScreenY(wy)
-                // 公交过桥：跟车一样抬到桥面
+                // 公交过桥/上高架：跟车一样抬到桥面
                 val bi = v.pathI.coerceIn(0, max(0, v.path.lastIndex))
                 if (v.path.isNotEmpty()) {
                     val bk = v.path[bi]
-                    if (World.tile(Citizens.unpackX(bk), Citizens.unpackY(bk))?.bridge == true) {
+                    val bt = World.tile(Citizens.unpackX(bk), Citizens.unpackY(bk))
+                    if (bt?.bridge == true || bt?.elevated == true) {
                         sy -= cell * 0.20f
+                    }
+                    // 公交靠右进站车道行驶，不压中线
+                    val bDir = Transit.heading(v)
+                    val bRoad = bt?.underRoad ?: bt?.road ?: "local"
+                    val bOff = cell * when (bRoad) {
+                        "highway" -> 0.28f
+                        "avenue" -> 0.30f
+                        "overpass" -> 0.28f
+                        else -> 0.16f
+                    }
+                    when (bDir) {
+                        0 -> sy += bOff
+                        2 -> sy -= bOff
+                        1 -> sx -= bOff
+                        3 -> sx += bOff
                     }
                 }
                 drawVehicleBox(canvas, sx, sy, Transit.heading(v), RGBA(40, 90, 170), longBody = true, selected = false)
             }
             for (ev in CitySystems.cars) {
                 val (wx, wy) = CitySystems.screenCell(ev)
-                val sx = worldToScreenX(wx)
+                var sx = worldToScreenX(wx)
                 var sy = worldToScreenY(wy)
-                if (World.tile(ev.x, ev.y)?.bridge == true) sy -= cell * 0.20f
+                val t = World.tile(ev.x, ev.y)
+                if (t?.bridge == true || t?.elevated == true) sy -= cell * 0.20f
+                // 服务车同样按车道靠右行驶（垃圾车/灵车走外侧车道），不再压中线
+                val evDir = CitySystems.heading(ev)
+                val evRoad = t?.underRoad ?: t?.road ?: "local"
+                val evOff = cell * when (evRoad) {
+                    "highway" -> 0.30f
+                    "avenue" -> 0.32f
+                    "overpass" -> 0.30f
+                    else -> 0.16f
+                }
+                when (evDir) {
+                    0 -> sy += evOff
+                    2 -> sy -= evOff
+                    1 -> sx -= evOff
+                    3 -> sx += evOff
+                }
                 val col = when (ev.kind) {
                     "fire" -> RGBA(220, 70, 50)
                     "ambulance" -> RGBA(240, 240, 245)
@@ -1195,7 +1435,7 @@ class MapRenderView @JvmOverloads constructor(
                     "garbage" -> RGBA(90, 118, 86)
                     else -> RGBA(40, 40, 40)
                 }
-                drawVehicleBox(canvas, sx, sy, CitySystems.heading(ev), col, longBody = ev.kind == "garbage" || ev.kind == "hearse", selected = CitySystems.selected === ev)
+                drawVehicleBox(canvas, sx, sy, evDir, col, longBody = ev.kind == "garbage" || ev.kind == "hearse", selected = CitySystems.selected === ev)
             }
             for (tr in Traffic.trains) {
                 val sx = worldToScreenX(tr.x - 1 + dirs[tr.dir][0] * tr.prog + 0.5f)
@@ -1463,6 +1703,12 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
+        // ---- 4.7) 地下管网图层滤镜 ----
+        // 铺管/铺缆/地铁，或手动打开覆盖图时：压暗地表，只让地下线路发光，方便看清怎么走线
+        if (underLayer) {
+            drawUndergroundLayer(canvas, w, x0, x1, y0, y1)
+        }
+
         // ---- 5) 标签 ----
         if (typeface != null) {
             // 路名已画在路面层；建筑名贴前墙。这里只画预置 POI
@@ -1647,6 +1893,15 @@ class MapRenderView @JvmOverloads constructor(
         if (t.rail) return RGBA(72, 72, 78)
         // 跨水桥：脚下是水，桥面在上一层单独画，这里透出水色
         if (t.bridge) return if ((x + y) % 2 == 0) C.water else C.waterAlt
+        // 立交桥：地表画下面那条被跨过的路，高架桥面在上一层单独画
+        t.underRoad?.let {
+            return when (it) {
+                "highway" -> C.roadHighway
+                "avenue" -> C.roadAvenue
+                "dirt" -> C.roadDirt
+                else -> C.roadLocal
+            }
+        }
         t.road?.let {
             return when (it) {
                 "highway" -> C.roadHighway

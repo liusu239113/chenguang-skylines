@@ -162,6 +162,7 @@ object Config {
         "local" to RoadDef("local", "两车道", 8, 14, 40, 2, 0.018),
         "avenue" to RoadDef("avenue", "四车道", 20, 28, 60, 4, 0.032),
         "highway" to RoadDef("highway", "高速路", 40, 48, 100, 7, 0.055),
+        "overpass" to RoadDef("overpass", "立交桥", 55, 46, 90, 4, 0.062),
         "metro" to RoadDef("metro", "地铁隧", 6, 36, 70, 1, 0.022),
         "rail" to RoadDef("rail", "铁轨", 8, 20, 80, 3, 0.028)
     )
@@ -223,7 +224,8 @@ object Config {
         val garbageCap: Int = 0,          // 垃圾处理容量（按建筑收运量计）
         val deathCap: Int = 0,            // 殡葬容量
         val pollutionRadius: Int = 0,     // 污染扩散半径（靠距离衰减，不再压格子）
-        val nearWater: Boolean = false    // 必须建在水域旁（抽水/排污）
+        val nearWater: Boolean = false,   // 必须建在水域旁（抽水/排污）
+        val needsRoad: Boolean = true     // 是否需要临路（只有要派车出入的设施才需要）
     )
 
     val SERVICES: List<ServiceDef> = listOf(
@@ -234,18 +236,18 @@ object Config {
             "市民广场，显著提升满意度与地价。", ServiceCat.AMENITY, 500),
         // ---- 电力（容量决定能否撑住全城） ----
         ServiceDef("wind_farm", "风电场", 500, 18, 6, 0, false, 1, 1,
-            "清洁风电。只产能，靠道路预埋电缆/地下电缆送到建筑，容量 18。", ServiceCat.POWER, 0, 0, 18, 0),
+            "清洁风电。只产能，靠道路预埋电缆/地下电缆送到建筑，容量 18。", ServiceCat.POWER, 0, 0, 18, 0, needsRoad = false),
         ServiceDef("solar_plant", "太阳能电站", 1600, 28, 7, 0, false, 2, 2,
-            "光伏电站。只产能，容量 36，无污染，靠路网送电。", ServiceCat.POWER, 300, 0, 36, 0),
+            "光伏电站。只产能，容量 36，无污染，靠路网送电。", ServiceCat.POWER, 300, 0, 36, 0, needsRoad = false),
         ServiceDef("coal_plant", "燃煤电厂", 1800, 56, 10, -3, false, 2, 2,
-            "容量 70。只产能，靠路网送电，可放远郊。", ServiceCat.POWER, 0, 8, 70, 0, 0, 0, 9),
+            "容量 70。只产能，靠路网送电，可放远郊。", ServiceCat.POWER, 0, 8, 70, 0, 0, 0, 9, needsRoad = false),
         ServiceDef("nuclear_plant", "核电站", 9800, 120, 14, 0, false, 3, 3,
-            "容量 180，维护昂贵。只产能，靠路网送电。", ServiceCat.POWER, 4000, 1, 180, 0, 0, 0, 12),
+            "容量 180，维护昂贵。只产能，靠路网送电。", ServiceCat.POWER, 4000, 1, 180, 0, 0, 0, 12, needsRoad = false),
         // ---- 供水（必须建在水域旁取水，靠水管管网送水） ----
         ServiceDef("water_tower", "水塔", 300, 12, 5, 0, false, 1, 1,
-            "需建在水边取水，容量 18，靠水管管网送水。", ServiceCat.WATER, 0, 0, 0, 18, 0, 0, 0, true),
+            "需建在水边取水，容量 18，靠水管管网送水。", ServiceCat.WATER, 0, 0, 0, 18, 0, 0, 0, true, needsRoad = false),
         ServiceDef("pump_station", "抽水站", 600, 18, 8, 0, false, 1, 1,
-            "需建在水边抽取地表水，容量 40，靠水管管网送水。", ServiceCat.WATER, 0, 0, 0, 40, 0, 0, 0, true),
+            "需建在水边抽取地表水，容量 40，靠水管管网送水。", ServiceCat.WATER, 0, 0, 0, 40, 0, 0, 0, true, needsRoad = false),
         // ---- 垃圾 ----
         ServiceDef("landfill", "垃圾场", 350, 22, 6, 0, false, 1, 1,
             "收运 60 栋。气味按距离衰减，可放远郊。", ServiceCat.GARBAGE, 40, 3, 0, 0, 60, 0, 5),
@@ -281,7 +283,7 @@ object Config {
             "航空枢纽，旅游收入与满意度。", ServiceCat.TRANSIT, 4000),
         // ---- 排污 / 殡葬 / 监狱 ----
         ServiceDef("sewage", "污水处理厂", 2400, 58, 8, 0, false, 2, 2,
-            "须建在水边，与污水管共用管网，处理全城污水。", ServiceCat.WATER, 60, 2, 0, 0, 0, 0, 6, true),
+            "须建在水边，与污水管共用管网，处理全城污水。", ServiceCat.WATER, 60, 2, 0, 0, 0, 0, 6, true, needsRoad = false),
         ServiceDef("cemetery", "墓地", 400, 4, 6, -1, false, 2, 2,
             "安葬 80。阴气按距离衰减，可放城郊。", ServiceCat.DEATH, 80, 0, 0, 0, 0, 80, 3),
         ServiceDef("crematorium", "火葬场", 900, 12, 8, 0, false, 1, 1,
@@ -292,7 +294,7 @@ object Config {
         ServiceDef("stock_exchange", "证券交易所", 8800, 64, 10, 8, true, 3, 3,
             "全城商业税收 +12%，地价上升。", ServiceCat.LANDMARK, 1000),
         ServiceDef("tv_tower", "电视塔", 7200, 52, 12, 10, true, 2, 2,
-            "地标观光，满意度与旅游收入上升。", ServiceCat.LANDMARK, 1500),
+            "地标观光，满意度与旅游收入上升。", ServiceCat.LANDMARK, 1500, needsRoad = false),
         ServiceDef("stadium", "体育场", 8600, 78, 10, 8, true, 3, 3,
             "赛事吸引游客，周末消费加成。", ServiceCat.LANDMARK, 2000)
     )
