@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -239,7 +240,14 @@ fun TapLoginGate(onReady: () -> Unit) {
         ComplianceManager.startup(act, uid)
     }
 
-    // 合规：Tap 登录 SDK 不在进入本页时初始化，只在用户点「TapTap 登录」那一刻初始化。
+    // 合规：用户已同意隐私政策，登录功能初始化时初始化一次 Tap SDK。
+    // 任何按钮点击都不再调用初始化/读取，避免「每次点击控件都收集」。
+    LaunchedEffect(Unit) {
+        TapSdkInitializer.ensureInitialized(ctx)
+        val cur = try { TapTapLogin.getCurrentTapAccount() } catch (_: Throwable) { null }
+        if (cur != null) startCompliance(cur)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -256,6 +264,12 @@ fun TapLoginGate(onReady: () -> Unit) {
         ) {
             Text("登录后进入城市", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("使用 TapTap 账号登录，并完成防沉迷认证。", fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current, textAlign = TextAlign.Center)
+            Text(
+                "告知：本页使用 TapTap 登录 SDK（易玩（上海）网络科技有限公司），" +
+                    "在登录功能初始化时读取一次设备标识（AndroidID），仅用于账号登录、登录状态维护及账号安全验证。",
+                fontSize = 10.sp, color = C.textFaint.toColor(),
+                fontFamily = LocalGameFont.current, textAlign = TextAlign.Center
+            )
             if (logging || waitingCompliance) {
                 CircularProgressIndicator(modifier = Modifier.size(36.dp), color = C.accentGreen.toColor(), strokeWidth = 3.dp)
                 Text(if (waitingCompliance) "正在完成认证…" else "正在登录…", fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
@@ -269,8 +283,7 @@ fun TapLoginGate(onReady: () -> Unit) {
                             val act = activity ?: return@clickable
                             logging = true
                             err = null
-                            // 用户已同意隐私政策，且主动点登录，此刻才初始化 Tap 登录 SDK
-                            TapSdkInitializer.ensureInitialized(act)
+                            // 登录按钮只负责发起登录，不做初始化、不读取设备信息
                             try {
                                 TapTapLogin.loginWithScopes(
                                     act,
