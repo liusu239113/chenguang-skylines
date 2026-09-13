@@ -22,7 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -233,12 +232,7 @@ fun TapLoginGate(onReady: () -> Unit) {
         ComplianceManager.startup(act, uid)
     }
 
-    LaunchedEffect(Unit) {
-        TapSdkInitializer.ensureInitialized(ctx)
-        val cur = try { TapTapLogin.getCurrentTapAccount() } catch (_: Throwable) { null }
-        if (cur != null) startCompliance(cur)
-    }
-
+    // 合规：Tap 登录 SDK 不在进入本页时初始化，只在用户点「TapTap 登录」那一刻初始化。
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -268,6 +262,8 @@ fun TapLoginGate(onReady: () -> Unit) {
                             val act = activity ?: return@clickable
                             logging = true
                             err = null
+                            // 用户已同意隐私政策，且主动点登录，此刻才初始化 Tap 登录 SDK
+                            TapSdkInitializer.ensureInitialized(act)
                             try {
                                 TapTapLogin.loginWithScopes(
                                     act,

@@ -47,9 +47,7 @@ class MainActivity : ComponentActivity() {
         Ambience.init(this)
         SpeedBoost.init(this)
         AppState.privacyOk = Prefs.privacyAccepted
-        if (Prefs.privacyAccepted) {
-            TapSdkInitializer.ensureInitialized(this)
-        }
+        // 合规：启动时不初始化 Tap 登录 SDK，等用户点「TapTap 登录」时再初始化
         if (GameData.current == null) {
             GameData.init(20260408)
         }
@@ -158,8 +156,8 @@ fun AppRoot() {
         when {
             !AppState.privacyOk -> PrivacyGate(
                 onAccepted = {
+                    // 合规：同意时也不初始化 Tap 登录 SDK，等用户点「TapTap 登录」时再初始化
                     AppState.privacyOk = true
-                    TapSdkInitializer.ensureInitialized(context)
                 },
                 onExit = { activity?.finish() }
             )
