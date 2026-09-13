@@ -88,6 +88,10 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
                     fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                 )
                 Text(
+                    PrivacyDocs.INTRO,
+                    fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                )
+                Text(
                     "一、本应用自身会收集的信息",
                     fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current
@@ -106,7 +110,7 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
                     }
                 }
                 Text(
-                    "二、接入第三方 SDK 情况说明（共 " + PrivacyDocs.SDKS.size + " 个）",
+                    "二、第三方 SDK 说明（共 " + PrivacyDocs.SDKS.size + " 个）",
                     fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                 )
@@ -118,14 +122,37 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
                             .padding(8.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Text(sdk.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-                        Text("开发者名称（全称）：" + sdk.vendor, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-                        Text("使用目的：" + sdk.purpose, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-                        Text("使用场景：" + sdk.scene, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-                        Text("调用权限说明：" + sdk.permission, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-                        Text("个人信息收集类型及方式：" + sdk.collect, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-                        Text("隐私政策链接：" + sdk.policyUrl, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-                        Text("频次时机：" + sdk.timing, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                        Row {
+                            Text(
+                                sdk.name, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                                modifier = Modifier.weight(0.36f)
+                            )
+                            Text(
+                                sdk.vendor, fontSize = 10.sp, color = C.textMid.toColor(),
+                                fontFamily = LocalGameFont.current, textAlign = TextAlign.End,
+                                modifier = Modifier.weight(0.64f)
+                            )
+                        }
+                        Text("隐私政策：" + sdk.policyUrl, fontSize = 9.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current)
+                    }
+                }
+                Text(
+                    "第三方 SDK 收集信息及目的说明",
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                )
+                for (d in PrivacyDocs.SDK_DETAILS) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(C.panelWhite.toColor(), RoundedCornerShape(8.dp))
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(d.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                        Text("获取的信息：" + d.collect, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+                        Text("使用目的：" + d.purpose, fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
                     }
                 }
                 Text(
