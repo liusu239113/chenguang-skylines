@@ -513,9 +513,15 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                             )
-                            UIHelper.InfoRow("类型", "民航客机")
-                            UIHelper.InfoRow("起降", "机场上空盘旋进出")
-                            UIHelper.InfoRow("说明", "建机场后才会有飞机")
+                            if (plane.ambient) {
+                                UIHelper.InfoRow("类型", "过境航班")
+                                UIHelper.InfoRow("航线", "穿越本市上空")
+                                UIHelper.InfoRow("说明", "没建机场也会飞过，纯观光；建机场才有航班收入")
+                            } else {
+                                UIHelper.InfoRow("类型", "民航客机")
+                                UIHelper.InfoRow("起降", "机场上空盘旋进出")
+                                UIHelper.InfoRow("说明", "建机场后才会有飞机")
+                            }
                         }
                         ship != null -> {
                             Text(
@@ -523,9 +529,15 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                             )
-                            UIHelper.InfoRow("类型", if (ship.loaded) "出港货船" else "进港货轮")
-                            UIHelper.InfoRow("航线", "水域边界 ↔ 港口 (" + ship.harborX + "," + ship.harborY + ")")
-                            UIHelper.InfoRow("说明", if (ship.loaded) "载货出港，结算水运贸易" else "空船进港装货")
+                            if (ship.ambient) {
+                                UIHelper.InfoRow("类型", "过境远洋货轮")
+                                UIHelper.InfoRow("航线", "外海 ↔ 本海域转一圈")
+                                UIHelper.InfoRow("说明", "没建港口也会路过，纯观光；建港口才有水运贸易")
+                            } else {
+                                UIHelper.InfoRow("类型", if (ship.loaded) "出港货船" else "进港货轮")
+                                UIHelper.InfoRow("航线", "水域边界 ↔ 港口 (" + ship.harborX + "," + ship.harborY + ")")
+                                UIHelper.InfoRow("说明", if (ship.loaded) "载货出港，结算水运贸易" else "空船进港装货")
+                            }
                         }
                         else -> {
                     Text(
@@ -622,7 +634,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 )
                             }
                             if (cfg.powerCap > 0 || cfg.waterCap > 0) {
-                                val wired = Networks.plantWired(tb.x, tb.y, cfg.powerCap > 0, tb.b.w, tb.b.h)
+                                val wired = Networks.plantWired(tb.ax, tb.ay, cfg.powerCap > 0, tb.w, tb.h)
                                 UIHelper.InfoRow(
                                     "接入状态",
                                     if (wired) "已接入管网（产能已并网）"
