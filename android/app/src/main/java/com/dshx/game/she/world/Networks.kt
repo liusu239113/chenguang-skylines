@@ -76,22 +76,30 @@ object Networks {
 
     fun canPipe(x: Int, y: Int): Pair<Boolean, String?> {
         val t = World.tile(x, y) ?: return false to "越界"
-        if (t.terrain == "water") return false to "水域无法铺管"
+        if (t.terrain == "water") return false to "水域不能铺水管（先垫地或绕开）"
+        if (t.terrain == "hill") return false to "山地不能铺水管（先推平或绕开）"
         return true to null
     }
 
     fun setPipe(x: Int, y: Int, on: Boolean = true, fromX: Int = -1, fromY: Int = -1): Boolean {
         val t = World.tile(x, y) ?: return false
-        if (t.terrain == "water") return false
+        if (t.terrain == "water" || t.terrain == "hill") return false
         t.pipe = on
         if (on) linkDir(x, y, fromX, fromY, false)
         invalidateGrid()
         return true
     }
 
+    fun canCable(x: Int, y: Int): Pair<Boolean, String?> {
+        val t = World.tile(x, y) ?: return false to "越界"
+        if (t.terrain == "water") return false to "水域不能铺电缆（先垫地或绕开）"
+        if (t.terrain == "hill") return false to "山地不能铺电缆（先推平或绕开）"
+        return true to null
+    }
+
     fun setCable(x: Int, y: Int, on: Boolean = true, fromX: Int = -1, fromY: Int = -1): Boolean {
         val t = World.tile(x, y) ?: return false
-        if (t.terrain == "water") return false
+        if (t.terrain == "water" || t.terrain == "hill") return false
         t.cable = on
         if (on) linkDir(x, y, fromX, fromY, true)
         invalidateGrid()

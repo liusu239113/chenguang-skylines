@@ -38,6 +38,30 @@ class Tile {
     var onFire: Boolean = false
 }
 
+/**
+ * 一格地块的完整快照：撤销的时候整格还原（路面/分区/管线/建筑一起回去）。
+ * 只记录玩家动手改的地块，模拟生长造成的变化不进撤销栈。
+ */
+class TileSnap(
+    val road: String?,
+    val bridge: Boolean,
+    val elevated: Boolean,
+    val underRoad: String?,
+    val zone: String,
+    val spec: String,
+    val terrain: String,
+    val pipe: Boolean,
+    val cable: Boolean,
+    val pipeMask: Int,
+    val cableMask: Int,
+    val sewer: Boolean,
+    val metro: Boolean,
+    val rail: Boolean,
+    val groundPol: Int,
+    val waterPol: Int,
+    val building: Building?
+)
+
 class Building {
     // grown
     var zone: String? = null          // residential / commercial / industrial / office
@@ -582,6 +606,7 @@ class World {
         fun setRoad(x: Int, y: Int, kind: String): Boolean {
             val t = tile(x, y) ?: return false
             if (t.building != null) return false
+            GameData.noteTile(x, y)
             if (kind == "metro") {
                 t.metro = true
                 return true
@@ -776,6 +801,41 @@ class World {
             ensureStreets()
         }
 
+        /** 撤销用：拍下这一格现在的样子 */
+        fun snapTile(x: Int, y: Int): TileSnap? {
+            val t = tile(x, y) ?: return null
+            return TileSnap(
+                t.road, t.bridge, t.elevated, t.underRoad, t.zone, t.spec, t.terrain,
+                t.pipe, t.cable, t.pipeMask, t.cableMask, t.sewer, t.metro, t.rail,
+                t.groundPol, t.waterPol, t.building
+            )
+        }
+
+        /** 撤销用：把这一格还原成快照里的样子 */
+        fun restoreTile(x: Int, y: Int, s: TileSnap) {
+            val t = tile(x, y) ?: return
+            t.road = s.road
+            t.bridge = s.bridge
+            t.elevated = s.elevated
+            t.underRoad = s.underRoad
+            t.zone = s.zone
+            t.spec = s.spec
+            t.terrain = s.terrain
+            t.pipe = s.pipe
+            t.cable = s.cable
+            t.pipeMask = s.pipeMask
+            t.cableMask = s.cableMask
+            t.sewer = s.sewer
+            t.metro = s.metro
+            t.rail = s.rail
+            t.groundPol = s.groundPol
+            t.waterPol = s.waterPol
+            t.building = s.building
+            t.onFire = false
+            markStreetsDirty()
+            Networks.invalidateGrid()
+        }
+
         fun roadCapacity(x: Int, y: Int): Int = Config.ROAD[tile(x, y)?.road]?.capacity ?: 0
 
         fun noiseAt(x: Int, y: Int): Int {
@@ -837,6 +897,7 @@ class World {
         }
 
         fun setZone(x: Int, y: Int, zone: String): Boolean {
+            GameData.noteTile(x, y)
             val t = tile(x, y) ?: return false
             if (!isUnlocked(x, y)) return false
             if (t.terrain == "water" || t.road != null || t.building != null) return false
@@ -941,6 +1002,11 @@ class World {
             val anchor = findServiceAnchor(id, x, y) ?: return false
             val ax = anchor.first
             val ay = anchor.second
+            for (yy in ay until ay + s.sizeH) {
+                for (xx in ax until ax + s.sizeW) {
+                    GameData.noteTile(xx, yy)
+                }
+            }
             for (yy in ay until ay + s.sizeH) {
                 for (xx in ax until ax + s.sizeW) {
                     val t = w.grid[yy - 1][xx - 1]
@@ -1078,6 +1144,15 @@ class World {
         fun bulldoze(x: Int, y: Int): Pair<String, String?>? {
             val t = tile(x, y) ?: return null
             val w = current ?: return null
+            // 撤销用：先把整块占地（多格设施/大楼）拍下来，再动手拆
+            t.building?.let { b ->
+                for (yy in b.ay until b.ay + b.h) {
+                    for (xx in b.ax until b.ax + b.w) {
+                        GameData.noteTile(xx, yy)
+                    }
+                }
+            }
+            if (t.building == null) GameData.noteTile(x, y)
             t.building?.let { b ->
                 if (b.isService) {
                     for (yy in b.ay until b.ay + b.h) {
@@ -1322,6 +1397,7 @@ class World {
             val t = tile(x, y) ?: return false
             if (!isUnlocked(x, y)) return false
             if (t.terrain == "water" || t.road != null || t.building != null) return false
+            GameData.noteTile(x, y)
             t.terrain = "forest"
             t.groundPol = max(0, t.groundPol - 18)
             return true
@@ -1332,6 +1408,7 @@ class World {
             if (!inBounds(x, y) || !isUnlocked(x, y)) return false
             val t = w.grid[y - 1][x - 1]
             if (t.building != null || t.road != null) return false
+            GameData.noteTile(x, y)
             w.elev[y - 1][x - 1] = min(280, w.elev[y - 1][x - 1] + 18)
             if (t.terrain == "water") t.terrain = "plain"
             if (w.elev[y - 1][x - 1] > 200) t.terrain = "hill"
@@ -1343,6 +1420,7 @@ class World {
             if (!inBounds(x, y) || !isUnlocked(x, y)) return false
             val t = w.grid[y - 1][x - 1]
             if (t.building != null || t.road != null) return false
+            GameData.noteTile(x, y)
             w.elev[y - 1][x - 1] = max(4, w.elev[y - 1][x - 1] - 18)
             if (w.elev[y - 1][x - 1] < 16) t.terrain = "water"
             return true

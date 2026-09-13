@@ -400,6 +400,11 @@ fun MapScreenContent(mapView: MapRenderView) {
                     Sfx.play("sfx_click", 0.6f)
                     AppState.ledgerOpen = !AppState.ledgerOpen
                 }
+                UIHelper.RoundButton("撤", size = 40.dp, fontSize = 15.sp) {
+                    Sfx.play("sfx_click", 0.6f)
+                    val msg = GameData.undo()
+                    MapRef.view?.setToast(msg ?: "没有可撤销的操作了")
+                }
             }
         }
 

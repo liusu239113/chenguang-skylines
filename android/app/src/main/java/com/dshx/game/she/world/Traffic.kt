@@ -67,8 +67,10 @@ class PlaneCraft(
     var ax: Int,
     var ay: Int,
     var flight: String,
-    var ambient: Boolean = false,     // 过境航班：没有机场也会从城市上空飞过
-    var soundPlayed: Boolean = false
+    var ambient: Boolean = false,     // 过境航班：没有机场也会在城市上空盘旋
+    var soundPlayed: Boolean = false,
+    var life: Float = 0f,             // 过境航班盘旋计时，到点飞走
+    var angle: Float = 0f             // 机头朝向（度）
 )
 
 /** 货船：港口建成、水域连通地图边界后来往，带来水运贸易 */
@@ -217,20 +219,38 @@ object Traffic {
                 }
             }
         }
-        // ---- 过境航班 ----
+        // ---- 过境航班：在城市上空盘旋（不是一条直线飞过去） ----
         ambientPlaneT -= dt
         if (ambientPlaneT <= 0f) {
             ambientPlaneT = 80f + Random.nextFloat() * 100f
             if (planes.count { it.ambient } < 1) {
-                val fromLeft = Random.nextBoolean()
-                val y0 = 2f + Random.nextFloat() * (w.rows - 4)
-                val x0 = if (fromLeft) -8f else (w.cols + 8).toFloat()
-                val x1 = if (fromLeft) (w.cols + 8).toFloat() else -8f
+                // 盘旋圆心取城区中心（有楼就按楼算，没楼就地图中间）
+                val built = World.allBuildings()
+                val cx: Float
+                val cy: Float
+                if (built.isEmpty()) {
+                    cx = w.cols / 2f
+                    cy = w.rows / 2f
+                } else {
+                    var sx = 0f
+                    var sy = 0f
+                    for (b in built) {
+                        sx += b.x
+                        sy += b.y
+                    }
+                    cx = sx / built.size
+                    cy = sy / built.size
+                }
+                val a0 = Random.nextFloat() * 6.28f
                 planes.add(
                     PlaneCraft(
-                        x = x0, y = y0, vx = 0f, vy = 0f,
-                        alt = 4.2f, phase = 0f,
-                        ax = x1.toInt(), ay = y0.toInt(),
+                        x = cx + 11f * cos(a0),
+                        y = cy + 11f * sin(a0),
+                        vx = 0f, vy = 0f,
+                        alt = 4.2f,
+                        phase = a0,
+                        ax = cx.toInt(),
+                        ay = cy.toInt(),
                         flight = "CX" + (100 + Random.nextInt(899)),
                         ambient = true
                     )
@@ -400,6 +420,12 @@ object Traffic {
                     else -> if (by >= ay) 1 else 3
                 }
             }
+            // 过境货轮一进场就鸣一声汽笛（听得见）
+            if (s.ambient && !s.soundPlayed && s.legs == 0) {
+                s.soundPlayed = true
+                Sfx.play("sfx_ship", 0.9f)
+                shipVisits++
+            }
             if (s.pathI >= s.path.lastIndex) {
                 if (s.ambient) {
                     // 过境货轮：进来转一圈就掉头出海，不给玩家添乱
@@ -408,11 +434,6 @@ object Traffic {
                         ships.removeAt(i)
                         if (selectedShip === s) selectedShip = null
                         continue
-                    }
-                    if (!s.soundPlayed) {
-                        s.soundPlayed = true
-                        Sfx.play("sfx_ship", 0.55f)
-                        shipVisits++
                     }
                     s.path.reverse()
                     s.pathI = 0
@@ -1087,29 +1108,36 @@ object Traffic {
         for (i in planes.indices.reversed()) {
             val p = planes[i]
             if (p.ambient) {
-                // 过境航班：一条直线穿过城市上空，飞过去就消失
-                val dx = p.ax - p.x
-                val dy = p.ay - p.y
-                val d = kotlin.math.sqrt(dx * dx + dy * dy)
-                if (d < 2f) {
+                // 过境航班：绕城区上空盘几圈再走
+                p.life += dt
+                if (p.life > 150f) {
                     planes.removeAt(i)
                     if (selectedPlane === p) selectedPlane = null
                     continue
                 }
-                val sp = 6.5f
-                p.vx = dx / d * sp
-                p.vy = dy / d * sp
+                p.phase += dt * 0.16f
+                val r = 11.5f + 1.8f * sin(p.phase * 0.45f)
+                val tx = p.ax + r * cos(p.phase)
+                val ty = p.ay + r * sin(p.phase)
+                p.vx = (tx - p.x) * 0.85f
+                p.vy = (ty - p.y) * 0.85f
                 p.x += p.vx * dt
                 p.y += p.vy * dt
-                p.alt = 4.2f + 0.3f * sin(p.phase)
-                p.phase += dt
-                // 飞到城市上空时拉一声掠空声
-                if (!p.soundPlayed && w != null && p.x > 2f && p.x < w.cols - 2f) {
-                    p.soundPlayed = true
-                    Sfx.play("sfx_plane", 0.5f)
-                    flightVisits++
-                    passengersToday += 40 + Random.nextInt(80)
-                    tradeAccum += 1.6
+                p.alt = 4.0f + 0.4f * sin(p.phase * 1.3f)
+                if (kotlin.math.abs(p.vx) + kotlin.math.abs(p.vy) > 0.3f) {
+                    p.angle = Math.toDegrees(kotlin.math.atan2(p.vy.toDouble(), p.vx.toDouble())).toFloat()
+                }
+                // 刚进入城区上空时拉一声掠空声（听得见）
+                if (!p.soundPlayed) {
+                    val dx = p.x - p.ax
+                    val dy = p.y - p.ay
+                    if (dx * dx + dy * dy < 16f * 16f) {
+                        p.soundPlayed = true
+                        Sfx.play("sfx_plane", 0.85f)
+                        flightVisits++
+                        passengersToday += 40 + Random.nextInt(80)
+                        tradeAccum += 1.6
+                    }
                 }
             } else {
                 p.phase += dt * 0.28f
@@ -1121,6 +1149,9 @@ object Traffic {
                 p.x += p.vx * dt
                 p.y += p.vy * dt
                 p.alt = 2.6f + 0.6f * sin(p.phase * 1.7f)
+                if (kotlin.math.abs(p.vx) + kotlin.math.abs(p.vy) > 0.3f) {
+                    p.angle = Math.toDegrees(kotlin.math.atan2(p.vy.toDouble(), p.vx.toDouble())).toFloat()
+                }
                 if (!p.soundPlayed) {
                     p.soundPlayed = true
                     flightVisits++

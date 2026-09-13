@@ -419,6 +419,24 @@ class MapRenderView @JvmOverloads constructor(
         return false
     }
 
+    /** 撤销步骤的中文名（给撤销按钮提示用） */
+    private fun toolLabel(): String {
+        val t = tool ?: return ""
+        return when (t.kind) {
+            "road" -> "修路"
+            "zone" -> "划区"
+            "bulldoze" -> "推平"
+            "service" -> "建造"
+            "pipe" -> "铺水管"
+            "cable" -> "铺电缆"
+            "tree" -> "种树"
+            "spec" -> "产业专精"
+            "raise" -> "垫高"
+            "lower" -> "挖低"
+            else -> ""
+        }
+    }
+
     fun toolValidAt(tx: Int, ty: Int): Boolean {
         val t = tool ?: return false
         if (!World.inBounds(tx, ty)) return false
@@ -450,11 +468,11 @@ class MapRenderView @JvmOverloads constructor(
             }
             "pipe" -> {
                 val tile = World.tile(tx, ty)
-                tile != null && tile.terrain != "water" && World.isUnlocked(tx, ty)
+                tile != null && tile.terrain != "water" && tile.terrain != "hill" && World.isUnlocked(tx, ty)
             }
             "cable" -> {
                 val tile = World.tile(tx, ty)
-                tile != null && tile.terrain != "water" && World.isUnlocked(tx, ty)
+                tile != null && tile.terrain != "water" && tile.terrain != "hill" && World.isUnlocked(tx, ty)
             }
             else -> false
         }
@@ -478,6 +496,8 @@ class MapRenderView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (event.pointerCount >= 2) {
+                    // 双指缩放会打断拖动：先把这一步撤销记录收尾
+                    if (dragMode == "tool") GameData.endStroke()
                     dragActive = false
                     dragMode = null
                     pinchActive = true
@@ -551,6 +571,8 @@ class MapRenderView @JvmOverloads constructor(
         if (!inMap) return
         val tile = tileUnderCursor(ptrX, ptrY)
         if (tool != null) {
+            // 一次按下~抬起算一步撤销
+            GameData.beginStroke(toolLabel())
             dragActive = true
             dragMode = "tool"
             dragMoved = true
@@ -616,6 +638,7 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
         if (dragActive && dragMode == "tool") {
+            GameData.endStroke()
             onTileChanged?.invoke()
         }
         dragActive = false
@@ -723,6 +746,85 @@ class MapRenderView @JvmOverloads constructor(
     ) {
         strokeColor(c, alpha, width)
         canvas.drawCircle(x, y, r, paint)
+    }
+
+    /**
+     * 客机（俯视）：后掠主翼 + 尾翼 + 机身舷窗 + 翼下发动机 + 地面投影 + 尾迹云。
+     * 机头朝 angle 方向，高度越高影子越淡。
+     */
+    private fun drawAirliner(canvas: Canvas, sx: Float, sy: Float, angle: Float, alt: Float) {
+        val c = cell
+        val body = RGBA(240, 242, 246)
+        val wing = RGBA(198, 205, 216)
+        val dark = RGBA(160, 168, 180)
+        val glass = RGBA(92, 122, 162)
+        // 尾迹云（机尾往后拉一条淡淡的线）
+        val save = canvas.save()
+        canvas.rotate(angle, sx, sy)
+        fillRect(canvas, sx - c * 1.5f, sy - c * 0.035f, c * 1.1f, c * 0.07f, RGBA(235, 240, 246, 90))
+        fillRect(canvas, sx - c * 2.2f, sy - c * 0.02f, c * 0.9f, c * 0.04f, RGBA(235, 240, 246, 55))
+        // 地面投影（偏右下，离地越高越淡）
+        val shadowA = (90f - alt * 14f).toInt().coerceIn(28, 90)
+        fillOval(canvas, sx - c * 0.40f + c * 0.18f, sy - c * 0.07f + c * 0.22f, c * 0.80f, c * 0.14f, RGBA(18, 24, 32, shadowA))
+        // 主翼（后掠）
+        fillTri(canvas, sx + c * 0.06f, sy - c * 0.02f, sx - c * 0.34f, sy - c * 0.44f, sx - c * 0.06f, sy - c * 0.02f, wing)
+        fillTri(canvas, sx + c * 0.06f, sy + c * 0.02f, sx - c * 0.34f, sy + c * 0.44f, sx - c * 0.06f, sy + c * 0.02f, wing)
+        // 翼下发动机
+        fillRoundRect(canvas, sx - c * 0.26f, sy - c * 0.30f, c * 0.15f, c * 0.075f, 2f, dark)
+        fillRoundRect(canvas, sx - c * 0.26f, sy + c * 0.225f, c * 0.15f, c * 0.075f, 2f, dark)
+        // 尾翼
+        fillTri(canvas, sx - c * 0.34f, sy, sx - c * 0.48f, sy - c * 0.18f, sx - c * 0.40f, sy, wing)
+        fillTri(canvas, sx - c * 0.34f, sy, sx - c * 0.48f, sy + c * 0.18f, sx - c * 0.40f, sy, wing)
+        // 机身 + 机头
+        fillOval(canvas, sx - c * 0.44f, sy - c * 0.062f, c * 0.86f, c * 0.124f, body)
+        fillTri(canvas, sx + c * 0.42f, sy, sx + c * 0.26f, sy - c * 0.062f, sx + c * 0.26f, sy + c * 0.062f, body)
+        // 舷窗带 + 驾驶舱
+        fillRect(canvas, sx - c * 0.30f, sy - c * 0.014f, c * 0.60f, c * 0.028f, glass)
+        fillTri(canvas, sx + c * 0.34f, sy, sx + c * 0.24f, sy - c * 0.04f, sx + c * 0.24f, sy + c * 0.04f, glass)
+        canvas.restoreToCount(save)
+    }
+
+    /**
+     * 货轮（俯视）：尖头船艏 + 舷侧船身 + 甲板集装箱 + 船尾驾驶楼与烟囱 + 舰艏浪和尾迹。
+     */
+    private fun drawCargoShip(canvas: Canvas, sx: Float, sy: Float, angle: Float, loaded: Boolean) {
+        val c = cell
+        val hull = RGBA(52, 66, 88)
+        val hullDark = RGBA(36, 48, 66)
+        val deck = RGBA(120, 112, 96)
+        val white = RGBA(232, 234, 238)
+        val save = canvas.save()
+        canvas.rotate(angle, sx, sy)
+        val L = c * 0.30f      // 半长
+        val W = c * 0.105f     // 半宽
+        // 尾迹：船尾往后拖出 V 形白浪（船在往前走，浪留在后头）
+        fillTri(canvas, sx - L * 0.9f, sy, sx - L * 2.8f, sy - W * 2.6f, sx - L * 1.4f, sy - W * 0.15f, RGBA(238, 246, 252, 100))
+        fillTri(canvas, sx - L * 0.9f, sy, sx - L * 2.8f, sy + W * 2.6f, sx - L * 1.4f, sy + W * 0.15f, RGBA(238, 246, 252, 100))
+        fillRect(canvas, sx - L * 2.6f, sy - W * 0.7f, L * 1.7f, W * 1.4f, RGBA(238, 246, 252, 62))
+        // 舰艏分水
+        fillTri(canvas, sx + L * 0.98f, sy, sx + L * 0.52f, sy - W * 1.5f, sx + L * 0.42f, sy - W * 0.45f, RGBA(240, 248, 254, 125))
+        fillTri(canvas, sx + L * 0.98f, sy, sx + L * 0.52f, sy + W * 1.5f, sx + L * 0.42f, sy + W * 0.45f, RGBA(240, 248, 254, 125))
+        // 船身：尖头（艏）+ 方尾
+        fillTri(canvas, sx + L, sy, sx + L * 0.42f, sy - W, sx + L * 0.42f, sy + W, hullDark)
+        fillRoundRect(canvas, sx - L, sy - W, L * 1.42f, W * 2f, W * 0.35f, hullDark)
+        fillRoundRect(canvas, sx - L * 0.94f, sy - W * 0.82f, L * 1.3f, W * 1.64f, W * 0.3f, hull)
+        // 甲板
+        fillRect(canvas, sx - L * 0.62f, sy - W * 0.66f, L * 1.1f, W * 1.32f, deck)
+        // 集装箱：两列三排（装了货才画满）
+        val boxCols = listOf(RGBA(196, 92, 72), RGBA(74, 118, 168), RGBA(206, 158, 62), RGBA(88, 148, 108))
+        val rows = if (loaded) 3 else 1
+        for (r in 0 until rows) {
+            val bx = sx - L * 0.56f + r * L * 0.32f
+            fillRect(canvas, bx, sy - W * 0.56f, L * 0.26f, W * 0.50f, boxCols[r % boxCols.size])
+            fillRect(canvas, bx, sy + W * 0.06f, L * 0.26f, W * 0.50f, boxCols[(r + 2) % boxCols.size])
+        }
+        // 船尾驾驶楼 + 烟囱
+        fillRoundRect(canvas, sx - L * 0.92f, sy - W * 0.55f, L * 0.34f, W * 1.1f, 2f, white)
+        fillRect(canvas, sx - L * 0.80f, sy - W * 0.26f, L * 0.14f, W * 0.52f, RGBA(176, 178, 184))
+        fillRect(canvas, sx - L * 0.86f, sy - W * 0.10f, L * 0.08f, W * 0.20f, RGBA(52, 54, 58))
+        // 桅杆
+        fillCircle(canvas, sx + L * 0.30f, sy, c * 0.022f, RGBA(220, 222, 226))
+        canvas.restoreToCount(save)
     }
 
     /** 三角形填充（匝道斜坡等） */
@@ -1445,13 +1547,9 @@ class MapRenderView @JvmOverloads constructor(
             for (pl in Traffic.planes) {
                 val sx = worldToScreenX(pl.x - 0.5f)
                 val sy = worldToScreenY(pl.y - 0.5f) - pl.alt * cell * 0.18f
-                val body = RGBA(230, 232, 238)
-                fillRoundRect(canvas, sx - cell * 0.38f, sy - cell * 0.08f, cell * 0.76f, cell * 0.16f, 3f, body.shade(0.72))
-                fillRoundRect(canvas, sx - cell * 0.38f, sy - cell * 0.16f, cell * 0.76f, cell * 0.14f, 3f, body)
-                fillRect(canvas, sx - cell * 0.08f, sy - cell * 0.30f, cell * 0.16f, cell * 0.52f, RGBA(210, 214, 222))
-                fillCircle(canvas, sx, sy, cell * 0.06f, RGBA(70, 90, 130))
+                drawAirliner(canvas, sx, sy, pl.angle, pl.alt)
                 if (Traffic.selectedPlane === pl) {
-                    strokeRoundRect(canvas, sx - cell * 0.42f, sy - cell * 0.32f, cell * 0.84f, cell * 0.64f, 4f, RGBA(220, 80, 50), 255, 1.4f)
+                    strokeRoundRect(canvas, sx - cell * 0.5f, sy - cell * 0.5f, cell, cell, 6f, RGBA(220, 80, 50), 255, 1.4f)
                 }
             }
             // 货船：只在水域航道上
@@ -1459,31 +1557,15 @@ class MapRenderView @JvmOverloads constructor(
                 val (wx, wy) = Traffic.shipScreenCell(sp)
                 val sx = worldToScreenX(wx)
                 val sy = worldToScreenY(wy)
-                val horiz = sp.dir == 0 || sp.dir == 2
-                val hull = RGBA(58, 74, 96)
-                val deck = RGBA(126, 110, 88)
-                val L = cell * 0.52f
-                val W = cell * 0.20f
-                if (horiz) {
-                    fillRoundRect(canvas, sx - L / 2, sy - W / 2, L, W, W * 0.4f, hull)
-                    fillRoundRect(canvas, sx - L * 0.3f, sy - W * 0.34f, L * 0.34f, W * 0.68f, 2f, deck)
-                    fillRect(canvas, sx + L * 0.08f, sy - W * 0.24f, L * 0.3f, W * 0.48f, if (sp.loaded) RGBA(90, 150, 110) else RGBA(150, 140, 120))
-                } else {
-                    fillRoundRect(canvas, sx - W / 2, sy - L / 2, W, L, W * 0.4f, hull)
-                    fillRoundRect(canvas, sx - W * 0.34f, sy - L * 0.3f, W * 0.68f, L * 0.34f, 2f, deck)
-                    fillRect(canvas, sx - W * 0.24f, sy + L * 0.08f, W * 0.48f, L * 0.3f, if (sp.loaded) RGBA(90, 150, 110) else RGBA(150, 140, 120))
+                val angle = when (sp.dir) {
+                    0 -> 0f
+                    1 -> 90f
+                    2 -> 180f
+                    else -> 270f
                 }
-                // 尾迹
-                strokeColor(RGBA(240, 244, 248, 120), 180, max(1f, cell * 0.03f))
-                if (horiz) {
-                    val tail = if (sp.dir == 0) -1f else 1f
-                    canvas.drawLine(sx + tail * L * 0.6f, sy, sx + tail * L * 1.1f, sy, paint)
-                } else {
-                    val tail = if (sp.dir == 1) -1f else 1f
-                    canvas.drawLine(sx, sy + tail * L * 0.6f, sx, sy + tail * L * 1.1f, paint)
-                }
+                drawCargoShip(canvas, sx, sy, angle, sp.loaded)
                 if (Traffic.selectedShip === sp) {
-                    strokeRoundRect(canvas, sx - L * 0.62f, sy - L * 0.62f, L * 1.24f, L * 1.24f, 5f, RGBA(220, 80, 50), 255, 1.6f)
+                    strokeRoundRect(canvas, sx - cell * 0.62f, sy - cell * 0.62f, cell * 1.24f, cell * 1.24f, 6f, RGBA(220, 80, 50), 255, 1.6f)
                 }
             }
         }

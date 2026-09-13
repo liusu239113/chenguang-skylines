@@ -1,5 +1,6 @@
 package com.dshx.game.she
 
+import com.dshx.game.she.world.TileSnap
 import com.dshx.game.she.world.World
 import com.dshx.game.she.world.Growth
 import com.dshx.game.she.world.Citizens
@@ -145,6 +146,77 @@ object GameData {
     var seed: Int = 20260408
     var difficultyKey: String = "normal"
     var sandbox: Boolean = false
+
+    // -----------------------------------------------------------------------
+    // 撤销：一次拖动算一步，整格还原（路面/分区/管线/建筑一起回退），钱也退
+    // -----------------------------------------------------------------------
+    class UndoStep {
+        val keys = ArrayList<Int>()
+        val snaps = HashMap<Int, TileSnap>()
+        var fundsBefore: Double = 0.0
+        var spent: Double = 0.0
+        var label: String = ""
+    }
+
+    private var stroke: UndoStep? = null
+    private val undoStack = ArrayDeque<UndoStep>()
+
+    fun beginStroke(label: String = "") {
+        val s = current
+        stroke = UndoStep().also {
+            it.fundsBefore = s?.funds ?: 0.0
+            it.label = label
+        }
+    }
+
+    fun endStroke() {
+        val st = stroke ?: return
+        stroke = null
+        if (st.keys.isEmpty()) return
+        val s = current
+        st.spent = max(0.0, st.fundsBefore - (s?.funds ?: 0.0))
+        undoStack.addLast(st)
+        while (undoStack.size > 24) undoStack.removeFirst()
+    }
+
+    /** 改动某格之前先拍快照（同一步里同一格只记第一次） */
+    fun noteTile(x: Int, y: Int) {
+        val st = stroke ?: return
+        val w = World.current ?: return
+        if (x < 1 || x > w.cols || y < 1 || y > w.rows) return
+        val k = (y - 1) * w.cols + (x - 1)
+        if (st.snaps.containsKey(k)) return
+        val snap = World.snapTile(x, y) ?: return
+        st.snaps[k] = snap
+        st.keys.add(k)
+    }
+
+    fun canUndo(): Boolean = undoStack.isNotEmpty()
+
+    fun undoLabel(): String? = undoStack.lastOrNull()?.label
+
+    /** 撤回上一步，返回提示文本 */
+    fun undo(): String? {
+        val st = undoStack.removeLastOrNull() ?: return null
+        val w = World.current ?: return null
+        for (i in st.keys.indices.reversed()) {
+            val k = st.keys[i]
+            val snap = st.snaps[k] ?: continue
+            World.restoreTile(k % w.cols + 1, k / w.cols + 1, snap)
+        }
+        val s = current
+        if (s != null && st.spent > 0.0 && !sandbox) {
+            s.funds += st.spent
+            s.totalSpent = max(0.0, s.totalSpent - st.spent)
+            post("income", "other", "撤销返还", st.spent)
+        }
+        World.markStreetsDirty()
+        World.ensureStreets()
+        Networks.invalidateGrid()
+        Networks.recount()
+        Traffic.reset()
+        return "已撤销 " + st.keys.size + " 格" + (if (st.label.isNotEmpty()) "（" + st.label + "）" else "")
+    }
 
     /** 划区草稿：点格子只预览，点确认才扣费落图 */
     val zoneDraft: LinkedHashSet<Int> = LinkedHashSet()
@@ -1047,6 +1119,7 @@ object GameData {
             return false to ("资金不足（需 ¥" + cost + "万，" + n + " 格）")
         }
         var painted = 0
+        beginStroke("划区")
         val it = zoneDraft.iterator()
         while (it.hasNext()) {
             val k = it.next()
@@ -1059,6 +1132,7 @@ object GameData {
             s.funds -= pay
             post("spend", "zone", "划区", pay.toDouble())
         }
+        endStroke()
         zoneDraft.clear()
         return true to ("已确认划区 " + painted + " 格，扣 " + pay + " 万")
     }
@@ -1108,11 +1182,13 @@ object GameData {
             return false to ("资金不足（需 ¥" + pay + "万）")
         }
         val anchor = World.findServiceAnchor(id, x, y) ?: return false to "该位置被占用"
+        beginStroke(cfg.name)
         World.placeService(id, anchor.first, anchor.second)
         if (!sandbox) {
             s.funds -= pay
             post("spend", "build", cfg.name, pay.toDouble())
         }
+        endStroke()
         pushNews(
             cfg.name + " 建成",
             String.format("在 (%d,%d) 建成 %s，耗资 %d万。", anchor.first, anchor.second, cfg.name, pay),
@@ -1157,6 +1233,7 @@ object GameData {
         val s = current ?: return false to null
         val cost = 2
         if (!sandbox && s.funds < cost) return false to "资金不足（水管 2 万/格）"
+        noteTile(x, y)
         Networks.setPipe(x, y, true, fromX, fromY)
         if (!sandbox) {
             s.funds -= cost
@@ -1169,7 +1246,8 @@ object GameData {
     fun paintCable(x: Int, y: Int, fromX: Int = -1, fromY: Int = -1): Pair<Boolean, String?> {
         val t = World.tile(x, y) ?: return false to "越界"
         if (!World.isUnlocked(x, y)) return false to World.lockedHint()
-        if (t.terrain == "water") return false to "水域无法铺电缆"
+        val cc = Networks.canCable(x, y)
+        if (!cc.first) return false to cc.second
         if (t.cable) {
             if (fromX >= 0 && fromY >= 0) Networks.setCable(x, y, true, fromX, fromY)
             return true to null
@@ -1177,6 +1255,7 @@ object GameData {
         val s = current ?: return false to null
         val cost = 2
         if (!sandbox && s.funds < cost) return false to "资金不足（电缆 2 万/格）"
+        noteTile(x, y)
         Networks.setCable(x, y, true, fromX, fromY)
         if (!sandbox) {
             s.funds -= cost
