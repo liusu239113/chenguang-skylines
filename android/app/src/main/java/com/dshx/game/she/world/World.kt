@@ -950,6 +950,7 @@ class World {
             val b = e.b
             if (b.isService) return false
             if (b.level < 2) return false
+            val zone = b.zone ?: return false
             val w = current ?: return false
             // 目标尺寸：2 级 2×1 或 1×2，3 级 2×2 或 1×3
             val maxW = if (b.level >= 3) 2 else 1
@@ -963,13 +964,13 @@ class World {
                 var ok = true
                 for (yy in by until by + b.h) {
                     val t = zoneAt(bx + b.w, yy)
-                    if (!expandable(t) || t!!.zone != b.zone) ok = false
+                    if (!expandable(t) || t!!.zone != zone) ok = false
                 }
                 if (ok) {
                     for (yy in by until by + b.h) {
                         val t = zoneAt(bx + b.w, yy)!!
                         t.building = b
-                        t.zone = b.zone
+                        t.zone = zone
                     }
                     b.w += 1
                     return true
@@ -980,13 +981,13 @@ class World {
                 var ok = true
                 for (xx in bx until bx + b.w) {
                     val t = zoneAt(xx, by + b.h)
-                    if (!expandable(t) || t!!.zone != b.zone) ok = false
+                    if (!expandable(t) || t!!.zone != zone) ok = false
                 }
                 if (ok) {
                     for (xx in bx until bx + b.w) {
                         val t = zoneAt(xx, by + b.h)!!
                         t.building = b
-                        t.zone = b.zone
+                        t.zone = zone
                     }
                     b.h += 1
                     return true
