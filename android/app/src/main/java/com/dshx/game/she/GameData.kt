@@ -259,6 +259,13 @@ object GameData {
         s.loanKind = ""
         s.loanDaily = 0.0
         World.current?._pop = 0
+        if (sandbox) {
+            // 沙盒 GM：资金拉满、人口锁 5000、满意度锁高，方便测试
+            s.funds = Config.SANDBOX.FUNDS
+            s.population = Config.SANDBOX.pop.toDouble()
+            World.current?._pop = Config.SANDBOX.pop
+            s.happiness = Config.SANDBOX.happy
+        }
         speedIdx = 1
         pendingLevelUp = false
         pendingRankUp = false
@@ -272,7 +279,7 @@ object GameData {
         pushNews(
             "城市奠基",
             s.cityName + "迎来新任" + Config.World.playerRole +
-                "。开局资金 1500 万，先在高速旁已解锁区域修路划区，人口增加后向外扩展。",
+                "。开局资金 4000 万，先在已解锁区域修路划区，人口增加后向外扩展。",
             "头条"
         )
         ensureQuest()
@@ -444,7 +451,9 @@ object GameData {
         val sewerPen = -(1.0 - s.sewerCoverage) * 8.0
         val rankHappy = if (s.rankLevel >= 6) 4.0 else 0.0
         val specHappy = Networks.specTotals().second
-        val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06 + crimePen + sewerPen + rankHappy + specHappy
+        // 噪音：垃圾场/工厂/电厂贴在住宅区旁会明显拉低满意度
+        val noisePen = -CitySystems.noiseAvg * 0.18
+        val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06 + crimePen + sewerPen + rankHappy + specHappy + noisePen
         val target = max(
             Config.RESOURCES.happinessMin,
             min(
@@ -585,6 +594,11 @@ object GameData {
         }
         s.population = totalRes.toDouble()
         World.current?._pop = totalRes
+        if (sandbox) {
+            // 沙盒：人口锁定，方便解锁全部设施和职级条件
+            s.population = Config.SANDBOX.pop.toDouble()
+            World.current?._pop = Config.SANDBOX.pop
+        }
         if (s.population > 0 && Citizens.agents.isEmpty()) Citizens.rebuild()
 
         val occRatio = if (st.resCap > 0) s.population / st.resCap else 0.0
@@ -738,6 +752,11 @@ object GameData {
         // 满意度向目标靠拢（没人时回到中性，不为空城硬扣）
         val target = if (s.population < 1) 52.0 else computeHappinessTarget(st)
         s.happiness += (target - s.happiness) * 0.12
+        if (sandbox) {
+            // 沙盒：满意度不掉，测试时不用管民生
+            s.happiness = Config.SANDBOX.happy
+            s.funds = Config.SANDBOX.FUNDS
+        }
 
         // 火灾只在人口能解锁消防站后发生，且只点燃成长建筑，不拆公园/设施
         val fireUnlock = World.serviceConfig("fire_station")?.unlockPop ?: 50
@@ -1111,16 +1130,20 @@ object GameData {
         return true to ("已启用：" + p.name + " · 生效 " + p.days + " 天")
     }
 
-    fun paintPipe(x: Int, y: Int): Pair<Boolean, String?> {
+    fun paintPipe(x: Int, y: Int, fromX: Int = -1, fromY: Int = -1): Pair<Boolean, String?> {
         if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         val (ok, msg) = Networks.canPipe(x, y)
         if (!ok) return false to msg
         val t = World.tile(x, y) ?: return false to "越界"
-        if (t.pipe) return true to null
+        if (t.pipe) {
+            // 已铺过：补记拖拽方向，让后拉的一段接得上
+            if (fromX >= 0 && fromY >= 0) Networks.setPipe(x, y, true, fromX, fromY)
+            return true to null
+        }
         val s = current ?: return false to null
         val cost = 2
         if (!sandbox && s.funds < cost) return false to "资金不足（水管 2 万/格）"
-        Networks.setPipe(x, y, true)
+        Networks.setPipe(x, y, true, fromX, fromY)
         if (!sandbox) {
             s.funds -= cost
             post("spend", "build", "水管", cost.toDouble())
@@ -1129,15 +1152,18 @@ object GameData {
         return true to null
     }
 
-    fun paintCable(x: Int, y: Int): Pair<Boolean, String?> {
+    fun paintCable(x: Int, y: Int, fromX: Int = -1, fromY: Int = -1): Pair<Boolean, String?> {
         val t = World.tile(x, y) ?: return false to "越界"
         if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (t.terrain == "water") return false to "水域无法铺电缆"
-        if (t.cable) return true to null
+        if (t.cable) {
+            if (fromX >= 0 && fromY >= 0) Networks.setCable(x, y, true, fromX, fromY)
+            return true to null
+        }
         val s = current ?: return false to null
         val cost = 2
         if (!sandbox && s.funds < cost) return false to "资金不足（电缆 2 万/格）"
-        Networks.setCable(x, y, true)
+        Networks.setCable(x, y, true, fromX, fromY)
         if (!sandbox) {
             s.funds -= cost
             post("spend", "build", "电缆", cost.toDouble())

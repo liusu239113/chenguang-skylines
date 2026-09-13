@@ -71,6 +71,9 @@ object AppState {
     var adOfferOpen by mutableStateOf(false)
     var adOfferKind by mutableStateOf("")
 
+    /** 字体：false=手写体（默认），true=系统黑体。改了立刻重组 */
+    var useSystemFont by mutableStateOf(false)
+
     fun bumpLive() {
         liveTick++
     }

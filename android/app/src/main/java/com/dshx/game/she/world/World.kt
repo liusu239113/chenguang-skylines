@@ -23,6 +23,9 @@ class Tile {
     var building: Building? = null
     var pipe: Boolean = false         // 地下水管
     var cable: Boolean = false        // 地下电缆
+    // 管线开口方向位掩码：N=1 E=2 S=4 W=8；0=未指定（单点/旧档，按四向全开处理）
+    var pipeMask: Int = 0
+    var cableMask: Int = 0
     var sewer: Boolean = false        // 污水管
     var metro: Boolean = false        // 地铁隧道
     var rail: Boolean = false         // 地面铁轨
@@ -238,6 +241,28 @@ class World {
             w.unlockR = 10
             w.spawnX = startX
             w.spawnY = startY
+
+            // 保底水域：抽水站/污水厂必须临水，开局附近没水就在城边挖一口小塘
+            var waterNear = false
+            outer@ for (y in (startY - 8).coerceAtLeast(1)..(startY + 8).coerceAtMost(w.rows)) {
+                for (x in (startX - 8).coerceAtLeast(1)..(startX + 8).coerceAtMost(w.cols)) {
+                    if (w.grid[y - 1][x - 1].terrain == "water") {
+                        waterNear = true
+                        break@outer
+                    }
+                }
+            }
+            if (!waterNear) {
+                val px = (startX + 7).coerceIn(3, w.cols - 3)
+                val py = (startY + 6).coerceIn(3, w.rows - 3)
+                for (y in py - 1..py + 1) {
+                    for (x in px - 1..px + 1) {
+                        val t = w.grid[y - 1][x - 1]
+                        t.terrain = "water"
+                        w.elev[y - 1][x - 1] = 6
+                    }
+                }
+            }
 
             val xsV = IntArray(7)
             val ysV = IntArray(7)
@@ -706,6 +731,43 @@ class World {
             return n
         }
 
+        /**
+         * 设施噪音：垃圾场/焚烧厂/电厂/工厂等对周边住宅的噪音影响，按距离衰减。
+         * 返回 0..100 的噪音强度，供满意度与投诉使用。
+         */
+        fun facilityNoiseAt(x: Int, y: Int): Int {
+            var level = 0.0
+            for (e in allBuildings()) {
+                val b = e.b
+                val radius: Int
+                val strength: Double
+                if (b.isService) {
+                    val cfg = serviceConfig(b.service) ?: continue
+                    when (cfg.id) {
+                        "landfill" -> { radius = 6; strength = 22.0 }
+                        "incinerator" -> { radius = 7; strength = 26.0 }
+                        "coal_plant" -> { radius = 9; strength = 30.0 }
+                        "nuclear_plant" -> { radius = 12; strength = 20.0 }
+                        "crematorium" -> { radius = 4; strength = 14.0 }
+                        "sewage" -> { radius = 6; strength = 16.0 }
+                        else -> continue
+                    }
+                } else if (b.zone == "industrial") {
+                    radius = 3
+                    strength = 18.0
+                } else {
+                    continue
+                }
+                val dx = (x - e.x).toDouble()
+                val dy = (y - e.y).toDouble()
+                val d = kotlin.math.sqrt(dx * dx + dy * dy)
+                if (d > radius) continue
+                val falloff = 1.0 - d / (radius + 0.5)
+                level += strength * falloff * falloff
+            }
+            return min(100, level.toInt())
+        }
+
         // -------------------------------------------------------------------
         // 分区
         // -------------------------------------------------------------------
@@ -798,6 +860,19 @@ class World {
                     }
                 }
                 if (!adjacent) return false to "需建在道路旁（接入电网/管网）"
+            }
+            // 抽水站/水厂/污水厂必须临水：取水与排放都要接水域
+            if (s.nearWater) {
+                var nearWater = false
+                outer2@ for (yy in ay - 1..ay + s.sizeH) {
+                    for (xx in ax - 1..ax + s.sizeW) {
+                        if (tile(xx, yy)?.terrain == "water") {
+                            nearWater = true
+                            break@outer2
+                        }
+                    }
+                }
+                if (!nearWater) return false to (s.name + "必须建在水域旁（取水/排放）")
             }
             return true to null
         }

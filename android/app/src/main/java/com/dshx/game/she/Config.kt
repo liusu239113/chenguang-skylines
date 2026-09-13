@@ -222,7 +222,8 @@ object Config {
         val waterCap: Int = 0,            // 供水容量
         val garbageCap: Int = 0,          // 垃圾处理容量（按建筑收运量计）
         val deathCap: Int = 0,            // 殡葬容量
-        val pollutionRadius: Int = 0      // 污染扩散半径（靠距离衰减，不再压格子）
+        val pollutionRadius: Int = 0,     // 污染扩散半径（靠距离衰减，不再压格子）
+        val nearWater: Boolean = false    // 必须建在水域旁（抽水/排污）
     )
 
     val SERVICES: List<ServiceDef> = listOf(
@@ -233,18 +234,18 @@ object Config {
             "市民广场，显著提升满意度与地价。", ServiceCat.AMENITY, 500),
         // ---- 电力（容量决定能否撑住全城） ----
         ServiceDef("wind_farm", "风电场", 500, 18, 6, 0, false, 1, 1,
-            "清洁风电。按半径覆盖周边，容量 18。", ServiceCat.POWER, 0, 0, 18, 0),
+            "清洁风电。只产能，靠道路预埋电缆/地下电缆送到建筑，容量 18。", ServiceCat.POWER, 0, 0, 18, 0),
         ServiceDef("solar_plant", "太阳能电站", 1600, 28, 7, 0, false, 2, 2,
-            "光伏电站。按半径覆盖，容量 36，无污染。", ServiceCat.POWER, 300, 0, 36, 0),
+            "光伏电站。只产能，容量 36，无污染，靠路网送电。", ServiceCat.POWER, 300, 0, 36, 0),
         ServiceDef("coal_plant", "燃煤电厂", 1800, 56, 10, -3, false, 2, 2,
             "容量 70。只产能，靠路网送电，可放远郊。", ServiceCat.POWER, 0, 8, 70, 0, 0, 0, 9),
         ServiceDef("nuclear_plant", "核电站", 9800, 120, 14, 0, false, 3, 3,
             "容量 180，维护昂贵。只产能，靠路网送电。", ServiceCat.POWER, 4000, 1, 180, 0, 0, 0, 12),
-        // ---- 供水 ----
+        // ---- 供水（必须建在水域旁取水，靠水管管网送水） ----
         ServiceDef("water_tower", "水塔", 300, 12, 5, 0, false, 1, 1,
-            "抽取地下水。只产能，靠路网水网送水。", ServiceCat.WATER, 0, 0, 0, 18),
+            "需建在水边取水，容量 18，靠水管管网送水。", ServiceCat.WATER, 0, 0, 0, 18, 0, 0, 0, true),
         ServiceDef("pump_station", "抽水站", 600, 18, 8, 0, false, 1, 1,
-            "抽取地下水。只产能，容量 40，不必靠河。", ServiceCat.WATER, 0, 0, 0, 40),
+            "需建在水边抽取地表水，容量 40，靠水管管网送水。", ServiceCat.WATER, 0, 0, 0, 40, 0, 0, 0, true),
         // ---- 垃圾 ----
         ServiceDef("landfill", "垃圾场", 350, 22, 6, 0, false, 1, 1,
             "收运 60 栋。气味按距离衰减，可放远郊。", ServiceCat.GARBAGE, 40, 3, 0, 0, 60, 0, 5),
@@ -280,7 +281,7 @@ object Config {
             "航空枢纽，旅游收入与满意度。", ServiceCat.TRANSIT, 4000),
         // ---- 排污 / 殡葬 / 监狱 ----
         ServiceDef("sewage", "污水处理厂", 2400, 58, 8, 0, false, 2, 2,
-            "服务 40 栋。臭气按距离衰减，不必贴住宅。", ServiceCat.WATER, 60, 2, 0, 0, 0, 0, 6),
+            "须建在水边，与污水管共用管网，处理全城污水。", ServiceCat.WATER, 60, 2, 0, 0, 0, 0, 6, true),
         ServiceDef("cemetery", "墓地", 400, 4, 6, -1, false, 2, 2,
             "安葬 80。阴气按距离衰减，可放城郊。", ServiceCat.DEATH, 80, 0, 0, 0, 0, 80, 3),
         ServiceDef("crematorium", "火葬场", 900, 12, 8, 0, false, 1, 1,
@@ -300,10 +301,17 @@ object Config {
     // 资源 / 成长参数
     // -----------------------------------------------------------------------
     object RESOURCES {
-        const val fundsStart = 1500.0
+        const val fundsStart = 4000.0
         const val happinessStart = 60.0
         const val happinessMin = 0.0
         const val happinessMax = 100.0
+    }
+
+    /** 沙盒 GM：临时测试用，资金拉满、人口锁定、满意度不掉 */
+    object SANDBOX {
+        const val FUNDS = 999999.0
+        const val pop = 5000
+        const val happy = 99.0
     }
 
     object GROWTH {
@@ -418,7 +426,7 @@ object Config {
     )
 
     val EVENTS: List<EventDef> = listOf(
-        EventDef("blackout", "居民断电", "住宅不在电站覆盖圈内，居民来信要求扩供电。", 3, -8.0, 0.92, "power"),
+        EventDef("blackout", "居民断电", "住宅没接进电网或电力不足，居民来信要求送电。", 3, -8.0, 0.92, "power"),
         EventDef("pipe", "居民缺水", "住宅没通水，生活用水告急。", 3, -8.0, 0.95, "water"),
         EventDef("clinic", "看病排队", "附近没有诊所/医院，居民看病困难。", 4, -6.0, 1.0, "health"),
         EventDef("school", "学位告急", "附近没有学校，家长反映孩子没处上学。", 4, -5.0, 1.0, "school"),

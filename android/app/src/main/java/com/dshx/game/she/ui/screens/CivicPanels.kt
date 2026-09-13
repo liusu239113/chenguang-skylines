@@ -483,6 +483,43 @@ fun SettingsPanel() {
                 },
                 valueRange = 0f..1f
             )
+            Text("字体", fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (opt in listOf(false to "手写体（默认）", true to "黑体（清晰）")) {
+                    val active = AppState.useSystemFont == opt.first
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                if (active) C.accentSoftBg.toColor() else C.chipBg.toColor(),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .border(
+                                1.dp,
+                                if (active) C.accentRed.toColor() else C.border2.toColor(),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .clickable {
+                                Sfx.play("sfx_click")
+                                AppState.useSystemFont = opt.first
+                                Prefs.useSystemFont = opt.first
+                                MapRef.view?.applyFontTypeface()
+                            }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            opt.second,
+                            fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            color = if (active) C.accentRed.toColor() else C.textDark.toColor(),
+                            fontFamily = LocalGameFont.current
+                        )
+                    }
+                }
+            }
             Text(
                 if (SpeedBoost.isActive()) "加速剩余 ${SpeedBoost.remainingSec() / 60} 分 ${SpeedBoost.remainingSec() % 60} 秒" else "2x、3x 都要看广告解锁 20 分钟",
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current

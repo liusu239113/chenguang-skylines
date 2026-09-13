@@ -149,72 +149,6 @@ object Traffic {
     // ------------------------------------------------------------------
     // 货船：港口建在水边、水域连通地图边界后有船来往，带来水运贸易
     // ------------------------------------------------------------------
-    private fun waterReachesEdge(sx: Int, sy: Int): Boolean {
-        val w = World.current ?: return false
-        val seen = HashSet<Int>()
-        val q = ArrayDeque<Int>()
-        q.add((sy - 1) * w.cols + (sx - 1))
-        while (q.isNotEmpty()) {
-            val k = q.removeFirst()
-            if (!seen.add(k)) continue
-            val x = k % w.cols + 1
-            val y = k / w.cols + 1
-            if (x == 1 || y == 1 || x == w.cols || y == w.rows) return true
-            for (d in dirs) {
-                val nx = x + d[0]
-                val ny = y + d[1]
-                if (!World.inBounds(nx, ny)) continue
-                val t = World.tile(nx, ny) ?: continue
-                if (t.terrain != "water") continue
-                q.add((ny - 1) * w.cols + (nx - 1))
-            }
-        }
-        return false
-    }
-
-    /** 从边界水域找一个入口点，沿水面向港口走 */
-    private fun waterPathTo(fromX: Int, fromY: Int, toX: Int, toY: Int): MutableList<Int> {
-        val w = World.current ?: return mutableListOf()
-        val prev = HashMap<Int, Int>()
-        val seen = HashSet<Int>()
-        val q = ArrayDeque<Int>()
-        val start = (fromY - 1) * w.cols + (fromX - 1)
-        val goal = (toY - 1) * w.cols + (toX - 1)
-        q.add(start)
-        seen.add(start)
-        var found = false
-        while (q.isNotEmpty()) {
-            val k = q.removeFirst()
-            if (k == goal) {
-                found = true
-                break
-            }
-            val x = k % w.cols + 1
-            val y = k / w.cols + 1
-            for (d in dirs) {
-                val nx = x + d[0]
-                val ny = y + d[1]
-                if (!World.inBounds(nx, ny)) continue
-                val t = World.tile(nx, ny) ?: continue
-                if (t.terrain != "water") continue
-                val nk = (ny - 1) * w.cols + (nx - 1)
-                if (!seen.add(nk)) continue
-                prev[nk] = k
-                q.add(nk)
-            }
-        }
-        if (!found) return mutableListOf()
-        val path = mutableListOf<Int>()
-        var cur = goal
-        while (cur != start) {
-            path.add(cur)
-            cur = prev[cur] ?: break
-        }
-        path.add(start)
-        path.reverse()
-        return path
-    }
-
     private var shipScanT = 0f
 
     fun hitShip(wx: Float, wy: Float): ShipCraft? {
@@ -273,42 +207,28 @@ object Traffic {
             ships.clear()
             return
         }
+        // 预筛：港口水域必须能通到地图边界才有外贸航线；封闭湖不能跑货船
+        val cols = World.current?.cols ?: return
+        val routes = targets.mapNotNull { (harbor, spot) ->
+            val path = waterRouteToEdge(spot.first, spot.second) ?: return@mapNotNull null
+            if (path.size < 2) return@mapNotNull null
+            Triple(harbor, spot, path)
+        }
+        if (routes.isEmpty()) {
+            ships.clear()
+            return
+        }
         if (ships.size > want) {
             while (ships.size > want) ships.removeAt(ships.lastIndex)
         }
         while (ships.size < want) {
-            val (harbor, spot) = targets[ships.size % targets.size]
-            // 找一个连通的边界水域入口
-            val w = World.current ?: return
-            var entry: Pair<Int, Int>? = null
-            for (x in 1..w.cols) {
-                for (y in listOf(1, w.rows)) {
-                    if (World.tile(x, y)?.terrain == "water" && waterReachesEdge(x, y)) {
-                        entry = x to y
-                        break
-                    }
-                }
-                if (entry != null) break
-            }
-            if (entry == null) {
-                for (y in 1..w.rows) {
-                    for (x in listOf(1, w.cols)) {
-                        if (World.tile(x, y)?.terrain == "water" && waterReachesEdge(x, y)) {
-                            entry = x to y
-                            break
-                        }
-                    }
-                    if (entry != null) break
-                }
-            }
-            val from = entry ?: return
-            val path = waterPathTo(from.first, from.second, spot.first, spot.second)
-            if (path.isEmpty()) return
+            val (harbor, _ , path) = routes[ships.size % routes.size]
+            val head = path.first()
             val loaded = ships.size % 2 == 0
             ships.add(
                 ShipCraft(
-                    x = from.first.toFloat(),
-                    y = from.second.toFloat(),
+                    x = (head % cols + 1).toFloat(),
+                    y = (head / cols + 1).toFloat(),
                     dir = 0,
                     path = path,
                     harborX = harbor.x,
@@ -318,6 +238,48 @@ object Traffic {
                 )
             )
         }
+    }
+
+    /**
+     * 从港口水域出发，找一条通往地图边界的航道。
+     * 找不到（封闭湖）返回 null，表示该港无法外贸。
+     */
+    private fun waterRouteToEdge(sx: Int, sy: Int): MutableList<Int>? {
+        val w = World.current ?: return null
+        val cols = w.cols
+        val start = (sy - 1) * cols + (sx - 1)
+        val prev = HashMap<Int, Int>()
+        val seen = HashSet<Int>()
+        val q = ArrayDeque<Int>()
+        q.add(start)
+        seen.add(start)
+        while (q.isNotEmpty()) {
+            val k = q.removeFirst()
+            val x = k % cols + 1
+            val y = k / cols + 1
+            if (x == 1 || y == 1 || x == cols || y == w.rows) {
+                val path = mutableListOf<Int>()
+                var cur = k
+                while (cur != start) {
+                    path.add(cur)
+                    cur = prev[cur] ?: break
+                }
+                path.add(start)
+                path.reverse()
+                return path
+            }
+            for (d in dirs) {
+                val nx = x + d[0]
+                val ny = y + d[1]
+                if (!World.inBounds(nx, ny)) continue
+                if (World.tile(nx, ny)?.terrain != "water") continue
+                val nk = (ny - 1) * cols + (nx - 1)
+                if (!seen.add(nk)) continue
+                prev[nk] = k
+                q.add(nk)
+            }
+        }
+        return null
     }
 
     private fun sailShips(dt: Float) {

@@ -204,8 +204,14 @@ object SaveManager {
                 val o = JSONObject().put("x", x).put("y", y).put("zone", t.zone)
                 t.road?.let { o.put("road", it) }
                 if (t.bridge) o.put("bridge", true)
-                if (t.pipe) o.put("pipe", true)
-                if (t.cable) o.put("cable", true)
+                if (t.pipe) {
+                    o.put("pipe", true)
+                    if (t.pipeMask != 0) o.put("pipeMask", t.pipeMask)
+                }
+                if (t.cable) {
+                    o.put("cable", true)
+                    if (t.cableMask != 0) o.put("cableMask", t.cableMask)
+                }
                 if (t.sewer) o.put("sewer", true)
                 if (t.metro) o.put("metro", true)
                 if (t.rail) o.put("rail", true)
@@ -264,7 +270,7 @@ object SaveManager {
 
         GameData.seed = json.optInt("seed", 20260408)
         GameData.difficultyKey = json.optString("difficulty", "normal")
-        GameData.sandbox = false
+        GameData.sandbox = json.optBoolean("sandbox", false)
 
         // 重建地形 + 空状态
         GameData.init(GameData.seed)
@@ -283,6 +289,8 @@ object SaveManager {
                 t.bridge = o.optBoolean("bridge", false)
                 t.pipe = o.optBoolean("pipe", false)
                 t.cable = o.optBoolean("cable", false)
+                t.pipeMask = o.optInt("pipeMask", 0)
+                t.cableMask = o.optInt("cableMask", 0)
                 t.sewer = o.optBoolean("sewer", false)
                 t.metro = o.optBoolean("metro", false)
                 t.rail = o.optBoolean("rail", false)

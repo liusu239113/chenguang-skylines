@@ -34,4 +34,9 @@ object Prefs {
     var lastSlot: Int
         get() = p.getInt("last_slot", 0)
         set(v) { p.edit().putInt("last_slot", v.coerceIn(0, 2)).apply() }
+
+    /** 字体：false=手写体（默认），true=系统黑体 */
+    var useSystemFont: Boolean
+        get() = p.getBoolean("system_font", false)
+        set(v) { p.edit().putBoolean("system_font", v).apply() }
 }

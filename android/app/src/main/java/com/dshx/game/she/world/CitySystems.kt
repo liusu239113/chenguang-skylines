@@ -28,6 +28,8 @@ object CitySystems {
     var selected: EmergencyCar? = null
     var groundPolAvg: Double = 0.0
     var waterPolAvg: Double = 0.0
+    var noiseAvg: Double = 0.0        // 住宅平均噪音（垃圾场/工厂/电厂附近升高）
+    var noisyHomes: Int = 0           // 噪音超标的住宅数（用于投诉）
     var fires: Int = 0
 
     fun reset() {
@@ -35,6 +37,8 @@ object CitySystems {
         selected = null
         groundPolAvg = 0.0
         waterPolAvg = 0.0
+        noiseAvg = 0.0
+        noisyHomes = 0
         fires = 0
     }
 
@@ -64,11 +68,15 @@ object CitySystems {
             // 多格成长楼只在锚点结算一次
             if (b != null && !b.isService && (b.w <= 1 && b.h <= 1 || (b.ax == x && b.ay == y))) {
                 sewerNeed++
-                if (t.sewer && sewageN > 0) sewerHits++ else {
+                // 污水与供水共用管道管网：接入水管网 + 有污水厂即可处理
+                val onSewerNet = Networks.isWatered(x, y) && sewageN > 0
+                if (onSewerNet) {
+                    sewerHits++
+                    t.waterPol = max(0, t.waterPol - 10)
+                } else {
                     t.waterPol = min(100, t.waterPol + 4)
                     if (t.terrain == "water") t.waterPol = min(100, t.waterPol + 8)
                 }
-                if (t.sewer && sewageN > 0) t.waterPol = max(0, t.waterPol - 10)
                 b.garbage = min(100, b.garbage + 3 + b.occupied() / 8)
                 val unemployed = max(0.0, 1.0 - (s.jobs / max(1.0, s.population * 0.62)))
                 val eduLow = max(0.0, (40 - s.education) / 40.0)
@@ -93,6 +101,20 @@ object CitySystems {
         waterPolAvg = if (gN == 0) 0.0 else wSum.toDouble() / gN
         s.pollution = ((st.pollution + groundPolAvg * 0.4 + waterPolAvg * 0.3) *
             GameData.policyMul("pollutionMul")).toInt()
+
+        // 噪音：垃圾场/焚烧厂/电厂/火葬场/工厂 对附近住宅的影响，按距离衰减
+        var noiseSum = 0
+        var noiseN = 0
+        var noisy = 0
+        for (e in World.allBuildings()) {
+            if (e.b.isService || e.b.zone != "residential") continue
+            val n = World.facilityNoiseAt(e.x, e.y)
+            noiseSum += n
+            noiseN++
+            if (n >= 25) noisy++
+        }
+        noiseAvg = if (noiseN == 0) 0.0 else noiseSum.toDouble() / noiseN
+        noisyHomes = noisy
 
         // 垃圾积压
         var trash = 0
@@ -178,9 +200,11 @@ object CitySystems {
             }
         }
 
-        // 地铁运量
-        if (Networks.metroCount > 8) {
-            s.congestion = max(0.0, s.congestion - 0.08)
+        // 地铁运量：只有「地铁站 + 连成网的地下隧道」才算数；
+        // 光建站不挖隧道、或隧道没接到站，都不减拥堵。
+        val metroStations = Networks.connectedMetroStations()
+        if (metroStations >= 2 && Networks.metroCount > 6) {
+            s.congestion = max(0.0, s.congestion - 0.04 * min(3, metroStations - 1))
         }
     }
 

@@ -57,11 +57,12 @@ private fun startGame(
     mayor: String,
     seed: Int,
     difficulty: String,
-    slot: Int
+    slot: Int,
+    sandbox: Boolean = false
 ) {
     GameData.seed = seed
     GameData.difficultyKey = difficulty
-    GameData.sandbox = false
+    GameData.sandbox = sandbox
     GameData.init(seed, name, mayor)
     AppState.activeSlot = slot
     com.dshx.game.she.Prefs.lastSlot = slot
@@ -186,6 +187,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
     var seedText by remember { mutableStateOf("") }
     var difficulty by remember { mutableStateOf("normal") }
     var slot by remember { mutableStateOf((0..2).firstOrNull { !SaveManager.hasSlot(it) } ?: 0) }
+    var sandbox by remember { mutableStateOf(false) }
     val saveTick = AppState.saveTick
 
     Box(
@@ -382,6 +384,53 @@ private fun NewGameScreen(mapView: MapRenderView) {
                 }
             }
 
+            // 沙盒 GM（测试用）
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        if (sandbox) C.accentSoftBg.toColor() else C.chipBg.toColor(),
+                        RoundedCornerShape(12.dp)
+                    )
+                    .border(
+                        1.dp,
+                        if (sandbox) C.accentRed.toColor() else C.border2.toColor(),
+                        RoundedCornerShape(12.dp)
+                    )
+                    .clickable { Sfx.play("sfx_click"); sandbox = !sandbox }
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "沙盒 GM 模式" + if (sandbox) "（已开启）" else "",
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        color = if (sandbox) C.accentRed.toColor() else C.textDark.toColor(),
+                        fontFamily = LocalGameFont.current
+                    )
+                    Text(
+                        "测试用：资金拉满、人口锁 5000、满意度不掉、建造不扣钱",
+                        fontSize = 9.sp, color = C.textMid.toColor(),
+                        fontFamily = LocalGameFont.current
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .background(
+                            if (sandbox) C.accentGreen.toColor() else C.border2.toColor(),
+                            RoundedCornerShape(10.dp)
+                        )
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        if (sandbox) "开" else "关",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                        fontFamily = LocalGameFont.current
+                    )
+                }
+            }
+
             // 开始
             Box(
                 modifier = Modifier
@@ -393,7 +442,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                         val cityName = if (name.isBlank()) "晨光市" else name.trim()
                         val mayorName = if (mayor.isBlank()) "未署名" else mayor.trim()
                         val seed = if (seedText.isBlank()) Random.nextInt(1, 100000) else seedText.toIntOrNull() ?: Random.nextInt(1, 100000)
-                        startGame(mapView, cityName, mayorName, seed, difficulty, slot)
+                        startGame(mapView, cityName, mayorName, seed, difficulty, slot, sandbox)
                     },
                 contentAlignment = Alignment.Center
             ) {

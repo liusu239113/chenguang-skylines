@@ -134,11 +134,21 @@ class MapRenderView @JvmOverloads constructor(
     // 初始化
     // -----------------------------------------------------------------------
     fun initView() {
-        typeface = try {
-            Typeface.createFromAsset(context.assets, "fonts/ZCOOLKuaiLe-Regular.ttf")
-        } catch (t: Throwable) {
-            null
+        applyFontTypeface()
+    }
+
+    /** 跟随设置：手写体 / 系统黑体（地图上的建筑名、路名都跟着换） */
+    fun applyFontTypeface() {
+        typeface = if (com.dshx.game.she.AppState.useSystemFont) {
+            Typeface.DEFAULT
+        } else {
+            try {
+                Typeface.createFromAsset(context.assets, "fonts/ZCOOLKuaiLe-Regular.ttf")
+            } catch (t: Throwable) {
+                Typeface.DEFAULT
+            }
         }
+        invalidate()
     }
 
     fun setViewport(wDp: Float, hDp: Float, top: Float, bottom: Float) {
@@ -384,6 +394,27 @@ class MapRenderView @JvmOverloads constructor(
                 if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
                 return ok
             }
+            "pipe", "cable" -> {
+                // 拖拽方向决定管线开口：只有首尾相接的管才能连上，并排的互不串通
+                val from = dragLastTile
+                val fx: Int
+                val fy: Int
+                if (from != null) {
+                    val parts = from.split(",")
+                    fx = parts.getOrNull(0)?.toIntOrNull() ?: -1
+                    fy = parts.getOrNull(1)?.toIntOrNull() ?: -1
+                } else {
+                    fx = -1
+                    fy = -1
+                }
+                val (ok, msg) = if (t.kind == "pipe") {
+                    GameData.paintPipe(tx, ty, fx, fy)
+                } else {
+                    GameData.paintCable(tx, ty, fx, fy)
+                }
+                if (ok) Sfx.play("sfx_click", 0.3f) else if (msg != null) setToast(msg)
+                return ok
+            }
         }
         return false
     }
@@ -416,6 +447,14 @@ class MapRenderView @JvmOverloads constructor(
             "raise", "lower" -> {
                 val tile = World.tile(tx, ty)
                 tile != null && tile.road == null && tile.building == null
+            }
+            "pipe" -> {
+                val tile = World.tile(tx, ty)
+                tile != null && tile.terrain != "water" && World.isUnlocked(tx, ty)
+            }
+            "cable" -> {
+                val tile = World.tile(tx, ty)
+                tile != null && tile.terrain != "water" && World.isUnlocked(tx, ty)
             }
             else -> false
         }
@@ -515,8 +554,11 @@ class MapRenderView @JvmOverloads constructor(
             dragActive = true
             dragMode = "tool"
             dragMoved = true
-            dragLastTile = if (tile != null) "${tile.first},${tile.second}" else null
-            if (tile != null) applyTool(tile.first, tile.second)
+            // 起点没有来向；applyTool 成功后才把它记为上一格，供下一格判定管线开口
+            dragLastTile = null
+            if (tile != null && applyTool(tile.first, tile.second)) {
+                dragLastTile = "${tile.first},${tile.second}"
+            }
         } else {
             dragActive = true
             dragMode = "pan"
@@ -535,8 +577,9 @@ class MapRenderView @JvmOverloads constructor(
                 if (tile != null) {
                     val key = "${tile.first},${tile.second}"
                     if (key != dragLastTile) {
-                        dragLastTile = key
-                        applyTool(tile.first, tile.second)
+                        // 先涂当前格（用上一格当来向），成功后再推进 dragLastTile；
+                        // 失败就断开，避免隔着空格把两段管线连成一条
+                        dragLastTile = if (applyTool(tile.first, tile.second)) key else null
                     }
                 }
             } else if (dragMode == "pan") {
@@ -805,7 +848,7 @@ class MapRenderView @JvmOverloads constructor(
                 if (!World.isUnlocked(tx, ty) && t.road != "highway") {
                     fillRect(canvas, sx, sy, cell + 0.5f, cell + 0.5f, RGBA(28, 36, 42, 150))
                 }
-                // 跨水桥：水面上的抬高甲板 + 桥墩，和地面道路分层
+                // 跨水桥：抬高甲板 + 桥墩 + 落水阴影；两侧留缝让水露出来，避免像一段陆地
                 if (t.bridge && t.road != null) {
                     val lift = cell * 0.20f
                     val deck = when (t.road) {
@@ -814,12 +857,21 @@ class MapRenderView @JvmOverloads constructor(
                         "dirt" -> C.roadDirt
                         else -> C.roadLocal
                     }
-                    // 桥墩（四角短柱）
-                    fillRect(canvas, sx + cell * 0.16f, sy + cell * 0.42f, cell * 0.12f, cell * 0.34f, RGBA(96, 96, 100))
-                    fillRect(canvas, sx + cell * 0.72f, sy + cell * 0.42f, cell * 0.12f, cell * 0.34f, RGBA(96, 96, 100))
-                    // 甲板（整体上移 lift）
-                    fillRect(canvas, sx, sy - lift, cell + 0.5f, cell + 0.5f, RGBA(40, 44, 50))
-                    fillRect(canvas, sx, sy - lift, cell + 0.5f, cell * 0.5f, deck)
+                    val ix = sx + cell * 0.05f
+                    val iy = sy + cell * 0.05f
+                    val iw = cell * 0.90f
+                    // 落水阴影：桥面压在水上，影子偏右下
+                    fillRect(canvas, ix + cell * 0.05f, iy + cell * 0.05f - lift, iw, iw, RGBA(18, 26, 32, 78))
+                    // 桥墩：两根，从桥面一直探到水里
+                    val pierTop = iy + cell * 0.16f - lift
+                    fillRect(canvas, ix + cell * 0.10f, pierTop, cell * 0.10f, cell * 0.86f, RGBA(92, 94, 100))
+                    fillRect(canvas, ix + iw - cell * 0.20f, pierTop, cell * 0.10f, cell * 0.86f, RGBA(92, 94, 100))
+                    // 桥体侧沿（暗） → 桥面（亮），形成厚度感
+                    fillRect(canvas, ix, iy - lift + cell * 0.06f, iw, iw, RGBA(46, 50, 58))
+                    fillRect(canvas, ix, iy - lift, iw, cell * 0.88f, deck)
+                    // 桥头护栏
+                    fillRect(canvas, ix, iy - lift, iw, cell * 0.04f, RGBA(196, 200, 206, 190))
+                    fillRect(canvas, ix, iy - lift + cell * 0.84f, iw, cell * 0.04f, RGBA(196, 200, 206, 190))
                 }
             }
         }
@@ -1120,13 +1172,22 @@ class MapRenderView @JvmOverloads constructor(
             for (v in Transit.vehicles) {
                 val (wx, wy) = Transit.vehicleCell(v)
                 val sx = worldToScreenX(wx)
-                val sy = worldToScreenY(wy)
+                var sy = worldToScreenY(wy)
+                // 公交过桥：跟车一样抬到桥面
+                val bi = v.pathI.coerceIn(0, max(0, v.path.lastIndex))
+                if (v.path.isNotEmpty()) {
+                    val bk = v.path[bi]
+                    if (World.tile(Citizens.unpackX(bk), Citizens.unpackY(bk))?.bridge == true) {
+                        sy -= cell * 0.20f
+                    }
+                }
                 drawVehicleBox(canvas, sx, sy, Transit.heading(v), RGBA(40, 90, 170), longBody = true, selected = false)
             }
             for (ev in CitySystems.cars) {
                 val (wx, wy) = CitySystems.screenCell(ev)
                 val sx = worldToScreenX(wx)
-                val sy = worldToScreenY(wy)
+                var sy = worldToScreenY(wy)
+                if (World.tile(ev.x, ev.y)?.bridge == true) sy -= cell * 0.20f
                 val col = when (ev.kind) {
                     "fire" -> RGBA(220, 70, 50)
                     "ambulance" -> RGBA(240, 240, 245)
@@ -1233,26 +1294,27 @@ class MapRenderView @JvmOverloads constructor(
                         "office" -> C.bOffice
                         else -> C.bResidential
                     }
+                    // 楼层高度按分区明显区分：办公=玻璃写字楼（最高），住宅=多层，商=沿街，工=低矮厂房
                     hFactor = when (bl.zone) {
                         "residential" -> when (bl.level) {
-                            1 -> 1.35f
-                            2 -> 2.05f
-                            else -> 3.05f
+                            1 -> 1.15f
+                            2 -> 1.80f
+                            else -> 2.70f
                         }
                         "commercial" -> when (bl.level) {
-                            1 -> 1.05f
-                            2 -> 1.55f
-                            else -> 2.15f
+                            1 -> 1.00f
+                            2 -> 1.45f
+                            else -> 2.00f
                         }
                         "industrial" -> when (bl.level) {
-                            1 -> 0.95f
-                            2 -> 1.35f
-                            else -> 1.75f
+                            1 -> 0.85f
+                            2 -> 1.20f
+                            else -> 1.55f
                         }
                         "office" -> when (bl.level) {
-                            1 -> 1.85f
-                            2 -> 2.55f
-                            else -> 3.35f
+                            1 -> 2.30f
+                            2 -> 3.30f
+                            else -> 4.55f
                         }
                         else -> 1.2f
                     }
@@ -1581,8 +1643,10 @@ class MapRenderView @JvmOverloads constructor(
 
     private fun zoneBaseColor(t: Tile, x: Int, y: Int): RGBA {
         val C = Config.COLORS
-        if (t.metro) return RGBA(48, 72, 110)
+        // 地铁在地下，地表不显示（只看地铁视图）；铁轨在地面，正常画
         if (t.rail) return RGBA(72, 72, 78)
+        // 跨水桥：脚下是水，桥面在上一层单独画，这里透出水色
+        if (t.bridge) return if ((x + y) % 2 == 0) C.water else C.waterAlt
         t.road?.let {
             return when (it) {
                 "highway" -> C.roadHighway
@@ -2082,13 +2146,28 @@ class MapRenderView @JvmOverloads constructor(
         }
     }
 
+    /** 水面：缓慢流动的涟漪 + 微光，别让水看着是一块死贴图 */
     private fun drawWaterRipple(canvas: Canvas, sx: Float, sy: Float, tx: Int, ty: Int) {
         val col = if ((tx + ty) % 2 == 0) Config.COLORS.water else Config.COLORS.waterAlt
-        val off = (sin((tx + rainPhase * 0.35f) * 1.7f) + cos((ty - rainPhase * 0.22f) * 1.4f)) * cell * 0.04f
-        strokeColor(col.shade(1.18), 90, 0.9f)
+        val ph = rainPhase
+        val off = (sin((tx + ph * 0.35f) * 1.7f) + cos((ty - ph * 0.22f) * 1.4f)) * cell * 0.05f
+        // 主涟漪：随时间缓慢上下漂
+        strokeColor(col.shade(1.20), 96, 0.9f)
         canvas.drawLine(sx + cell * 0.12f, sy + cell * 0.38f + off, sx + cell * 0.88f, sy + cell * 0.38f + off, paint)
-        strokeColor(col.shade(0.85), 50, 0.7f)
+        strokeColor(col.shade(0.84), 56, 0.7f)
         canvas.drawLine(sx + cell * 0.18f, sy + cell * 0.58f - off, sx + cell * 0.82f, sy + cell * 0.58f - off, paint)
+        // 微光：一格一格错开相位，形成缓慢流动的亮斑
+        val tw = sin(ph * 0.9f + tx * 1.3f + ty * 0.7f)
+        if (tw > 0.55f) {
+            val a = ((tw - 0.55f) / 0.45f * 46f).toInt()
+            fillRoundRect(
+                canvas,
+                sx + cell * (0.26f + 0.10f * sin(ph * 0.5f + ty)),
+                sy + cell * (0.30f + 0.06f * cos(ph * 0.4f + tx)),
+                cell * 0.26f, cell * 0.045f, 2f,
+                RGBA(255, 255, 255, a)
+            )
+        }
     }
 
     private fun drawVehicleBox(

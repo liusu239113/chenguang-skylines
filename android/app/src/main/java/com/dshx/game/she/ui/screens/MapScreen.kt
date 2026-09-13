@@ -86,6 +86,8 @@ object MapScreen {
             "tree" -> Tool("tree")
             "raise" -> Tool("raise")
             "lower" -> Tool("lower")
+            "pipe" -> Tool("pipe")
+            "cable" -> Tool("cable")
             else -> null
         }
         MapRef.view?.tool = t
@@ -536,7 +538,15 @@ fun MapScreenContent(mapView: MapRenderView) {
                     World.roadNameAt(sel.first, sel.second)?.let { UIHelper.InfoRow("路名", it, C.accentGold.toColor()) }
                     UIHelper.InfoRow("现状", World.zoneName(sel.first, sel.second), C.accentBlue.toColor())
                     UIHelper.InfoRow("地价", World.landValue(sel.first, sel.second).toString())
-                    UIHelper.InfoRow("噪音", World.noiseAt(sel.first, sel.second).toString())
+                    UIHelper.InfoRow("交通噪音", World.noiseAt(sel.first, sel.second).toString())
+                    val facNoise = World.facilityNoiseAt(sel.first, sel.second)
+                    if (facNoise > 0) {
+                        UIHelper.InfoRow(
+                            "设施噪音",
+                            facNoise.toString() + "（垃圾场/工厂/电厂按距离衰减）",
+                            if (facNoise >= 25) C.accentRed.toColor() else C.textMid.toColor()
+                        )
+                    }
                     val tb = World.tile(sel.first, sel.second)?.building
                     if (tb != null && !tb.isService) {
                         val cap = tb.cap()
@@ -1046,8 +1056,10 @@ private fun DrawerContent(mapView: MapRenderView) {
                 AppState.selService?.let { id ->
                     val sc = World.serviceConfig(id)
                     if (sc != null) {
+                        val netBased = sc.category == Config.ServiceCat.POWER ||
+                            sc.category == Config.ServiceCat.WATER
                         Text(
-                            sc.desc + " 覆盖半径 " + sc.radius + " 格。",
+                            sc.desc + if (netBased) "" else " 覆盖半径 " + sc.radius + " 格。",
                             fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
                         )
                     }
@@ -1133,6 +1145,8 @@ private fun PlanDrawer(mapView: MapRenderView) {
                 "tree" -> "点空地点树"
                 "raise" -> "点空地抬升地形"
                 "lower" -> "点空地降低地形"
+                "pipe" -> "沿一条线拖动铺水管，首尾相接才算连通"
+                "cable" -> "沿一条线拖动铺电缆，首尾相接才算连通"
                 else -> "可以在地图上操作了"
             }
         )
@@ -1150,24 +1164,32 @@ private fun PlanDrawer(mapView: MapRenderView) {
             color = C.textDark.toColor(), fontFamily = LocalGameFont.current
         )
         Text(
-            "电和水按设施半径覆盖，不用再铺电缆水管。地铁隧/铁轨在【道路】里，要先建地铁站/火车站。",
+            "电水靠「道路预埋管线 + 地下电缆/水管」送到建筑；电厂水厂只产能，可放远郊。地铁隧/铁轨在【道路】里，要先建地铁站/火车站。",
             fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            UIHelper.PickChip("公交线", "${Transit.draft.size}站", AppState.mode == "bus", width = 86.dp) {
-                pickAndClose("bus")
+            UIHelper.PickChip("水管", "2万/格", AppState.mode == "pipe", width = 86.dp) {
+                pickAndClose("pipe")
+            }
+            UIHelper.PickChip("电缆", "2万/格", AppState.mode == "cable", width = 86.dp) {
+                pickAndClose("cable")
             }
             UIHelper.PickChip("种树", "1万/格", AppState.mode == "tree", width = 86.dp) {
                 pickAndClose("tree")
             }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            UIHelper.PickChip("公交线", "${Transit.draft.size}站", AppState.mode == "bus", width = 86.dp) {
+                pickAndClose("bus")
+            }
             UIHelper.PickChip("抬升", "3万/格", AppState.mode == "raise", width = 86.dp) {
                 pickAndClose("raise")
             }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             UIHelper.PickChip("降低", "3万/格", AppState.mode == "lower", width = 86.dp) {
                 pickAndClose("lower")
             }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             UIHelper.PickChip("确认公交", "≥2站", false, width = 86.dp) {
                 val (ok, msg) = Transit.confirmDraft()
                 mapView.setToast(msg ?: if (ok) "已开通" else "失败")
@@ -1375,9 +1397,10 @@ private fun HelpPanel() {
             HelpRow("路", "开局十字是【两车道】，和建造菜单里同一种。泥土路无标线；两车道一条中虚线；四车道中央双黄、两侧白虚线，车分内外道并排。外环高速全天有过路车；接进城后才会进游客。")
             HelpRow("铁", "先在【服务】建火车站，再在【道路】里选铁轨去地图上画。地铁同理，先建地铁站。机场建好会有飞机。")
             HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。设施会清掉底下分区，不会被后长出来的楼盖掉。小学点在占地内任意一格即可。【办公】要中学以上学历才进得去，收益比商业高。【推平】拆楼会连底下分区一起清掉。")
-            HelpRow("电", "风电/煤电按造价和占地覆盖一片区域，不用铺电缆。点【数】开电力热力图能看到圈。")
-            HelpRow("水", "水塔/抽水站按半径抽取地下水供水，不必靠河。点地图只是预览，底部「确认建造」才扣费。诊所人口 25 解锁，垃圾场 40 解锁。")
-            HelpRow("规", "【规划】里选公交/种树/抬升，以及产业专精。专精刷在已划的住宅/商业/工业/办公上，格子立刻变色，当天【账】能看见「产业专精」进账。全城法令在左上【策】，不要和专精搞混。")
+            HelpRow("电", "电厂只负责产能，可放远郊。电力靠「道路预埋电缆 + 地下电缆」送到建筑：临路的楼自动通电，偏远地块要在【规划】里拖电缆，首尾相接才算连通。")
+            HelpRow("水", "水塔/抽水站/污水处理厂必须建在水边（取水/排水），只负责产能，靠「道路预埋水管 + 地下水管」送到建筑；污水和供水共用一条管道网。")
+            HelpRow("规", "【规划】里选水管/电缆/公交/种树/抬升，以及产业专精。管线要沿着一条线拖，首尾对齐才连得上，两根并排的竖管不会互通。专精刷在已划的分区上，格子立刻变色。全城法令在左上【策】。")
+            HelpRow("污", "垃圾场、焚烧厂、电厂、火葬场、工厂会给周边住宅带来噪音和臭气，按距离衰减。贴太近居民会来信投诉并拉低满意度，放远郊或隔开就好。")
             HelpRow("策", "【数/?/策/银/账】在状态栏左下。【银】贷款；【账】看每天每月收支。人口过 180 后维护和造价逐步加重。暂停用顶栏 ‖；1x 比以前慢一半；2x/3x 都要看广告。右上 ≡ 在顶栏下方，点开建筑详情时会先藏起来。")
             HelpRow("存", "每月结算和切出游戏都会自动写入当前槽位。主菜单「继续游戏」读最近一档。右上【≡】也可手动保存。")
             Box(
@@ -1860,11 +1883,17 @@ private fun LedgerPanel() {
 private fun coverInfo(x: Int, y: Int, cat: String, label: String) {
     val C = Config.COLORS
     val fac = World.coveringFacility(x, y, cat)
+    val netBased = cat == Config.ServiceCat.POWER || cat == Config.ServiceCat.WATER ||
+        cat == Config.ServiceCat.GARBAGE || cat == Config.ServiceCat.DEATH
     if (fac != null) {
         val name = World.serviceConfig(fac.b.service)?.name ?: "设施"
-        UIHelper.InfoRow(label, "由「$name」覆盖", C.accentGreen.toColor())
+        UIHelper.InfoRow(label, if (netBased) "已接入（最近：$name）" else "由「$name」覆盖", C.accentGreen.toColor())
     } else {
-        UIHelper.InfoRow(label, "不在覆盖圈内", C.accentRed.toColor())
+        UIHelper.InfoRow(
+            label,
+            if (netBased) "未接入（临路/管线未连通）" else "不在覆盖圈内",
+            C.accentRed.toColor()
+        )
     }
 }
 

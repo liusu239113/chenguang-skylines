@@ -39,6 +39,8 @@ object Networks {
             for (y in 0 until w.rows) for (x in 0 until w.cols) {
                 w.grid[y][x].pipe = false
                 w.grid[y][x].cable = false
+                w.grid[y][x].pipeMask = 0
+                w.grid[y][x].cableMask = 0
                 w.grid[y][x].sewer = false
                 w.grid[y][x].metro = false
                 w.grid[y][x].rail = false
@@ -78,20 +80,41 @@ object Networks {
         return true to null
     }
 
-    fun setPipe(x: Int, y: Int, on: Boolean = true): Boolean {
+    fun setPipe(x: Int, y: Int, on: Boolean = true, fromX: Int = -1, fromY: Int = -1): Boolean {
         val t = World.tile(x, y) ?: return false
         if (t.terrain == "water") return false
         t.pipe = on
+        if (on) linkDir(x, y, fromX, fromY, false)
         invalidateGrid()
         return true
     }
 
-    fun setCable(x: Int, y: Int, on: Boolean = true): Boolean {
+    fun setCable(x: Int, y: Int, on: Boolean = true, fromX: Int = -1, fromY: Int = -1): Boolean {
         val t = World.tile(x, y) ?: return false
         if (t.terrain == "water") return false
         t.cable = on
+        if (on) linkDir(x, y, fromX, fromY, true)
         invalidateGrid()
         return true
+    }
+
+    /**
+     * 按拖拽方向记录管线开口：
+     * 从 (fromX,fromY) 拖到 (x,y) 时，本格开口朝来向，上一格开口朝去向，
+     * 于是只有首尾相接的管线才连成一条；并排的两根互不串通。
+     */
+    private fun linkDir(x: Int, y: Int, fromX: Int, fromY: Int, power: Boolean) {
+        if (fromX < 0 || fromY < 0) return
+        val dx = x - fromX
+        val dy = y - fromY
+        if (dx != 0 && dy != 0) return
+        val to = dirBit(dx, dy)          // 上一格 → 当前格 的朝向
+        if (to == 0) return
+        val back = opposite(to)          // 当前格 → 上一格 的朝向
+        val cur = World.tile(x, y) ?: return
+        if (power) cur.cableMask = cur.cableMask or back else cur.pipeMask = cur.pipeMask or back
+        val prev = World.tile(fromX, fromY) ?: return
+        if (power) prev.cableMask = prev.cableMask or to else prev.pipeMask = prev.pipeMask or to
     }
 
     fun setSewer(x: Int, y: Int, on: Boolean = true): Boolean {
@@ -196,6 +219,23 @@ object Networks {
 
     private fun idx(x: Int, y: Int, cols: Int) = (y - 1) * cols + (x - 1)
 
+    /** 方向位：N=1 E=2 S=4 W=8，与 Tile 的 pipeMask/cableMask 一致 */
+    private fun dirBit(dx: Int, dy: Int): Int = when {
+        dx == 1 -> 2
+        dx == -1 -> 8
+        dy == 1 -> 4
+        dy == -1 -> 1
+        else -> 0
+    }
+
+    private fun opposite(bit: Int): Int = when (bit) {
+        1 -> 4
+        4 -> 1
+        2 -> 8
+        8 -> 2
+        else -> 0
+    }
+
     private fun conduitPower(x: Int, y: Int): Boolean {
         val t = World.tile(x, y) ?: return false
         return t.cable || t.road != null
@@ -206,7 +246,28 @@ object Networks {
         return t.pipe || t.road != null
     }
 
-    private fun flood(cols: Int, seeds: ArrayDeque<Int>, out: MutableSet<Int>, conduit: (Int, Int) -> Boolean) {
+    /**
+     * 该格在 bit 方向是否开口。
+     * 道路自带预埋管线，四向全通；自己铺的管缆按 mask 判定：
+     * mask=0（单点/旧档）视为四向全开；否则只有记录的开口方向可通行，
+     * 因此两根并排的竖电缆不会互相串通，必须首尾对齐才连得上。
+     */
+    private fun openAt(x: Int, y: Int, bit: Int, power: Boolean): Boolean {
+        val t = World.tile(x, y) ?: return false
+        if (t.road != null) return true
+        val has = if (power) t.cable else t.pipe
+        if (!has) return false
+        val m = if (power) t.cableMask else t.pipeMask
+        return m == 0 || (m and bit) != 0
+    }
+
+    private fun flood(
+        cols: Int,
+        seeds: ArrayDeque<Int>,
+        out: MutableSet<Int>,
+        conduit: (Int, Int) -> Boolean,
+        power: Boolean
+    ) {
         while (seeds.isNotEmpty()) {
             val k = seeds.removeFirst()
             if (!out.add(k)) continue
@@ -217,6 +278,10 @@ object Networks {
                 val ny = y + d[1]
                 if (!World.inBounds(nx, ny)) continue
                 if (!conduit(nx, ny)) continue
+                val bit = dirBit(d[0], d[1])
+                // 两端开口必须对上，才算接通
+                if (!openAt(x, y, bit, power)) continue
+                if (!openAt(nx, ny, opposite(bit), power)) continue
                 val nk = idx(nx, ny, cols)
                 if (nk !in out) seeds.add(nk)
             }
@@ -248,8 +313,8 @@ object Networks {
                 }
             }
         }
-        flood(cols, powerSeeds, powerTiles) { x, y -> conduitPower(x, y) }
-        flood(cols, waterSeeds, waterTiles) { x, y -> conduitWater(x, y) }
+        flood(cols, powerSeeds, powerTiles, { x, y -> conduitPower(x, y) }, true)
+        flood(cols, waterSeeds, waterTiles, { x, y -> conduitWater(x, y) }, false)
     }
 
     private fun linked(x: Int, y: Int, set: Set<Int>): Boolean {
@@ -275,6 +340,68 @@ object Networks {
     fun isWatered(x: Int, y: Int): Boolean {
         ensureGrid()
         return linked(x, y, waterTiles)
+    }
+
+    /**
+     * 地铁连通：从每个地铁站出发，沿地下隧道四向扩散，
+     * 返回「已接入隧道网的地铁站数量」。没接隧道的地铁站不算运力。
+     */
+    fun connectedMetroStations(): Int {
+        val w = World.current ?: return 0
+        val seen = HashSet<Int>()
+        var stations = 0
+        val tunnels = HashSet<Int>()
+        for (e in World.allBuildings()) {
+            if (e.b.service != "metro") continue
+            var hasAdj = false
+            for (dy in -1..e.b.h) {
+                for (dx in -1..e.b.w) {
+                    val x = e.x + dx
+                    val y = e.y + dy
+                    if (!World.inBounds(x, y)) continue
+                    if (World.tile(x, y)?.metro == true) {
+                        hasAdj = true
+                        tunnels.add((y - 1) * w.cols + (x - 1))
+                    }
+                }
+            }
+            if (hasAdj) stations++
+        }
+        // 隧道本身也要能连成片（从任一隧道出发扩散）
+        val q = ArrayDeque<Int>()
+        for (k in tunnels) q.add(k)
+        while (q.isNotEmpty()) {
+            val k = q.removeFirst()
+            if (!seen.add(k)) continue
+            val x = k % w.cols + 1
+            val y = k / w.cols + 1
+            for (d in DIRS) {
+                val nx = x + d[0]
+                val ny = y + d[1]
+                if (!World.inBounds(nx, ny)) continue
+                if (World.tile(nx, ny)?.metro != true) continue
+                val nk = (ny - 1) * w.cols + (nx - 1)
+                if (nk !in seen) q.add(nk)
+            }
+        }
+        // 只保留真正连到同一张隧道网的站点
+        var ok = 0
+        for (e in World.allBuildings()) {
+            if (e.b.service != "metro") continue
+            var linked = false
+            for (dy in -1..e.b.h) {
+                for (dx in -1..e.b.w) {
+                    val x = e.x + dx
+                    val y = e.y + dy
+                    if (!World.inBounds(x, y)) continue
+                    if (World.tile(x, y)?.metro == true && ((y - 1) * w.cols + (x - 1)) in seen) {
+                        linked = true
+                    }
+                }
+            }
+            if (linked) ok++
+        }
+        return ok
     }
 
     /** 是否临路：垃圾车/灵车沿路收运的前提 */
