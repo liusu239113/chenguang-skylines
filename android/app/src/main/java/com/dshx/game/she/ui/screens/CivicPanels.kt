@@ -111,7 +111,7 @@ fun CivicPanel() {
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "到港货轮 " + Traffic.shipVisits + " 艘次 · 航班 " + Traffic.flightVisits + " 架次 · 今日客运 " +
+                "到港货轮 " + Traffic.shipVisits + " 艘次 · 航班 " + Traffic.flightVisits + " 架次 · 列车 " + Traffic.trainVisits + " 车次 · 今日客运 " +
                     Traffic.passengersToday + " 人 · 今日贸易 " + UIHelper.fmtFunds(s.dayIncomeTrade),
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )

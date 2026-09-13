@@ -53,7 +53,8 @@ class TrainCar(
     var dir: Int,
     var prog: Float,
     var speed: Float,
-    var name: String
+    var name: String,
+    var lastStation: String = ""
 )
 
 class PlaneCraft(
@@ -136,6 +137,7 @@ object Traffic {
         localMoving = 0
         shipVisits = 0
         flightVisits = 0
+        trainVisits = 0
         passengersToday = 0
         tradeToday = 0.0
         tradeAccum = 0.0
@@ -166,6 +168,7 @@ object Traffic {
     private var ambientPlaneT = 30f
     var shipVisits = 0            // 累计到港船次（含过境）
     var flightVisits = 0          // 累计航班架次
+    var trainVisits = 0           // 累计进出站车次
     var passengersToday = 0       // 今日客运量（船+飞机+火车）
     var tradeToday = 0.0          // 今日外贸额
     var tradeAccum = 0.0          // 当日实时累计的船运/航班贸易额（结算日清空）
@@ -997,11 +1000,33 @@ object Traffic {
 
     private fun isRail(x: Int, y: Int) = World.tile(x, y)?.rail == true
 
+    /** 该格或四邻是否有火车站（列车进站判定用） */
+    private fun stationNear(x: Int, y: Int): BuildingEntry? {
+        for (dy in -1..1) {
+            for (dx in -1..1) {
+                val b = World.tile(x + dx, y + dy)?.building ?: continue
+                if (b.service == "rail_station") return BuildingEntry(b.ax, b.ay, b)
+            }
+        }
+        return null
+    }
+
     private fun driveTrains(dt: Float) {
         for (t in trains) {
             if (!isRail(t.x, t.y)) {
                 val cell = railCells().firstOrNull() ?: continue
                 t.x = cell.first; t.y = cell.second
+            }
+            // 进出站：列车经过车站时结算客运与城际贸易
+            val st = stationNear(t.x, t.y)
+            if (st != null) {
+                val key = "${st.x},${st.y}"
+                if (t.lastStation != key) {
+                    t.lastStation = key
+                    passengersToday += 60 + Random.nextInt(140)
+                    tradeAccum += 2.4
+                    trainVisits++
+                }
             }
             fun ok(d: Int): Boolean {
                 val v = dirs[d]
