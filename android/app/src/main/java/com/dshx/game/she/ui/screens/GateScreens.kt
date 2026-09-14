@@ -250,6 +250,19 @@ fun TapLoginGate(onReady: () -> Unit) {
         if (cur != null) startCompliance(cur)
     }
 
+    // 兜底：登录/认证如果因为没网、没装 TapTap、SDK 回调丢失而一直没回来，
+    // 界面会永远停在转圈上——按钮都没了，玩家就成了"什么都点不了"。
+    // 超时就恢复按钮并给出原因，让玩家能重试。
+    LaunchedEffect(logging, waitingCompliance) {
+        if (!logging && !waitingCompliance) return@LaunchedEffect
+        delay(25000)
+        if (logging || waitingCompliance) {
+            logging = false
+            waitingCompliance = false
+            err = "登录超时：请检查网络后重试；若手机未安装 TapTap，请先安装"
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
