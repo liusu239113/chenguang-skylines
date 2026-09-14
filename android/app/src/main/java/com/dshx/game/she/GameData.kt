@@ -154,7 +154,8 @@ object GameData {
         val keys = ArrayList<Int>()
         val snaps = HashMap<Int, TileSnap>()
         var fundsBefore: Double = 0.0
-        var spent: Double = 0.0
+        /** 这一步的净资金变化：正=花掉、负=赚到（推平退款）。撤销时原样反向结清 */
+        var delta: Double = 0.0
         var label: String = ""
     }
 
@@ -174,9 +175,17 @@ object GameData {
         stroke = null
         if (st.keys.isEmpty()) return
         val s = current
-        st.spent = max(0.0, st.fundsBefore - (s?.funds ?: 0.0))
+        // 记净变化（含推平退款这类"赚钱"的步骤），撤销时一分不差地反向结清，
+        // 否则"推平拿退款 → 撤销把路还回来"就能无限刷钱
+        st.delta = (s?.funds ?: 0.0) - st.fundsBefore
         undoStack.addLast(st)
         while (undoStack.size > 24) undoStack.removeFirst()
+    }
+
+    /** 读档/存档时清空撤销栈：不跨存档复活已经拆掉的东西 */
+    fun clearUndo() {
+        stroke = null
+        undoStack.clear()
     }
 
     /** 改动某格之前先拍快照（同一步里同一格只记第一次） */
@@ -205,10 +214,15 @@ object GameData {
             World.restoreTile(k % w.cols + 1, k / w.cols + 1, snap)
         }
         val s = current
-        if (s != null && st.spent > 0.0 && !sandbox) {
-            s.funds += st.spent
-            s.totalSpent = max(0.0, s.totalSpent - st.spent)
-            post("income", "other", "撤销返还", st.spent)
+        if (s != null && st.delta != 0.0 && !sandbox) {
+            s.funds -= st.delta
+            if (st.delta < 0.0) {
+                // 这一步本来是赚钱的（推平退款）：撤销要把钱扣回去
+                post("spend", "other", "撤销收回", -st.delta)
+            } else {
+                s.totalSpent = max(0.0, s.totalSpent - st.delta)
+                post("income", "other", "撤销返还", st.delta)
+            }
         }
         World.markStreetsDirty()
         World.ensureStreets()

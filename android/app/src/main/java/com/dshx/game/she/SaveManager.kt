@@ -195,13 +195,16 @@ object SaveManager {
         }
         json.put("monthBooks", months)
 
-        // 世界格子改动
+        // 世界格子：每一格都要写。
+        // 不能只写"非空"的格子——玩家推平过的格子一旦跳过不写，读档时会先按种子重新生成
+        // 一遍地形和初始道路，那些空格子就被补回来了（表现就是"推平了保存退出又有了，去不掉"）
         val tiles = JSONArray()
         for (y in 1..w.rows) {
             for (x in 1..w.cols) {
                 val t = w.grid[y - 1][x - 1]
-                if (t.zone == "none" && t.road == null && t.building == null && !t.pipe && !t.cable && !t.sewer && !t.metro && !t.rail && t.district == 0 && t.spec.isEmpty()) continue
-                val o = JSONObject().put("x", x).put("y", y).put("zone", t.zone)
+                val o = JSONObject().put("x", x).put("y", y)
+                if (t.terrain != "grass") o.put("terrain", t.terrain)
+                if (t.zone != "none") o.put("zone", t.zone)
                 t.road?.let { o.put("road", it) }
                 if (t.bridge) o.put("bridge", true)
                 t.underRoad?.let { o.put("underRoad", it) }
@@ -237,6 +240,12 @@ object SaveManager {
             }
         }
         json.put("tiles", tiles)
+        // 地形高度：垫高/下挖过的地也要存，否则读档会变回生成时的高度
+        val elevArr = JSONArray()
+        for (y in 0 until w.rows) {
+            for (x in 0 until w.cols) elevArr.put(w.elev[y][x])
+        }
+        json.put("elev", elevArr)
         val roads = JSONArray()
         for (line in w.roadLines) {
             val o = JSONObject()
@@ -287,6 +296,8 @@ object SaveManager {
                 val y = o.getInt("y")
                 val t = World.tile(x, y) ?: continue
                 t.zone = o.optString("zone", "none")
+                // 旧档没有 terrain 字段：保持按种子生成的地形，不要覆盖成草地
+                if (o.has("terrain")) t.terrain = o.optString("terrain")
                 if (o.has("road")) t.road = o.optString("road") else t.road = null
                 t.bridge = o.optBoolean("bridge", false)
                 t.underRoad = if (o.has("underRoad")) o.optString("underRoad") else null
@@ -336,6 +347,22 @@ object SaveManager {
                 }
             }
         }
+
+        // 地形高度（垫高/下挖）：旧档没有这个字段就保持生成时的高度
+        val elevArr = json.optJSONArray("elev")
+        if (elevArr != null) {
+            val w = World.current
+            if (w != null) {
+                for (y in 0 until w.rows) {
+                    for (x in 0 until w.cols) {
+                        val k = y * w.cols + x
+                        if (k < elevArr.length()) w.elev[y][x] = elevArr.optInt(k, w.elev[y][x])
+                    }
+                }
+            }
+        }
+        // 读档后不保留上一条命（上一次会话）的撤销记录
+        GameData.clearUndo()
 
         // 恢复状态
         val s = GameData.current!!

@@ -40,12 +40,14 @@ import androidx.compose.ui.window.DialogProperties
 import com.dshx.game.she.AppState
 import com.dshx.game.she.ComplianceManager
 import com.dshx.game.she.Config
+import com.dshx.game.she.MapRef
 import com.dshx.game.she.Prefs
 import com.dshx.game.she.PrivacyDocs
 import com.dshx.game.she.Sfx
 import com.dshx.game.she.TapSdkInitializer
 import com.dshx.game.she.ui.theme.LocalGameFont
 import com.dshx.game.she.ui.toColor
+import kotlinx.coroutines.delay
 import com.taptap.sdk.kit.internal.callback.TapTapCallback
 import com.taptap.sdk.kit.internal.exception.TapTapException
 import com.taptap.sdk.login.Scopes
@@ -320,13 +322,25 @@ fun TapLoginGate(onReady: () -> Unit) {
     }
 }
 
+/**
+ * 加载遮罩。必须留退路：广告回调万一不回来（没网 / SDK 没就绪），
+ * 之前是全屏不可关的 Dialog，玩家就"什么都点不了"卡死了。
+ * 现在 12 秒超时自动关，也提供手动取消。
+ */
 @Composable
 fun AdLoadingOverlay(visible: Boolean) {
     if (!visible) return
     val C = Config.COLORS
+    LaunchedEffect(Unit) {
+        delay(12000)
+        if (AppState.adLoading) {
+            AppState.adLoading = false
+            MapRef.view?.setToast("加载超时，已取消（可稍后重试）")
+        }
+    }
     Dialog(
-        onDismissRequest = {},
-        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false, usePlatformDefaultWidth = false)
+        onDismissRequest = { AppState.adLoading = false },
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false, usePlatformDefaultWidth = false)
     ) {
         Box(
             modifier = Modifier
@@ -343,6 +357,17 @@ fun AdLoadingOverlay(visible: Boolean) {
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(40.dp), color = C.accentGreen.toColor(), strokeWidth = 3.dp)
                 Text("广告加载中…", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                Box(
+                    modifier = Modifier
+                        .background(C.chipBg.toColor(), RoundedCornerShape(16.dp))
+                        .clickable {
+                            AppState.adLoading = false
+                            MapRef.view?.setToast("已取消加载")
+                        }
+                        .padding(horizontal = 18.dp, vertical = 8.dp)
+                ) {
+                    Text("取消", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+                }
             }
         }
     }
