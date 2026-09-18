@@ -452,10 +452,24 @@ class World {
 
         fun unlockStep(): Int = Config.GROWTH.unlockPerPop
 
+        /**
+         * 解锁圈上限取地图尺寸：人口继续涨就能一路扩到全图。
+         * 之前 extra 死卡在 48 环（人口 960 就封顶），人口再高地图边上还是一大片黑区，
+         * 信息面板还会显示"再增加 0 人"，玩家以为不能扩建了。
+         */
         fun unlockRadius(): Int {
             val w = current ?: return 10
-            val extra = (w._pop / unlockStep()).coerceIn(0, 48)
-            return (w.unlockR + extra).coerceAtMost(max(w.cols, w.rows))
+            val cap = max(w.cols, w.rows)
+            val extra = (w._pop / unlockStep()).coerceIn(0, cap)
+            return (w.unlockR + extra).coerceAtMost(cap)
+        }
+
+        /** 全图是否已解锁（黑区扩完） */
+        fun isFullyUnlocked(): Boolean {
+            val w = current ?: return false
+            val r = unlockRadius()
+            return abs(1 - w.unlockCx) + abs(1 - w.unlockCy) <= r &&
+                abs(w.cols - w.unlockCx) + abs(w.rows - w.unlockCy) <= r
         }
 
         fun isUnlocked(x: Int, y: Int): Boolean {
@@ -465,12 +479,14 @@ class World {
 
         fun nextUnlockPop(): Int {
             val w = current ?: return unlockStep()
-            val extra = (w._pop / unlockStep()).coerceIn(0, 48)
-            if (extra >= 48) return w._pop
+            val cap = max(w.cols, w.rows)
+            val extra = (w._pop / unlockStep()).coerceIn(0, cap)
+            if (extra >= cap) return w._pop
             return (extra + 1) * unlockStep()
         }
 
         fun lockedHint(): String {
+            if (isFullyUnlocked()) return "全图已解锁，黑区已经扩完了，可以随便建。"
             val need = nextUnlockPop()
             val have = current?._pop ?: 0
             val left = (need - have).coerceAtLeast(0)

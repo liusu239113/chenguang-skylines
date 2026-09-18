@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -274,7 +275,8 @@ fun MapScreenContent(mapView: MapRenderView) {
                     val have = s.population.toInt()
                     val left = (need - have).coerceAtLeast(0)
                     Text(
-                        if (left <= 0) "城区已尽量向外展开"
+                        if (World.isFullyUnlocked()) "全图已解锁"
+                        else if (left <= 0) "城区已尽量向外展开"
                         else "黑色区域：再增加 $left 人自动解锁（目标 $need 人）",
                         fontSize = 10.sp,
                         color = C.textMid.toColor(),
@@ -755,9 +757,11 @@ fun MapScreenContent(mapView: MapRenderView) {
         }
 
         // ---------------- 底部工具栏 ----------------
+        // navigationBarsPadding：避开系统导航栏（三键/手势条），否则会重叠误触
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
                 .padding(bottom = 14.dp, start = 10.dp, end = 10.dp)
                 .fillMaxWidth()
                 .shadowCard(22.dp, C.panelWhite.toColor())
@@ -806,6 +810,7 @@ fun MapScreenContent(mapView: MapRenderView) {
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
                     .padding(bottom = 78.dp, start = 12.dp, end = 12.dp)
                     .fillMaxWidth()
                     .shadowCard(16.dp, C.panelWhite.toColor())
@@ -863,6 +868,7 @@ fun MapScreenContent(mapView: MapRenderView) {
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
                     .padding(bottom = 78.dp, start = 12.dp, end = 12.dp)
                     .fillMaxWidth()
                     .shadowCard(16.dp, C.panelWhite.toColor())

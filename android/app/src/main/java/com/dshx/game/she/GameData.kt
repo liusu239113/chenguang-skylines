@@ -265,10 +265,13 @@ object GameData {
         }
     }
 
-    fun buildCostMul(): Double {
-        val s = cityScale()
-        return if (s <= 1.0) 1.0 else 1.0 + (s - 1.0) * 0.85
-    }
+    /**
+     * 造价系数：固定值，不随人口/年份往上涨。
+     * 之前这里跟着城市规模最高翻到 2.5 倍，玩家看着价目表"水涨船高"，
+     * 大学能标到一亿多，怎么收税都追不上。现在全周期一个价，
+     * 用 1.3 倍托底（比开局的裸价贵一点，不至于后期显得白菜价）。
+     */
+    fun buildCostMul(): Double = 1.30
 
     fun serviceCost(id: String): Int {
         val cfg = World.serviceConfig(id) ?: return 0
@@ -765,12 +768,13 @@ object GameData {
         val lateIncomeCut = if (scale <= 1.0) 1.0 else 1.0 / (1.0 + (scale - 1.0) * 0.22)
         val rawGross = income * diff.incomeMul * eventIncomeMul * lateIncomeCut
         var spend = if (sandbox) 0.0 else upkeep * diff.upkeepMul
-        // 支出占收入上限：前期 55% 保证有利润；中期升到 78%；后期最高 88%。乱铺会接近打平，日常不破产。
+        // 支出占收入上限：前期 55% 保证有利润；中期升到 74%；后期最高 80%。
+        // 物价已经改成固定价，后期净利被压到 12% 会让大工程（大学/港口）硬拖上百个月，所以留 20% 利润。
         if (!sandbox && rawGross > 0.4) {
             val cap = when {
                 scale <= 1.0 -> 0.55
-                scale < 1.70 -> 0.55 + (scale - 1.0) / 0.70 * 0.23
-                else -> 0.78 + min(0.10, (scale - 1.70) / 1.10 * 0.10)
+                scale < 1.70 -> 0.55 + (scale - 1.0) / 0.70 * 0.19
+                else -> 0.74 + min(0.06, (scale - 1.70) / 1.10 * 0.06)
             }
             if (spend > rawGross * cap) spend = rawGross * cap
         }
