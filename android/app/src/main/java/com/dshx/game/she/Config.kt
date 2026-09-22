@@ -253,6 +253,9 @@ object Config {
             "收运 60 栋。气味按距离衰减，可放远郊。", ServiceCat.GARBAGE, 40, 3, 0, 0, 60, 0, 5),
         ServiceDef("incinerator", "焚烧厂", 2200, 52, 8, -2, false, 2, 2,
             "收运 160 栋并发电 12，烟尘按距离衰减。", ServiceCat.GARBAGE, 300, 5, 12, 0, 160, 0, 7),
+        ServiceDef("waste_plant", "综合处理厂", 6500, 115, 10, -3, false, 3, 3,
+            "大型垃圾综合处理：收运 420 栋并发电 20。城区一大就靠它，烟尘按距离衰减，适合放远郊。",
+            ServiceCat.GARBAGE, 900, 4, 20, 0, 420, 0, 8),
         // ---- 医疗 ----
         ServiceDef("clinic", "诊所", 640, 28, 7, 5, false, 1, 1,
             "基础医疗，覆盖区健康与满意度提升。", ServiceCat.HEALTH, 25),

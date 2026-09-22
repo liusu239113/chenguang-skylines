@@ -878,6 +878,7 @@ class World {
                     when (cfg.id) {
                         "landfill" -> { radius = 6; strength = 22.0 }
                         "incinerator" -> { radius = 7; strength = 26.0 }
+                        "waste_plant" -> { radius = 8; strength = 28.0 }
                         "coal_plant" -> { radius = 9; strength = 30.0 }
                         "nuclear_plant" -> { radius = 12; strength = 20.0 }
                         "crematorium" -> { radius = 4; strength = 14.0 }

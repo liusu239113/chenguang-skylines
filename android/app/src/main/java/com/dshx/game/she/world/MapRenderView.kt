@@ -48,6 +48,41 @@ class MapRenderView @JvmOverloads constructor(
     // 状态
     // -----------------------------------------------------------------------
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    // ------------------------------------------------------------------
+    // 渲染缓冲：每帧 clear 复用，避免每帧重新分配一大把 List/FloatArray。
+    // 后期道路和建筑一多，这些临时对象就是滑动掉帧的主要来源（GC 抖动）。
+    // ------------------------------------------------------------------
+    private val bufLocalDash = ArrayList<Float>(512)
+    private val bufAveYA = ArrayList<Float>(256)
+    private val bufAveYB = ArrayList<Float>(256)
+    private val bufAveWhite = ArrayList<Float>(256)
+    private val bufHwyYA = ArrayList<Float>(128)
+    private val bufHwyYB = ArrayList<Float>(128)
+    private val bufHwyWhite = ArrayList<Float>(128)
+    private val bufRail = ArrayList<Float>(128)
+    private val bufCrossX = ArrayList<Float>(64)
+    private val bufCrossY = ArrayList<Float>(64)
+    private val bufStopLine = ArrayList<Float>(64)
+    private val draftLineColors = listOf(
+        RGBA(70, 140, 210), RGBA(210, 90, 70), RGBA(80, 170, 110), RGBA(180, 120, 40)
+    )
+    private val lampColor = RGBA(255, 230, 150)
+    private val lightRed = RGBA(210, 60, 50, 255)
+    private val lightGreen = RGBA(70, 180, 90, 255)
+    private val dashWhite = RGBA(236, 236, 240, 210)
+    private val aveYellow = RGBA(236, 196, 70, 230)
+    private val aveWhiteC = RGBA(240, 240, 245, 210)
+    private val hwyYellow = RGBA(236, 196, 70, 240)
+    private val hwyWhiteC = RGBA(245, 245, 248, 220)
+    private val railDark = RGBA(48, 48, 52, 240)
+    private val railLight = RGBA(210, 210, 214, 220)
+
+    /** 拖动地图时降级绘制（省略装饰细节）：移动中玩家看不出差别，但能省掉大量绘制 */
+    private fun fastDrag(): Boolean = dragActive && dragMode == "pan"
+
+    // 文本宽度缓存：路名/建筑名每帧都要 measure，缓存掉原生测量调用
+    private val measureCache = HashMap<Long, Float>(512)
     private val path = Path()
     private var typeface: Typeface? = null
 
@@ -148,6 +183,7 @@ class MapRenderView @JvmOverloads constructor(
                 Typeface.DEFAULT
             }
         }
+        measureCache.clear()
         invalidate()
     }
 
@@ -856,6 +892,24 @@ class MapRenderView @JvmOverloads constructor(
         out.add(x0); out.add(y0); out.add(x1); out.add(y1)
     }
 
+    private var lineBuf = FloatArray(16384)
+
+    /** 和 fillLines 一样，但直接从复用缓冲取数据，省掉每帧 toFloatArray() 的分配 */
+    private fun fillLinesBuffered(
+        canvas: Canvas, src: ArrayList<Float>, c: RGBA, alpha: Int = c.a, width: Float,
+        dash: DashPathEffect? = null
+    ) {
+        val n = src.size
+        if (n < 4) return
+        if (lineBuf.size < n) lineBuf = FloatArray(n * 2)
+        for (i in 0 until n) lineBuf[i] = src[i]
+        strokeColor(c, alpha, width)
+        paint.strokeCap = Paint.Cap.BUTT
+        paint.pathEffect = dash
+        canvas.drawLines(lineBuf, 0, n, paint)
+        paint.pathEffect = null
+    }
+
     private fun fillLines(
         canvas: Canvas, pts: FloatArray, c: RGBA, alpha: Int = c.a, width: Float,
         dash: DashPathEffect? = null
@@ -888,9 +942,15 @@ class MapRenderView @JvmOverloads constructor(
     }
 
     private fun measure(text: String, size: Float): Float {
+        val key = (text.hashCode().toLong() shl 32) or (java.lang.Float.floatToRawIntBits(size).toLong() and 0xffffffffL)
+        val hit = measureCache[key]
+        if (hit \!= null) return hit
         paint.typeface = typeface
         paint.textSize = size
-        return paint.measureText(text)
+        val v = paint.measureText(text)
+        if (measureCache.size > 3000) measureCache.clear()
+        measureCache[key] = v
+        return v
     }
 
     /**
@@ -1218,9 +1278,9 @@ class MapRenderView @JvmOverloads constructor(
                     val sx = worldToScreenX((tx - 1).toFloat())
                     val sy = worldToScreenY((ty - 1).toFloat())
                     when {
-                        t.terrain == "forest" -> drawTreeBlocks(canvas, sx, sy, tx, ty)
-                        t.terrain == "hill" && cell >= 8 -> drawHillBlocks(canvas, sx, sy, tx, ty)
-                        t.terrain == "water" && cell >= 8 -> drawWaterRipple(canvas, sx, sy, tx, ty)
+                        t.terrain == "forest" -> if (\!fastDrag()) drawTreeBlocks(canvas, sx, sy, tx, ty)
+                        t.terrain == "hill" && cell >= 8 -> if (\!fastDrag()) drawHillBlocks(canvas, sx, sy, tx, ty)
+                        t.terrain == "water" && cell >= 8 -> if (\!fastDrag()) drawWaterRipple(canvas, sx, sy, tx, ty)
                         t.terrain != "water" && hash01(tx, ty, 9) > 0.86f -> {
                             fillRoundRect(
                                 canvas, sx + cell * 0.38f, sy + cell * 0.62f,
@@ -1252,15 +1312,16 @@ class MapRenderView @JvmOverloads constructor(
 
         // ---- 3) 道路标线：两车道中虚线 / 四车道双黄+两侧白虚线 / 高速双黄 ----
         if (cell >= 8) {
-            val localDash = mutableListOf<Float>()
-            val aveYellowA = mutableListOf<Float>()
-            val aveYellowB = mutableListOf<Float>()
-            val aveWhite = mutableListOf<Float>()
-            val hwyYellowA = mutableListOf<Float>()
-            val hwyYellowB = mutableListOf<Float>()
-            val hwyWhite = mutableListOf<Float>()
-            val railPt = mutableListOf<Float>()
-            val cross = mutableListOf<Triple<Float, Float, Int>>()
+            val localDash = bufLocalDash; localDash.clear()
+            val aveYellowA = bufAveYA; aveYellowA.clear()
+            val aveYellowB = bufAveYB; aveYellowB.clear()
+            val aveWhite = bufAveWhite; aveWhite.clear()
+            val hwyYellowA = bufHwyYA; hwyYellowA.clear()
+            val hwyYellowB = bufHwyYB; hwyYellowB.clear()
+            val hwyWhite = bufHwyWhite; hwyWhite.clear()
+            val railPt = bufRail; railPt.clear()
+            val crossX = bufCrossX; crossX.clear()
+            val crossY = bufCrossY; crossY.clear()
             for (ty in y0..y1) {
                 for (tx in x0..x1) {
                     val t = w.grid[ty - 1][tx - 1]
@@ -1334,31 +1395,31 @@ class MapRenderView @JvmOverloads constructor(
                         }
                     }
                     if (crossroad) {
-                        cross.add(Triple(cx, cy, if (kind == "avenue" || kind == "highway") 1 else 0))
+                        crossX.add(cx); crossY.add(cy)
                     }
                 }
             }
             val dash = DashPathEffect(floatArrayOf(max(3.5f, cell * 0.18f), max(2.4f, cell * 0.12f)), 0f)
             if (localDash.isNotEmpty()) {
-                fillLines(canvas, localDash.toFloatArray(), RGBA(236, 236, 240, 210), 255, max(1f, cell * 0.035f), dash)
+                fillLinesBuffered(canvas, localDash, dashWhite, 255, max(1f, cell * 0.035f), dash)
             }
             if (aveYellowA.isNotEmpty()) {
-                fillLines(canvas, aveYellowA.toFloatArray(), RGBA(236, 196, 70, 230), 255, max(1.1f, cell * 0.04f))
-                fillLines(canvas, aveYellowB.toFloatArray(), RGBA(236, 196, 70, 230), 255, max(1.1f, cell * 0.04f))
+                fillLinesBuffered(canvas, aveYellowA, aveYellow, 255, max(1.1f, cell * 0.04f))
+                fillLinesBuffered(canvas, aveYellowB, aveYellow, 255, max(1.1f, cell * 0.04f))
             }
             if (aveWhite.isNotEmpty()) {
-                fillLines(canvas, aveWhite.toFloatArray(), RGBA(240, 240, 245, 210), 255, max(0.9f, cell * 0.03f), dash)
+                fillLinesBuffered(canvas, aveWhite, aveWhiteC, 255, max(0.9f, cell * 0.03f), dash)
             }
             if (hwyYellowA.isNotEmpty()) {
-                fillLines(canvas, hwyYellowA.toFloatArray(), RGBA(236, 196, 70, 240), 255, max(1.3f, cell * 0.045f))
-                fillLines(canvas, hwyYellowB.toFloatArray(), RGBA(236, 196, 70, 240), 255, max(1.3f, cell * 0.045f))
+                fillLinesBuffered(canvas, hwyYellowA, hwyYellow, 255, max(1.3f, cell * 0.045f))
+                fillLinesBuffered(canvas, hwyYellowB, hwyYellow, 255, max(1.3f, cell * 0.045f))
             }
             if (hwyWhite.isNotEmpty()) {
-                fillLines(canvas, hwyWhite.toFloatArray(), RGBA(245, 245, 248, 220), 255, max(1f, cell * 0.032f), dash)
+                fillLinesBuffered(canvas, hwyWhite, hwyWhiteC, 255, max(1f, cell * 0.032f), dash)
             }
             if (railPt.isNotEmpty()) {
-                fillLines(canvas, railPt.toFloatArray(), RGBA(48, 48, 52, 240), 255, max(2.2f, cell * 0.16f))
-                fillLines(canvas, railPt.toFloatArray(), RGBA(210, 210, 214, 220), 255, max(0.8f, cell * 0.04f))
+                fillLinesBuffered(canvas, railPt, railDark, 255, max(2.2f, cell * 0.16f))
+                fillLinesBuffered(canvas, railPt, railLight, 255, max(0.8f, cell * 0.04f))
             }
             if (typeface != null && cell >= 12f) {
                 World.ensureStreets()
@@ -1366,12 +1427,14 @@ class MapRenderView @JvmOverloads constructor(
                     drawStreetNameOnRoad(canvas, line, x0, x1, y0, y1)
                 }
             }
-            if (cross.isNotEmpty()) {
+            if (crossX.isNotEmpty()) {
                 val cycle = (Growth.simTime * 1.2).toInt() % 4
                 val red = cycle < 2
-                val col = if (red) RGBA(210, 60, 50, 255) else RGBA(70, 180, 90, 255)
+                val col = if (red) lightRed else lightGreen
                 val box = max(2.4f, cell * 0.11f)
-                for ((cx, cy, _) in cross) {
+                for (ci in crossX.indices) {
+                    val cx = crossX[ci]
+                    val cy = crossY[ci]
                     // 路口信号灯做成小方盒，避免被看成路上行人圆点
                     fillRect(canvas, cx + cell * 0.16f, cy - box, box * 0.62f, box * 1.55f, RGBA(36, 36, 40, 235))
                     fillRect(
@@ -1385,7 +1448,7 @@ class MapRenderView @JvmOverloads constructor(
                 }
             }
             // 路灯：夜晚只在路边角落发微光，不在车道中央画圆点
-            if (nightLevel > 0.3f) {
+            if (nightLevel > 0.3f && \!fastDrag()) {
                 for (ty in y0..y1) {
                     for (tx in x0..x1) {
                         if (w.grid[ty - 1][tx - 1].road != null && (tx + ty) % 2 == 0) {
@@ -1395,7 +1458,7 @@ class MapRenderView @JvmOverloads constructor(
                             fillRect(
                                 canvas, lx + cell * 0.06f, ly + cell * 0.08f,
                                 glow, glow * 1.6f,
-                                RGBA(255, 230, 150, (nightLevel * 90).toInt())
+                                lampColor
                             )
                         }
                     }
@@ -1455,17 +1518,17 @@ class MapRenderView @JvmOverloads constructor(
 
         // ---- 3.6) 公交车 + 草稿线路 ----
         if (cell >= 8) {
-            val draftCols = listOf(RGBA(70, 140, 210), RGBA(210, 90, 70), RGBA(80, 170, 110), RGBA(180, 120, 40))
+            val draftCols = draftLineColors
             fun drawStopLine(stops: List<BusStopRef>, col: RGBA) {
                 if (stops.size < 2) return
-                val pts = mutableListOf<Float>()
+                val pts = bufStopLine; pts.clear()
                 for (i in 0 until stops.size - 1) {
                     pts.add(worldToScreenX(stops[i].x - 0.5f))
                     pts.add(worldToScreenY(stops[i].y - 0.5f))
                     pts.add(worldToScreenX(stops[i + 1].x - 0.5f))
                     pts.add(worldToScreenY(stops[i + 1].y - 0.5f))
                 }
-                fillLines(canvas, pts.toFloatArray(), col, 220, max(1.5f, cell * 0.08f))
+                fillLinesBuffered(canvas, pts, col, 220, max(1.5f, cell * 0.08f))
             }
             for ((idx, line) in Transit.lines.withIndex()) {
                 drawStopLine(line.stops, draftCols[idx % draftCols.size])
@@ -2121,6 +2184,17 @@ class MapRenderView @JvmOverloads constructor(
                 drawSolidBox(canvas, bx + bw * 0.70f, by + bh * 0.16f, bw * 0.20f, bh * 0.28f, hpx * 1.2f, RGBA(90, 88, 84))
                 fillCircle(canvas, bx + bw * 0.80f, by - hpx * 0.7f, cell * 0.07f, RGBA(160, 160, 160, 150))
             }
+            bl.service == "waste_plant" -> {
+                // 大型综合处理厂：主厂房 + 两道烟囱 + 分拣棚 + 蓝色回收桶
+                drawSolidBox(canvas, bx + bw * 0.04f, by + bh * 0.34f, bw * 0.66f, bh * 0.56f, hpx * 0.62f, RGBA(126, 124, 118))
+                drawPitchedRoof(canvas, bx + bw * 0.04f, by + bh * 0.34f, bw * 0.66f, bh * 0.56f, hpx * 0.62f, RGBA(96, 106, 112))
+                drawSolidBox(canvas, bx + bw * 0.72f, by + bh * 0.44f, bw * 0.24f, bh * 0.38f, hpx * 0.30f, RGBA(150, 148, 140))
+                drawSolidBox(canvas, bx + bw * 0.76f, by + bh * 0.14f, bw * 0.08f, bh * 0.12f, hpx * 1.30f, RGBA(96, 94, 90))
+                drawSolidBox(canvas, bx + bw * 0.88f, by + bh * 0.14f, bw * 0.08f, bh * 0.12f, hpx * 1.05f, RGBA(110, 108, 104))
+                fillCircle(canvas, bx + bw * 0.80f, by - hpx * 0.75f, cell * 0.06f, RGBA(170, 170, 170, 130))
+                drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.10f, bw * 0.18f, bh * 0.16f, hpx * 0.22f, RGBA(58, 118, 168))
+                drawSolidBox(canvas, bx + bw * 0.32f, by + bh * 0.10f, bw * 0.18f, bh * 0.16f, hpx * 0.22f, RGBA(70, 150, 96))
+            }
             bl.service == "pump_station" -> {
                 drawSolidBox(canvas, bx + bw * 0.12f, by + bh * 0.28f, bw * 0.76f, bh * 0.52f, hpx * 0.5f, RGBA(70, 130, 170))
                 fillCircle(canvas, bx + bw * 0.32f, by + bh * 0.4f, cell * 0.12f, RGBA(50, 90, 130))
@@ -2315,7 +2389,7 @@ class MapRenderView @JvmOverloads constructor(
             drawNameOnFrontWall(canvas, bx, by, bw, bh, hpx, label)
         }
         if (World.tile(tx, ty)?.onFire == true) {
-            drawFireParticles(canvas, bx + bw * 0.5f, by + bh * 0.18f - hpx)
+            if (\!fastDrag()) drawFireParticles(canvas, bx + bw * 0.5f, by + bh * 0.18f - hpx)
         }
     }
 

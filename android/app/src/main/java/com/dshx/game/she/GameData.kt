@@ -157,6 +157,8 @@ object GameData {
         /** 这一步的净资金变化：正=花掉、负=赚到（推平退款）。撤销时原样反向结清 */
         var delta: Double = 0.0
         var label: String = ""
+        /** 涉及公交线路的改动（开通/拆除）先存一份线路快照，撤销时整份还原 */
+        var transitSnap: org.json.JSONArray? = null
     }
 
     private var stroke: UndoStep? = null
@@ -173,7 +175,7 @@ object GameData {
     fun endStroke() {
         val st = stroke ?: return
         stroke = null
-        if (st.keys.isEmpty()) return
+        if (st.keys.isEmpty() && st.transitSnap == null) return
         val s = current
         // 记净变化（含推平退款这类"赚钱"的步骤），撤销时一分不差地反向结清，
         // 否则"推平拿退款 → 撤销把路还回来"就能无限刷钱
@@ -200,6 +202,12 @@ object GameData {
         st.keys.add(k)
     }
 
+    /** 改公交线路前先拍一张线路快照，这样【撤】也能把线路改回来 */
+    fun noteTransit() {
+        val st = stroke ?: return
+        if (st.transitSnap == null) st.transitSnap = Transit.toJson()
+    }
+
     fun canUndo(): Boolean = undoStack.isNotEmpty()
 
     fun undoLabel(): String? = undoStack.lastOrNull()?.label
@@ -224,11 +232,15 @@ object GameData {
                 post("income", "other", "撤销返还", st.delta)
             }
         }
+        st.transitSnap?.let { Transit.fromJson(it) }
         World.markStreetsDirty()
         World.ensureStreets()
         Networks.invalidateGrid()
         Networks.recount()
         Traffic.reset()
+        if (st.keys.isEmpty()) {
+            return "已撤销" + (if (st.label.isNotEmpty()) "（" + st.label + "）" else "公交线路改动")
+        }
         return "已撤销 " + st.keys.size + " 格" + (if (st.label.isNotEmpty()) "（" + st.label + "）" else "")
     }
 
@@ -1165,6 +1177,12 @@ object GameData {
                     val back = floor(serviceCost(cfg.id) * 0.3)
                     s.funds += back
                     post("income", "other", "拆除退款", back)
+                }
+                // 拆掉公交站/地铁站：线路里不能留着空气站点，掉到不足 2 站的线路自动停运
+                if (res.second == "bus_stop" || res.second == "metro") {
+                    noteTransit()
+                    val dead = Transit.onStopRemoved(x, y)
+                    if (dead \!= null) pushNews("公交停运", dead + " 因站点不足 2 个已自动停运。", "交通")
                 }
                 pushNews("拆除设施", "退还部分造价。", "城建")
             }

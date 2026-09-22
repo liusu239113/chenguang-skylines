@@ -69,6 +69,49 @@ object Transit {
         draft.clear()
     }
 
+    /** 撤销草稿里最后一个站点（点错站不用整条重来） */
+    fun undoDraftStop(): Pair<Boolean, String?> {
+        if (draft.isEmpty()) return false to "草稿里还没有站点"
+        draft.removeAt(draft.size - 1)
+        return true to ("已移除上一个站点，剩 " + draft.size + " 站")
+    }
+
+    /** 拆除一条已开通线路：车一并撤掉，站点设施保留 */
+    fun removeLine(id: Int): Pair<Boolean, String?> {
+        val idx = lines.indexOfFirst { it.id == id }
+        if (idx < 0) return false to "线路不存在"
+        val line = lines.removeAt(idx)
+        vehicles.removeAll { it.lineId == id }
+        GameData.pushNews("公交停运", line.name + " 已拆除，车辆已撤回。", "交通")
+        return true to (line.name + " 已拆除")
+    }
+
+    /**
+     * 公交站/地铁站被推平时调用：把该站从所有线路里摘掉。
+     * 掉到不足 2 站的线路自动停运（返回线路名，交给调用方提示）。
+     */
+    fun onStopRemoved(x: Int, y: Int): String? {
+        draft.removeAll { it.x == x && it.y == y }
+        var deadLine: String? = null
+        val it = lines.iterator()
+        while (it.hasNext()) {
+            val line = it.next()
+            if (!line.stops.removeAll { s -> s.x == x && s.y == y }) continue
+            if (line.stops.size < 2) {
+                it.remove()
+                vehicles.removeAll { v -> v.lineId == line.id }
+                deadLine = line.name
+            } else {
+                spawnBuses(line)
+            }
+        }
+        return deadLine
+    }
+
+    /** 线路列表（面板展示用）：名字 + 站数 */
+    fun summary(): List<Triple<Int, String, Int>> =
+        lines.map { Triple(it.id, it.name, it.stops.size) }
+
     fun confirmDraft(): Pair<Boolean, String?> {
         if (draft.size < 2) return false to "至少需要 2 个站点"
         if (lines.size >= 6) return false to "线路已满（最多 6 条）"

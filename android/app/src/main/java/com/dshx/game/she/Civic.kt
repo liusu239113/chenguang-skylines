@@ -1,5 +1,6 @@
 package com.dshx.game.she
 
+import com.dshx.game.she.world.BuildingEntry
 import com.dshx.game.she.world.CitySystems
 import com.dshx.game.she.world.World
 import kotlin.math.max
@@ -32,6 +33,10 @@ object Civic {
     var examCooldown: Int = 0
     var schoolRate: Double = 0.42
     var complaintsHandled: Int = 0
+    /** 来信冷却（天）：处理完一封隔几天再来，避免天天弹窗 */
+    var complaintCooldown: Int = 0
+    /** 缺覆盖的容忍比例：超过这个比例才算"服务不到位" */
+    private const val COVER_GAP_TOLERANCE = 0.15
     var pending: Complaint? = null
     var examSession: List<ExamQuestion> = emptyList()
     var examIndex: Int = 0
@@ -43,6 +48,7 @@ object Civic {
         examCooldown = 0
         schoolRate = 0.42
         complaintsHandled = 0
+        complaintCooldown = 0
         pending = null
         examSession = emptyList()
         examIndex = 0
@@ -58,13 +64,27 @@ object Civic {
         val target = 0.28 + edu * 0.42 + health * 0.12 + happy * 0.12 + (if (s.lastCoverage?.education ?: 0f > 0.4f) 0.08 else 0.0)
         schoolRate += (target.coerceIn(0.15, 0.96) - schoolRate) * 0.18
         s.merit += schoolRate * 1.2 + s.education * 0.01
-        if (pending == null && Random.nextDouble() < 0.28) {
+        if (complaintCooldown > 0) complaintCooldown -= 1
+        // 服务基本到位就别再弹来信了：人口太少不弹、刚处理过要冷却
+        if (pending == null && complaintCooldown <= 0 && s.population >= 25 && Random.nextDouble() < 0.28) {
             val real = realComplaints()
             if (real.isNotEmpty()) {
                 pending = real[Random.nextInt(real.size)]
                 AppState.complaintOpen = true
             }
         }
+    }
+
+
+    /**
+     * 缺覆盖的建筑占比。只有整体服务明显不到位才发来信，
+     * 个别边缘地块没接到管线/马路不该天天弹窗。
+     */
+    private fun uncoveredRatio(list: List<BuildingEntry>, cat: String): Double {
+        if (list.isEmpty()) return 0.0
+        var bad = 0
+        for (e in list) if (!World.isCoveredBy(e.x, e.y, cat)) bad++
+        return bad.toDouble() / list.size
     }
 
     private fun realComplaints(): List<Complaint> {
@@ -76,10 +96,10 @@ object Civic {
         }
         val hasClinic = World.allBuildings().any { it.b.service == "clinic" || it.b.service == "hospital" }
         val out = mutableListOf<Complaint>()
-        if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }) {
+        if (uncoveredRatio(homes, Config.ServiceCat.POWER) > COVER_GAP_TOLERANCE) {
             out.add(COMPLAINTS.first { it.id == "power" })
         }
-        if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.WATER) }) {
+        if (uncoveredRatio(homes, Config.ServiceCat.WATER) > COVER_GAP_TOLERANCE) {
             out.add(COMPLAINTS.first { it.id == "water" })
         }
         val pop = GameData.current?.population ?: 0.0
@@ -89,21 +109,21 @@ object Civic {
         }
         if (homes.isNotEmpty() && !hasSchool && unlocked("school")) out.add(COMPLAINTS.first { it.id == "school" })
         if (homes.isNotEmpty() && !hasClinic && unlocked("clinic")) out.add(COMPLAINTS.first { it.id == "clinic" })
-        if (homes.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.GARBAGE) } && unlocked("landfill")) {
+        if (uncoveredRatio(homes, Config.ServiceCat.GARBAGE) > COVER_GAP_TOLERANCE && unlocked("landfill")) {
             out.add(COMPLAINTS.first { it.id == "trash" })
         }
         val hasFire = World.allBuildings().any { it.b.service == "fire_station" }
         val hasPolice = World.allBuildings().any { it.b.service == "police" }
         if (unlocked("fire_station") && !hasFire) out.add(COMPLAINTS.first { it.id == "fire" })
         if (unlocked("police") && !hasPolice) out.add(COMPLAINTS.first { it.id == "police" })
-        if (shops.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }) {
+        if (uncoveredRatio(shops, Config.ServiceCat.POWER) > COVER_GAP_TOLERANCE) {
             out.add(COMPLAINTS.first { it.id == "shop" })
         }
-        if (factories.any { !World.isCoveredBy(it.x, it.y, Config.ServiceCat.POWER) }) {
+        if (uncoveredRatio(factories, Config.ServiceCat.POWER) > COVER_GAP_TOLERANCE) {
             out.add(COMPLAINTS.first { it.id == "factory" })
         }
         // 噪音/臭气：污染设施贴住宅太近，居民投诉
-        if (CitySystems.noisyHomes > 0 && unlocked("landfill")) {
+        if (CitySystems.noisyHomes >= 3 && unlocked("landfill")) {
             out.add(COMPLAINTS.first { it.id == "noise" })
         }
         if (CitySystems.noiseAvg >= 45.0) {
@@ -166,6 +186,7 @@ object Civic {
             s.education = (s.education + c.bEdu).coerceIn(0.0, 100.0)
         }
         complaintsHandled += 1
+        complaintCooldown = 5
         pending = null
         AppState.complaintOpen = false
         GameData.pushNews("市民来信已处理", c.title + " · 已给出营造答复。", "来信")

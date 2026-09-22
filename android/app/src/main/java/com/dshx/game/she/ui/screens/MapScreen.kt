@@ -1236,15 +1236,62 @@ private fun PlanDrawer(mapView: MapRenderView) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             UIHelper.PickChip("确认公交", "≥2站", false, width = 86.dp) {
+                // 开通线路也算一步操作，开错了可以直接【撤】
+                GameData.beginStroke("开通公交线")
+                GameData.noteTransit()
                 val (ok, msg) = Transit.confirmDraft()
+                GameData.endStroke()
                 mapView.setToast(msg ?: if (ok) "已开通" else "失败")
+                AppState.bumpLive()
+            }
+            UIHelper.PickChip("撤销上一站", "草稿", false, width = 86.dp) {
+                val (_, msg) = Transit.undoDraftStop()
+                mapView.setToast(msg ?: "")
+                AppState.bumpLive()
+            }
+            UIHelper.PickChip("清空草稿", "", false, width = 86.dp) {
+                Transit.clearDraft()
+                mapView.setToast("草稿已清空（已开通的线路不受影响）")
                 AppState.bumpLive()
             }
         }
         Text(
-            "公交草稿 " + Transit.draft.size + " 站 · 线路 " + Transit.lines.size + " 条",
+            "公交草稿 " + Transit.draft.size + " 站 · 线路 " + Transit.lines.size + " 条（站点设施本身走【推平】）",
             fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
         )
+        // 已有线路：可以逐条拆除（拆完还能用左上【撤】还原）
+        for (line in Transit.summary()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    line.second + " · " + line.third + " 站 · 在跑",
+                    fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                )
+                Box(
+                    modifier = Modifier
+                        .background(C.accentRed.toColor(), RoundedCornerShape(12.dp))
+                        .clickable {
+                            Sfx.play("sfx_click")
+                            GameData.beginStroke("拆除公交线")
+                            GameData.noteTransit()
+                            val (_, msg) = Transit.removeLine(line.first)
+                            GameData.endStroke()
+                            mapView.setToast(msg ?: "")
+                            AppState.bumpLive()
+                        }
+                        .padding(horizontal = 14.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        "拆除",
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        color = Color.White, fontFamily = LocalGameFont.current
+                    )
+                }
+            }
+        }
 
         Text(
             "产业专精 · 刷在已有分区上",

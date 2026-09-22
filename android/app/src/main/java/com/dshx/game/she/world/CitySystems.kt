@@ -120,7 +120,7 @@ object CitySystems {
         var trash = 0
         for (e in World.allBuildings()) if (!e.b.isService) trash += e.b.garbage
         s.garbageBacklog = trash
-        val dumpN = World.allBuildings().count { it.b.service == "landfill" || it.b.service == "incinerator" }
+        val dumpN = World.allBuildings().count { it.b.service == "landfill" || it.b.service == "incinerator" || it.b.service == "waste_plant" }
         if (dumpN > 0 && trash > 20) dispatch("garbage", min(3, dumpN * 2))
 
         // 死亡 / 殡葬
@@ -319,7 +319,7 @@ object CitySystems {
     private fun dispatch(kind: String, n: Int) {
         val stations = World.allBuildings().filter {
             when (kind) {
-                "garbage" -> it.b.service == "landfill" || it.b.service == "incinerator"
+                "garbage" -> it.b.service == "landfill" || it.b.service == "incinerator" || it.b.service == "waste_plant"
                 "fire" -> it.b.service == "fire_station"
                 "ambulance" -> it.b.service == "clinic" || it.b.service == "hospital"
                 "hearse" -> it.b.service == "cemetery" || it.b.service == "crematorium"
@@ -349,7 +349,7 @@ object CitySystems {
         val start = if (sx != null && sy != null) sx to sy else {
             val st = World.allBuildings().firstOrNull {
                 when (kind) {
-                    "garbage" -> it.b.service == "landfill" || it.b.service == "incinerator"
+                    "garbage" -> it.b.service == "landfill" || it.b.service == "incinerator" || it.b.service == "waste_plant"
                     "fire" -> it.b.service == "fire_station"
                     "ambulance" -> it.b.service == "clinic" || it.b.service == "hospital"
                     "hearse" -> it.b.service == "cemetery" || it.b.service == "crematorium"
