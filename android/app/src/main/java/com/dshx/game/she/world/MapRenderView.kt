@@ -944,7 +944,7 @@ class MapRenderView @JvmOverloads constructor(
     private fun measure(text: String, size: Float): Float {
         val key = (text.hashCode().toLong() shl 32) or (java.lang.Float.floatToRawIntBits(size).toLong() and 0xffffffffL)
         val hit = measureCache[key]
-        if (hit \!= null) return hit
+        if (hit != null) return hit
         paint.typeface = typeface
         paint.textSize = size
         val v = paint.measureText(text)
@@ -1278,9 +1278,9 @@ class MapRenderView @JvmOverloads constructor(
                     val sx = worldToScreenX((tx - 1).toFloat())
                     val sy = worldToScreenY((ty - 1).toFloat())
                     when {
-                        t.terrain == "forest" -> if (\!fastDrag()) drawTreeBlocks(canvas, sx, sy, tx, ty)
-                        t.terrain == "hill" && cell >= 8 -> if (\!fastDrag()) drawHillBlocks(canvas, sx, sy, tx, ty)
-                        t.terrain == "water" && cell >= 8 -> if (\!fastDrag()) drawWaterRipple(canvas, sx, sy, tx, ty)
+                        t.terrain == "forest" -> if (!fastDrag()) drawTreeBlocks(canvas, sx, sy, tx, ty)
+                        t.terrain == "hill" && cell >= 8 -> if (!fastDrag()) drawHillBlocks(canvas, sx, sy, tx, ty)
+                        t.terrain == "water" && cell >= 8 -> if (!fastDrag()) drawWaterRipple(canvas, sx, sy, tx, ty)
                         t.terrain != "water" && hash01(tx, ty, 9) > 0.86f -> {
                             fillRoundRect(
                                 canvas, sx + cell * 0.38f, sy + cell * 0.62f,
@@ -1448,7 +1448,7 @@ class MapRenderView @JvmOverloads constructor(
                 }
             }
             // 路灯：夜晚只在路边角落发微光，不在车道中央画圆点
-            if (nightLevel > 0.3f && \!fastDrag()) {
+            if (nightLevel > 0.3f && !fastDrag()) {
                 for (ty in y0..y1) {
                     for (tx in x0..x1) {
                         if (w.grid[ty - 1][tx - 1].road != null && (tx + ty) % 2 == 0) {
@@ -2389,7 +2389,7 @@ class MapRenderView @JvmOverloads constructor(
             drawNameOnFrontWall(canvas, bx, by, bw, bh, hpx, label)
         }
         if (World.tile(tx, ty)?.onFire == true) {
-            if (\!fastDrag()) drawFireParticles(canvas, bx + bw * 0.5f, by + bh * 0.18f - hpx)
+            if (!fastDrag()) drawFireParticles(canvas, bx + bw * 0.5f, by + bh * 0.18f - hpx)
         }
     }
 

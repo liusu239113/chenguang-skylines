@@ -1182,7 +1182,7 @@ object GameData {
                 if (res.second == "bus_stop" || res.second == "metro") {
                     noteTransit()
                     val dead = Transit.onStopRemoved(x, y)
-                    if (dead \!= null) pushNews("公交停运", dead + " 因站点不足 2 个已自动停运。", "交通")
+                    if (dead != null) pushNews("公交停运", dead + " 因站点不足 2 个已自动停运。", "交通")
                 }
                 pushNews("拆除设施", "退还部分造价。", "城建")
             }
