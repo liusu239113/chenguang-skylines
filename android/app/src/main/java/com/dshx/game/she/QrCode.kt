@@ -5,9 +5,13 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
 import com.google.zxing.EncodeHintType
+import com.google.zxing.MultiFormatReader
 import com.google.zxing.MultiFormatWriter
+import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.BitMatrix
+import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 
 /**
@@ -51,5 +55,34 @@ object QrCode {
         canvas.drawBitmap(bmp, null, android.graphics.RectF(left, top, left + size, top + size), paint)
         bmp.recycle()
         return true
+    }
+
+    /** 从相册图片解码二维码（玩家截图分享的场景） */
+    fun decodeFromUri(context: android.content.Context, uri: android.net.Uri): String? {
+        return try {
+            val bitmap = android.graphics.BitmapFactory.decodeStream(
+                context.contentResolver.openInputStream(uri)
+            ) ?: return null
+            decodeBitmap(bitmap)
+        } catch (t: Throwable) {
+            null
+        }
+    }
+
+    /** 从位图解码二维码 */
+    fun decodeBitmap(bitmap: Bitmap): String? {
+        return try {
+            val w = bitmap.width
+            val h = bitmap.height
+            val pixels = IntArray(w * h)
+            bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+            val source = RGBLuminanceSource(w, h, pixels)
+            val bmp = BinaryBitmap(HybridBinarizer(source))
+            MultiFormatReader().decode(bmp).text
+        } catch (t: Throwable) {
+            null
+        } finally {
+            bitmap.recycle()
+        }
     }
 }

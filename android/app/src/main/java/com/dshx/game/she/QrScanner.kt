@@ -53,7 +53,11 @@ import java.util.concurrent.Executors
  * 扫到内容后回调 onResult，然后由调用方决定是否关闭。
  */
 @Composable
-fun QrScanScreen(onResult: (String) -> Unit, onClose: () -> Unit) {
+fun QrScanScreen(
+    onResult: (String) -> Unit,
+    onClose: () -> Unit,
+    hintText: String = "把镜头对准二维码"
+) {
     val C = Config.COLORS
     val ctx = LocalContext.current
     var granted by remember {
@@ -61,7 +65,7 @@ fun QrScanScreen(onResult: (String) -> Unit, onClose: () -> Unit) {
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var hint by remember { mutableStateOf("把镜头对准二维码") }
+    var hint by remember(hintText) { mutableStateOf(hintText) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         granted = ok
         if (!ok) hint = "未获得相机权限，无法扫码。可在系统设置里开启后重试。"
@@ -99,7 +103,7 @@ fun QrScanScreen(onResult: (String) -> Unit, onClose: () -> Unit) {
                 ) {
                     CameraPreview(
                         onDecoded = { text ->
-                            hint = "已识别，正在导入…"
+                            hint = "已识别一张，请对准下一张"
                             onResult(text)
                         },
                         onFail = { hint = it }

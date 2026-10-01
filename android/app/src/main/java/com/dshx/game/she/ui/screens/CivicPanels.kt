@@ -609,11 +609,48 @@ fun SharePanel() {
     val s = GameData.current
     var importText by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf<String?>(null) }
-    // 导出码：进入面板时生成一次
-    val code = remember { com.dshx.game.she.ShareCode.export() }
-    // 二维码位图：进入面板时生成一次（整座城市都在里面）
-    val qrBitmap = remember(code) { code?.let { com.dshx.game.she.QrCode.encode(it, 640) } }
+    // 分片二维码：城市大就切成多张，轮播显示
+    val chunks = remember { com.dshx.game.she.ShareCode.exportChunks() }
+    var qrIndex by remember { mutableStateOf(0) }
+    val qrBitmaps = remember(chunks) {
+        chunks?.map { com.dshx.game.she.QrCode.encode(it, 640) }
+    }
+    val qrBitmap = qrBitmaps?.getOrNull(qrIndex.coerceIn(0, (qrBitmaps.size - 1).coerceAtLeast(0)))
+    val totalChunks = chunks?.size ?: 0
     var scanning by remember { mutableStateOf(false) }
+    // 相册选图
+    val pickImage = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val txt = com.dshx.game.she.QrCode.decodeFromUri(ctx, uri)
+        if (txt == null) {
+            msg = "这张图里没识别到城市码"
+        } else {
+            val done = com.dshx.game.she.ShareCode.feed(txt)
+            if (done) {
+                val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
+                    .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) }
+                val target = free ?: AppState.activeSlot
+                if (com.dshx.game.she.ShareCode.finishInto(target) &&
+                    com.dshx.game.she.SaveManager.load(target)
+                ) {
+                    AppState.activeSlot = target
+                    com.dshx.game.she.Prefs.lastSlot = target
+                    AppState.shareOpen = false
+                    AppState.menuOpen = false
+                    MapRef.view?.resetCamera()
+                    MapRef.view?.clearSelection()
+                    MapRef.view?.setToast("已从相册导入对方城市")
+                } else {
+                    msg = "导入失败"
+                }
+            } else {
+                val (got, all) = com.dshx.game.she.ShareCode.progress()
+                msg = "已收集 $got/$all 张，请继续选下一张二维码图"
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -704,7 +741,10 @@ fun SharePanel() {
                     color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
                 )
                 Text(
-                    "让对方用本作「扫码导入」扫下面这张码，或存图发论坛，整座城市连同建筑一起还原。",
+                    if (totalChunks <= 1)
+                        "让对方用本作「扫码导入」扫这张码，或存图发论坛，整座城市连同建筑一起还原。"
+                    else
+                        "城市较大，共 $totalChunks 张码。对方需逐张扫（或逐张存图后用相册导入），全部扫齐才会还原。",
                     fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
                 )
                 val qr = qrBitmap
@@ -722,9 +762,38 @@ fun SharePanel() {
                             modifier = Modifier.size(190.dp)
                         )
                     }
+                    if (totalChunks > 1) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .background(C.chipBg.toColor(), RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        qrIndex = (qrIndex - 1 + totalChunks) % totalChunks
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                            ) { Text("上一张", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
+                            Text(
+                                "  " + (qrIndex + 1) + " / " + totalChunks + "  ",
+                                fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .background(C.chipBg.toColor(), RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        qrIndex = (qrIndex + 1) % totalChunks
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                            ) { Text("下一张", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
+                        }
+                    }
                 } else {
                     Text(
-                        "二维码生成失败（城市数据过大），请改用地图种子分享。",
+                        "当前没有可分享的城市。",
                         fontSize = 10.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
                     )
                 }
@@ -826,18 +895,36 @@ fun SharePanel() {
                 contentAlignment = Alignment.Center
             ) { Text("按种子开新城 / 导入并载入", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
 
-            // 扫码导入
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(38.dp)
-                    .background(C.accentGreen.toColor(), RoundedCornerShape(19.dp))
-                    .clickable {
-                        Sfx.play("sfx_click")
-                        scanning = true
-                    },
-                contentAlignment = Alignment.Center
-            ) { Text("扫码导入（用相机扫别人的二维码）", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+            // 扫码导入：相机 + 相册两种方式
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .background(C.accentGreen.toColor(), RoundedCornerShape(19.dp))
+                        .clickable {
+                            Sfx.play("sfx_click")
+                            com.dshx.game.she.ShareCode.resetCollect()
+                            scanning = true
+                        },
+                    contentAlignment = Alignment.Center
+                ) { Text("相机扫码", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .background(C.accentBlue.toColor(), RoundedCornerShape(19.dp))
+                        .clickable {
+                            Sfx.play("sfx_click")
+                            com.dshx.game.she.ShareCode.resetCollect()
+                            pickImage.launch("image/*")
+                        },
+                    contentAlignment = Alignment.Center
+                ) { Text("从相册导入", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+            }
 
             msg?.let {
                 Text(it, fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
@@ -845,29 +932,37 @@ fun SharePanel() {
         }
     }
 
-    // 扫码界面（覆盖在最上层）
+    // 扫码界面（覆盖在最上层）：支持分片连续扫
     if (scanning) {
+        var scanHint by remember { mutableStateOf("把镜头对准二维码") }
         com.dshx.game.she.QrScanScreen(
             onResult = { text ->
-                scanning = false
-                val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
-                    .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) }
-                val target = free ?: AppState.activeSlot
-                if (com.dshx.game.she.ShareCode.import(text, target) &&
-                    com.dshx.game.she.SaveManager.load(target)
-                ) {
-                    AppState.activeSlot = target
-                    com.dshx.game.she.Prefs.lastSlot = target
-                    AppState.shareOpen = false
-                    AppState.menuOpen = false
-                    MapRef.view?.resetCamera()
-                    MapRef.view?.clearSelection()
-                    MapRef.view?.setToast("扫码成功，已载入对方城市（槽位 " + (target + 1) + "）")
+                val done = com.dshx.game.she.ShareCode.feed(text)
+                if (done) {
+                    scanning = false
+                    val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
+                        .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) }
+                    val target = free ?: AppState.activeSlot
+                    if (com.dshx.game.she.ShareCode.finishInto(target) &&
+                        com.dshx.game.she.SaveManager.load(target)
+                    ) {
+                        AppState.activeSlot = target
+                        com.dshx.game.she.Prefs.lastSlot = target
+                        AppState.shareOpen = false
+                        AppState.menuOpen = false
+                        MapRef.view?.resetCamera()
+                        MapRef.view?.clearSelection()
+                        MapRef.view?.setToast("扫码成功，已载入对方城市（槽位 " + (target + 1) + "）")
+                    } else {
+                        msg = "扫码内容不是有效的城市码"
+                    }
                 } else {
-                    msg = "扫码内容不是有效的城市码"
+                    val (got, all) = com.dshx.game.she.ShareCode.progress()
+                    scanHint = "已扫 $got/$all 张，请继续扫下一张"
                 }
             },
-            onClose = { scanning = false }
+            onClose = { scanning = false },
+            hintText = scanHint
         )
     }
 }

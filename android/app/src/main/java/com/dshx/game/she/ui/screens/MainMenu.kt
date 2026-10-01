@@ -182,6 +182,7 @@ private fun MenuButton(text: String, bg: Color, whiteText: Boolean, onClick: () 
 @Composable
 private fun NewGameScreen(mapView: MapRenderView) {
     val C = Config.COLORS
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var name by remember { mutableStateOf("") }
     var mayor by remember { mutableStateOf("") }
     // 合规：玩家输入实时校验（TapTap 1.1 要求有屏蔽词）
@@ -304,6 +305,101 @@ private fun NewGameScreen(mapView: MapRenderView) {
                         color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
                     )
                 }
+            }
+
+            // 直接导入别人的城市：扫码或从相册选二维码图
+            var scanOpen by remember { mutableStateOf(false) }
+            var importMsg by remember { mutableStateOf<String?>(null) }
+            val pickQr = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.GetContent()
+            ) { uri ->
+                if (uri == null) return@rememberLauncherForActivityResult
+                val ctx2 = ctx
+                val txt = com.dshx.game.she.QrCode.decodeFromUri(ctx2, uri)
+                if (txt == null) {
+                    importMsg = "这张图里没识别到城市码"
+                } else if (com.dshx.game.she.ShareCode.feed(txt)) {
+                    val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
+                        .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) } ?: 0
+                    if (com.dshx.game.she.ShareCode.finishInto(free) &&
+                        com.dshx.game.she.SaveManager.load(free)
+                    ) {
+                        AppState.activeSlot = free
+                        com.dshx.game.she.Prefs.lastSlot = free
+                        AppState.overlay = ""
+                        AppState.mode = "view"
+                        mapView.resetCamera()
+                        mapView.clearSelection()
+                        AppState.screen = "map"
+                    } else {
+                        importMsg = "导入失败"
+                    }
+                } else {
+                    val (got, all) = com.dshx.game.she.ShareCode.progress()
+                    importMsg = "已收集 $got/$all 张，请继续选下一张二维码图"
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .background(C.accentGreen.toColor(), RoundedCornerShape(20.dp))
+                        .clickable {
+                            Sfx.play("sfx_click")
+                            com.dshx.game.she.ShareCode.resetCollect()
+                            scanOpen = true
+                        },
+                    contentAlignment = Alignment.Center
+                ) { Text("扫码导入城市", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .background(C.accentBlue.toColor(), RoundedCornerShape(20.dp))
+                        .clickable {
+                            Sfx.play("sfx_click")
+                            com.dshx.game.she.ShareCode.resetCollect()
+                            pickQr.launch("image/*")
+                        },
+                    contentAlignment = Alignment.Center
+                ) { Text("相册导入", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+            }
+            importMsg?.let {
+                Text(it, fontSize = 10.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
+            }
+            if (scanOpen) {
+                var scanHint by remember { mutableStateOf("把镜头对准二维码") }
+                com.dshx.game.she.QrScanScreen(
+                    onResult = { txt ->
+                        if (com.dshx.game.she.ShareCode.feed(txt)) {
+                            scanOpen = false
+                            val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
+                                .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) } ?: 0
+                            if (com.dshx.game.she.ShareCode.finishInto(free) &&
+                                com.dshx.game.she.SaveManager.load(free)
+                            ) {
+                                AppState.activeSlot = free
+                                com.dshx.game.she.Prefs.lastSlot = free
+                                AppState.overlay = ""
+                                AppState.mode = "view"
+                                mapView.resetCamera()
+                                mapView.clearSelection()
+                                AppState.screen = "map"
+                            } else {
+                                scanHint = "扫码内容不是有效的城市码"
+                            }
+                        } else {
+                            val (got, all) = com.dshx.game.she.ShareCode.progress()
+                            scanHint = "已扫 $got/$all 张，请继续扫下一张"
+                        }
+                    },
+                    onClose = { scanOpen = false },
+                    hintText = scanHint
+                )
             }
 
             // 精选种子：点一下直接套用，方便论坛分享地形
