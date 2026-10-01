@@ -75,45 +75,86 @@ object AdOffers {
                 GameData.book("income", "other", "项目注资", 90.0)
                 MapRef.view?.setToast("项目注资 +90 万")
             }
-            // ---- 便利型：即时可用的小工具，转化更好 ----
-            "speed" -> {
-                SpeedBoost.grant(30)
-                MapRef.view?.setToast("已解锁 3x 加速 30 分钟")
-            }
-            "cleartrash" -> {
-                // 立刻清空全城垃圾积压，省得等清运
+            // ---- 便利型：直击玩家真实痛点（人口涨得慢 / 楼不升级 / 贷款压身）----
+            "movein" -> {
+                // 即刻入住：全城空置住宅一次住满，人口立刻跳一截
                 var n = 0
                 for (e in World.allBuildings()) {
                     val b = e.b
-                    if (b.isService || b.garbage <= 0) continue
-                    n += b.garbage
-                    b.garbage = 0
+                    if (b.isService || b.abandoned || b.zone != "residential") continue
+                    val cap = b.cap()
+                    if (b.residents < cap) {
+                        n += cap - b.residents
+                        b.residents = cap
+                    }
+                }
+                s.population = World.allBuildings()
+                    .filter { !it.b.isService && it.b.zone == "residential" }
+                    .sumOf { it.b.residents }.toDouble()
+                World.current?._pop = s.population.toInt()
+                MapRef.view?.setToast(if (n > 0) "即刻入住：新增 $n 位住户" else "当前没有空置住宅")
+            }
+            "upgrade" -> {
+                // 升级提速：全城满级以下的建筑立刻升一级，城市肉眼可见地长高
+                var n = 0
+                for (e in World.allBuildings()) {
+                    val b = e.b
+                    if (b.isService || b.abandoned) continue
+                    val maxLv = Config.GROWN[b.zone]?.levels?.size ?: 3
+                    if (b.level < maxLv) {
+                        b.level += 1
+                        n++
+                    }
+                }
+                MapRef.view?.setToast(if (n > 0) "升级提速：$n 栋建筑升了一级" else "全城建筑已是最高级")
+            }
+            "relief" -> {
+                // 纾困清运：清空垃圾 + 修复废弃楼，一次解决两个民生痛点
+                var trash = 0
+                var fixed = 0
+                for (e in World.allBuildings()) {
+                    val b = e.b
+                    if (b.isService) continue
+                    if (b.garbage > 0) {
+                        trash += b.garbage
+                        b.garbage = 0
+                    }
+                    if (b.abandoned) {
+                        b.abandoned = false
+                        fixed++
+                    }
                 }
                 s.garbageBacklog = 0
-                MapRef.view?.setToast("全城垃圾已清运（清掉 $n 单位）")
+                MapRef.view?.setToast("纾困完成：清运 $trash 单位垃圾，修复 $fixed 栋建筑")
             }
-            "repair" -> {
-                // 修复全部废弃建筑，立刻恢复入住
+            "nointerest" -> {
+                // 免息周转：立刻还清全部贷款，甩掉每天扣款的包袱
+                if (s.loanDebt <= 0.0) {
+                    MapRef.view?.setToast("当前没有未还贷款")
+                } else {
+                    val n = s.loanDebt
+                    s.loanDebt = 0.0
+                    s.loanDaily = 0.0
+                    s.loanKind = ""
+                    s.loanCooldown = 0
+                    MapRef.view?.setToast("免息周转：已结清 " + n.toInt() + " 万贷款")
+                }
+            }
+            "fastpolicy" -> {
+                // 方案速批：清空所有方案冷却，想连开就开
                 var n = 0
-                for (e in World.allBuildings()) {
-                    val b = e.b
-                    if (b.isService || !b.abandoned) continue
-                    b.abandoned = false
-                    n++
+                for ((id, cd) in s.policyCooldowns.toMap()) {
+                    if (cd > 0) {
+                        s.policyCooldowns[id] = 0
+                        n++
+                    }
                 }
-                MapRef.view?.setToast(if (n > 0) "已修复 $n 栋废弃建筑" else "当前没有废弃建筑")
+                MapRef.view?.setToast(if (n > 0) "方案速批：$n 项方案可立即启用" else "当前没有冷却中的方案")
             }
-            "unlock" -> {
-                // 立刻向外扩一圈解锁圈
-                val w = World.current
-                if (w != null) {
-                    w.unlockR += 1
-                    MapRef.view?.setToast("解锁圈向外扩了一圈")
-                }
-            }
-            "taxfree" -> {
+            "boom" -> {
+                // 招商旺季：12 天收益翻倍（后期大工程靠它攒钱）
                 s.doubleTaxDays = 12
-                MapRef.view?.setToast("项目收益加倍 12 天")
+                MapRef.view?.setToast("招商旺季：12 天收益翻倍")
             }
         }
         AppState.adOfferOpen = false

@@ -18,7 +18,22 @@ import org.json.JSONObject
  */
 object ShareCode {
 
-    private const val PREFIX = "CS1."   // 都市营建模拟 分享码 v1
+    private const val PREFIX = "CS1."   // 完整城市码（含建筑）前缀
+
+    /**
+     * 短种子码：纯数字，只分享地形。
+     * 与开局「地图种子」完全同源——同一个数字必然生成同一张地图。
+     * 优点：短、好记、好发论坛；缺点：不含玩家已建成的建筑。
+     */
+    fun seedCode(): String? = GameData.current?.let { GameData.seed.toString() }
+
+    /** 解析短种子码（纯数字，1~9 位） */
+    fun parseSeedCode(text: String): Int? {
+        val t = text.trim()
+        if (t.isEmpty() || t.length > 9) return null
+        val v = t.toIntOrNull() ?: return null
+        return if (v in 1..999999999) v else null
+    }
 
     fun looksLikeCode(text: String): Boolean = text.trim().startsWith(PREFIX)
 

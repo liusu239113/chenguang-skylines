@@ -646,23 +646,35 @@ fun SharePanel() {
             if (code == null) {
                 Text("当前没有可导出的城市", fontSize = 11.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
             } else {
+                // 主推：短种子码（纯数字，和开局地图种子同源）
+                val seed = com.dshx.game.she.ShareCode.seedCode()
+                val entry = seed?.toIntOrNull()?.let { com.dshx.game.she.SeedLib.find(it) }
                 Text(
-                    "把下面这串码发给别人，对方在「导入城市」里粘贴即可进入你的城市。",
-                    fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                    "地图种子（推荐分享这个）", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    color = C.accentGold.toColor(), fontFamily = LocalGameFont.current
                 )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 130.dp)
                         .background(C.chipBg.toColor(), RoundedCornerShape(10.dp))
-                        .padding(8.dp)
-                        .verticalScroll(rememberScrollState())
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        code, fontSize = 9.sp, color = C.textDark.toColor(),
-                        fontFamily = LocalGameFont.current
+                        seed ?: "-", fontSize = 26.sp, fontWeight = FontWeight.Bold,
+                        color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                     )
                 }
+                if (entry != null) {
+                    Text(
+                        entry.name + " · " + entry.tag + " · " + entry.desc,
+                        fontSize = 10.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current
+                    )
+                }
+                Text(
+                    "对方在开局「地图种子」里填这个数字，就能得到和你一样的地形。",
+                    fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -672,14 +684,58 @@ fun SharePanel() {
                             Sfx.play("sfx_click")
                             try {
                                 val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                cm.setPrimaryClip(android.content.ClipData.newPlainText("sharecode", code))
-                                msg = "分享码已复制到剪贴板"
+                                cm.setPrimaryClip(android.content.ClipData.newPlainText("seed", seed ?: ""))
+                                msg = "地图种子已复制"
                             } catch (t: Throwable) {
-                                msg = "复制失败，请手动长按选择"
+                                msg = "复制失败，请手动选择"
                             }
                         },
                     contentAlignment = Alignment.Center
-                ) { Text("复制分享码", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+                ) { Text("复制地图种子", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+
+                // 完整城市码（含建筑）折叠
+                var fullOpen by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "完整城市码（含建筑，较长）", fontSize = 11.sp,
+                        color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                    )
+                    Box(
+                        modifier = Modifier
+                            .background(C.chipBg.toColor(), RoundedCornerShape(10.dp))
+                            .clickable { fullOpen = !fullOpen }
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            if (fullOpen) "收起" else "展开",
+                            fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                            color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
+                        )
+                    }
+                }
+                if (fullOpen) {
+                    Text(
+                        "想连建筑一起分享时用这串（对方导入后城市和你一模一样）。",
+                        fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 100.dp)
+                            .background(C.chipBg.toColor(), RoundedCornerShape(10.dp))
+                            .padding(8.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            code, fontSize = 8.sp, color = C.textDark.toColor(),
+                            fontFamily = LocalGameFont.current
+                        )
+                    }
+                }
                 val cur = GameData.current
                 if (cur != null) {
                     Text(
@@ -693,7 +749,7 @@ fun SharePanel() {
             // ---- 导入 ----
             Text("② 导入别人的城市", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text(
-                "粘贴别人给的分享码，会占用一个空存档槽（最多 6 个）。",
+                "填别人的地图种子（数字）即可生成同样的地形；粘贴完整城市码则连建筑一起还原。",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Box(
@@ -706,7 +762,7 @@ fun SharePanel() {
                 androidx.compose.material3.TextField(
                     value = importText,
                     onValueChange = { importText = it },
-                    placeholder = { Text("在此粘贴分享码（CS1. 开头）", fontSize = 11.sp, fontFamily = LocalGameFont.current) },
+                    placeholder = { Text("填地图种子数字，或粘贴 CS1. 开头的城市码", fontSize = 11.sp, fontFamily = LocalGameFont.current) },
                     textStyle = androidx.compose.ui.text.TextStyle(
                         fontSize = 10.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                     ),
@@ -729,34 +785,54 @@ fun SharePanel() {
                         Sfx.play("sfx_click")
                         val text = importText.trim()
                         if (text.isEmpty()) {
-                            msg = "请先粘贴分享码"
-                            return@clickable
-                        }
-                        if (!com.dshx.game.she.ShareCode.looksLikeCode(text)) {
-                            msg = "分享码格式不对（应以 CS1. 开头）"
+                            msg = "请先填种子或粘贴城市码"
                             return@clickable
                         }
                         val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
                             .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) }
                         val target = free ?: AppState.activeSlot
-                        if (com.dshx.game.she.ShareCode.import(text, target)) {
-                            if (com.dshx.game.she.SaveManager.load(target)) {
-                                AppState.activeSlot = target
-                                com.dshx.game.she.Prefs.lastSlot = target
-                                AppState.shareOpen = false
-                                AppState.menuOpen = false
-                                MapRef.view?.resetCamera()
-                                MapRef.view?.clearSelection()
-                                MapRef.view?.setToast("已载入分享的城市（槽位 " + (target + 1) + "）")
+
+                        if (com.dshx.game.she.ShareCode.looksLikeCode(text)) {
+                            // 完整城市码：连建筑一起还原
+                            if (com.dshx.game.she.ShareCode.import(text, target)) {
+                                if (com.dshx.game.she.SaveManager.load(target)) {
+                                    AppState.activeSlot = target
+                                    com.dshx.game.she.Prefs.lastSlot = target
+                                    AppState.shareOpen = false
+                                    AppState.menuOpen = false
+                                    MapRef.view?.resetCamera()
+                                    MapRef.view?.clearSelection()
+                                    MapRef.view?.setToast("已载入分享的城市（槽位 " + (target + 1) + "）")
+                                } else {
+                                    msg = "导入失败：存档无法载入"
+                                }
                             } else {
-                                msg = "导入失败：存档无法载入"
+                                msg = "导入失败：城市码已损坏"
                             }
                         } else {
-                            msg = "导入失败：分享码已损坏"
+                            // 短种子：用这个数字新开一座同地形的城市
+                            val seed = com.dshx.game.she.ShareCode.parseSeedCode(text)
+                            if (seed == null) {
+                                msg = "请填 1~9 位数字的种子，或 CS1. 开头的城市码"
+                                return@clickable
+                            }
+                            val e = com.dshx.game.she.SeedLib.find(seed)
+                            AppState.shareOpen = false
+                            AppState.menuOpen = false
+                            com.dshx.game.she.GameData.seed = seed
+                            com.dshx.game.she.GameData.init(seed, "星野新城")
+                            AppState.activeSlot = target
+                            com.dshx.game.she.Prefs.lastSlot = target
+                            com.dshx.game.she.SaveManager.save(target)
+                            AppState.saveTick++
+                            MapRef.view?.resetCamera()
+                            MapRef.view?.clearSelection()
+                            val tip = if (e != null) e.name + "（" + e.tag + "）" else "种子 " + seed
+                            MapRef.view?.setToast("已按 $tip 生成新地图")
                         }
                     },
                 contentAlignment = Alignment.Center
-            ) { Text("导入并载入", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+            ) { Text("按种子开新城 / 导入并载入", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
 
             msg?.let {
                 Text(it, fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
@@ -812,19 +888,16 @@ fun BenefitPanel() {
 
             Text("经营奖励", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.accentGold.toColor(), fontFamily = LocalGameFont.current)
             BenefitBtn("每周礼包 +120 万", (if (AdOffers.weeklyClaimed) "本周已领" else "每周一次"), act, "daily", !AdOffers.weeklyClaimed)
-            BenefitBtn("项目收益加倍 12 天", "短期进项翻倍", act, "doubletax", true)
-            BenefitBtn("民心安抚 +8", "幸福度立刻回升", act, "happy", true)
+            BenefitBtn("招商旺季 · 收益翻倍 12 天", "攒钱冲大工程", act, "boom", true)
+            BenefitBtn("民心安抚 +8", "满意度立刻回升", act, "happy", true)
             BenefitBtn("项目注资 +90 万", "应急用", act, "grant", true)
 
             Text("便利工具", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
-            BenefitBtn(
-                "3x 加速 30 分钟",
-                (if (SpeedBoost.isActive()) "生效中 · 剩余 " + (SpeedBoost.remainingSec() / 60) + " 分" else "省时间"),
-                act, "speed", true
-            )
-            BenefitBtn("全城垃圾清运", "立刻清空积压", act, "cleartrash", true)
-            BenefitBtn("修复废弃建筑", "恢复入住", act, "repair", true)
-            BenefitBtn("解锁圈外扩一圈", "立刻扩地", act, "unlock", true)
+            BenefitBtn("即刻入住", "空置住宅一次住满，人口立刻涨", act, "movein", true)
+            BenefitBtn("升级提速", "全城建筑立刻升一级", act, "upgrade", true)
+            BenefitBtn("纾困清运", "清空垃圾并修复废弃建筑", act, "relief", true)
+            BenefitBtn("免息周转", "立刻结清全部贷款", act, "nointerest", true)
+            BenefitBtn("方案速批", "清空方案冷却，想开就开", act, "fastpolicy", true)
 
             Box(
                 modifier = Modifier
