@@ -11,8 +11,8 @@ android {
         applicationId = "com.dshx.game.she"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "1.2.5"
+        versionCode = 18
+        versionName = "1.3.0"
     }
 
     signingConfigs {
@@ -80,6 +80,12 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+    // 二维码：生成 + 扫码
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("androidx.camera:camera-core:1.3.4")
+    implementation("androidx.camera:camera-camera2:1.3.4")
+    implementation("androidx.camera:camera-lifecycle:1.3.4")
+    implementation("androidx.camera:camera-view:1.3.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     implementation("androidx.appcompat:appcompat:1.6.1")

@@ -151,6 +151,23 @@ object AdOffers {
                 }
                 MapRef.view?.setToast(if (n > 0) "方案速批：$n 项方案可立即启用" else "当前没有冷却中的方案")
             }
+            // ---- 限时增益（真实时间计时，退出游戏也保留）----
+            "buff_happy" -> {
+                Buffs.grant(Buffs.NO_HAPPY_DROP, 30)
+                MapRef.view?.setToast("满意度守护：30 分钟内满意度不再下降")
+            }
+            "buff_growth" -> {
+                Buffs.grant(Buffs.FAST_GROWTH, 30)
+                MapRef.view?.setToast("入住加速：30 分钟内居民增长速度翻倍")
+            }
+            "buff_income" -> {
+                Buffs.grant(Buffs.INCOME_BOOST, 30)
+                MapRef.view?.setToast("收益提升：30 分钟内项目收益 +50%")
+            }
+            "buff_upkeep" -> {
+                Buffs.grant(Buffs.NO_UPKEEP, 30)
+                MapRef.view?.setToast("免维护：30 分钟内不收维护费")
+            }
             "boom" -> {
                 // 招商旺季：12 天收益翻倍（后期大工程靠它攒钱）
                 s.doubleTaxDays = 12

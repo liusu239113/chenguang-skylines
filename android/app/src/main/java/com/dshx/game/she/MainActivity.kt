@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
         Bgm.init(this)
         Ambience.init(this)
         SpeedBoost.init(this)
+        Buffs.init(this)
         AppState.privacyOk = Prefs.privacyAccepted
         AppState.useSystemFont = Prefs.useSystemFont
         // 合规：启动时不初始化 Tap 登录 SDK；等用户同意隐私政策、进入登录页时初始化一次

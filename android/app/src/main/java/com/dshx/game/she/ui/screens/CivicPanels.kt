@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -609,6 +611,9 @@ fun SharePanel() {
     var msg by remember { mutableStateOf<String?>(null) }
     // 导出码：进入面板时生成一次
     val code = remember { com.dshx.game.she.ShareCode.export() }
+    // 二维码位图：进入面板时生成一次（整座城市都在里面）
+    val qrBitmap = remember(code) { code?.let { com.dshx.game.she.QrCode.encode(it, 640) } }
+    var scanning by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -693,48 +698,35 @@ fun SharePanel() {
                     contentAlignment = Alignment.Center
                 ) { Text("复制地图种子", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
 
-                // 完整城市码（含建筑）折叠
-                var fullOpen by remember { mutableStateOf(false) }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "完整城市码（含建筑，较长）", fontSize = 11.sp,
-                        color = C.textMid.toColor(), fontFamily = LocalGameFont.current
-                    )
-                    Box(
-                        modifier = Modifier
-                            .background(C.chipBg.toColor(), RoundedCornerShape(10.dp))
-                            .clickable { fullOpen = !fullOpen }
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            if (fullOpen) "收起" else "展开",
-                            fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                            color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
-                        )
-                    }
-                }
-                if (fullOpen) {
-                    Text(
-                        "想连建筑一起分享时用这串（对方导入后城市和你一模一样）。",
-                        fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
-                    )
+                // 二维码：整座城市（含建筑）都塞进码里，另一台设备扫一下就导入
+                Text(
+                    "扫码分享（推荐）", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
+                )
+                Text(
+                    "让对方用本作「扫码导入」扫下面这张码，或存图发论坛，整座城市连同建筑一起还原。",
+                    fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                )
+                val qr = qrBitmap
+                if (qr != null) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 100.dp)
-                            .background(C.chipBg.toColor(), RoundedCornerShape(10.dp))
-                            .padding(8.dp)
-                            .verticalScroll(rememberScrollState())
+                            .background(Color.White, RoundedCornerShape(10.dp))
+                            .padding(10.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            code, fontSize = 8.sp, color = C.textDark.toColor(),
-                            fontFamily = LocalGameFont.current
+                        androidx.compose.foundation.Image(
+                            bitmap = qr.asImageBitmap(),
+                            contentDescription = "城市二维码",
+                            modifier = Modifier.size(190.dp)
                         )
                     }
+                } else {
+                    Text(
+                        "二维码生成失败（城市数据过大），请改用地图种子分享。",
+                        fontSize = 10.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
+                    )
                 }
                 val cur = GameData.current
                 if (cur != null) {
@@ -834,10 +826,49 @@ fun SharePanel() {
                 contentAlignment = Alignment.Center
             ) { Text("按种子开新城 / 导入并载入", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
 
+            // 扫码导入
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .background(C.accentGreen.toColor(), RoundedCornerShape(19.dp))
+                    .clickable {
+                        Sfx.play("sfx_click")
+                        scanning = true
+                    },
+                contentAlignment = Alignment.Center
+            ) { Text("扫码导入（用相机扫别人的二维码）", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+
             msg?.let {
                 Text(it, fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
             }
         }
+    }
+
+    // 扫码界面（覆盖在最上层）
+    if (scanning) {
+        com.dshx.game.she.QrScanScreen(
+            onResult = { text ->
+                scanning = false
+                val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
+                    .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) }
+                val target = free ?: AppState.activeSlot
+                if (com.dshx.game.she.ShareCode.import(text, target) &&
+                    com.dshx.game.she.SaveManager.load(target)
+                ) {
+                    AppState.activeSlot = target
+                    com.dshx.game.she.Prefs.lastSlot = target
+                    AppState.shareOpen = false
+                    AppState.menuOpen = false
+                    MapRef.view?.resetCamera()
+                    MapRef.view?.clearSelection()
+                    MapRef.view?.setToast("扫码成功，已载入对方城市（槽位 " + (target + 1) + "）")
+                } else {
+                    msg = "扫码内容不是有效的城市码"
+                }
+            },
+            onClose = { scanning = false }
+        )
     }
 }
 
@@ -891,6 +922,28 @@ fun BenefitPanel() {
             BenefitBtn("招商旺季 · 收益翻倍 12 天", "攒钱冲大工程", act, "boom", true)
             BenefitBtn("民心安抚 +8", "满意度立刻回升", act, "happy", true)
             BenefitBtn("项目注资 +90 万", "应急用", act, "grant", true)
+
+            Text("限时增益（真实时间计时，退出也保留）", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
+            BenefitBtn(
+                "满意度守护",
+                (com.dshx.game.she.Buffs.remainText(com.dshx.game.she.Buffs.NO_HAPPY_DROP)?.let { "剩余 " + it } ?: "30 分钟内不下降"),
+                act, "buff_happy", true
+            )
+            BenefitBtn(
+                "入住加速",
+                (com.dshx.game.she.Buffs.remainText(com.dshx.game.she.Buffs.FAST_GROWTH)?.let { "剩余 " + it } ?: "30 分钟内居民增长翻倍"),
+                act, "buff_growth", true
+            )
+            BenefitBtn(
+                "收益提升",
+                (com.dshx.game.she.Buffs.remainText(com.dshx.game.she.Buffs.INCOME_BOOST)?.let { "剩余 " + it } ?: "30 分钟内收益 +50%"),
+                act, "buff_income", true
+            )
+            BenefitBtn(
+                "免维护费",
+                (com.dshx.game.she.Buffs.remainText(com.dshx.game.she.Buffs.NO_UPKEEP)?.let { "剩余 " + it } ?: "30 分钟内不收维护费"),
+                act, "buff_upkeep", true
+            )
 
             Text("便利工具", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
             BenefitBtn("即刻入住", "空置住宅一次住满，人口立刻涨", act, "movein", true)

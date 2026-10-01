@@ -676,6 +676,10 @@ object GameData {
                     if (powered && watered && b.residents < lv.cap) {
                         val pace = if (s.happiness >= 45) 1 else 2
                         if (b.ageDays % pace == 0) b.residents = min(lv.cap, b.residents + 1)
+                        // 增益：居民增长速度翻倍（每天多进一户）
+                        if (Buffs.isActive(Buffs.FAST_GROWTH) && b.residents < lv.cap) {
+                            b.residents = min(lv.cap, b.residents + 1)
+                        }
                     }
                     if (!powered && b.residents > 1 && b.ageDays > 12) b.residents -= 1
                     if (!watered && b.residents > 1 && b.ageDays > 16) b.residents -= 1
@@ -778,8 +782,11 @@ object GameData {
         var eventIncomeMul = 1.0
         for (ev in s.activeEvents) eventIncomeMul *= ev.incomeMul
         val lateIncomeCut = if (scale <= 1.0) 1.0 else 1.0 / (1.0 + (scale - 1.0) * 0.22)
-        val rawGross = income * diff.incomeMul * eventIncomeMul * lateIncomeCut
-        var spend = if (sandbox) 0.0 else upkeep * diff.upkeepMul
+        // 增益：项目收益提升 50%
+        val buffIncome = if (Buffs.isActive(Buffs.INCOME_BOOST)) 1.5 else 1.0
+        val rawGross = income * diff.incomeMul * eventIncomeMul * lateIncomeCut * buffIncome
+        // 增益：免维护费
+        var spend = if (sandbox || Buffs.isActive(Buffs.NO_UPKEEP)) 0.0 else upkeep * diff.upkeepMul
         // 支出占收入上限：前期 55% 保证有利润；中期升到 74%；后期最高 80%。
         // 物价已经改成固定价，后期净利被压到 12% 会让大工程（大学/港口）硬拖上百个月，所以留 20% 利润。
         if (!sandbox && rawGross > 0.4) {
@@ -862,7 +869,9 @@ object GameData {
 
         // 幸福度向目标靠拢（没人时回到中性，不为空城硬扣）
         val target = if (s.population < 1) 52.0 else computeHappinessTarget(st)
-        s.happiness += (target - s.happiness) * 0.12
+        val happyStep = (target - s.happiness) * 0.12
+        // 增益：满意度不再下降（只允许往上走）
+        s.happiness += if (Buffs.isActive(Buffs.NO_HAPPY_DROP) && happyStep < 0) 0.0 else happyStep
         if (sandbox) {
             // 沙盒：幸福度不掉、资金不变、等级保持满级（全设施解锁）
             s.happiness = Config.SANDBOX.happy
