@@ -53,6 +53,8 @@ class MainActivity : ComponentActivity() {
         if (GameData.current == null) {
             GameData.init(20260408)
         }
+        // 好友发来的城市存档：在微信/QQ 里点文件选本作打开
+        handleCityMapIntent(intent)
         setContent {
             AppTheme {
                 AppRoot()
@@ -80,6 +82,34 @@ class MainActivity : ComponentActivity() {
         Ambience.release()
         Sfx.release()
         super.onDestroy()
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleCityMapIntent(intent)
+    }
+
+    /**
+     * 好友在微信/QQ 里点 .citymap 文件、选「用本作打开」时走这里。
+     * 把存档读进一个空槽位并直接进入城市。
+     */
+    private fun handleCityMapIntent(intent: android.content.Intent?) {
+        if (!CityFile.isCityMapIntent(intent)) return
+        val uri = intent?.data ?: return
+        val free = (0 until SaveManager.SLOT_COUNT).firstOrNull { !SaveManager.hasSlot(it) } ?: 0
+        if (CityFile.importFromUri(this, uri, free) && SaveManager.load(free)) {
+            AppState.activeSlot = free
+            Prefs.lastSlot = free
+            AppState.overlay = ""
+            AppState.mode = "view"
+            AppState.screen = "map"
+            MapRef.view?.resetCamera()
+            MapRef.view?.clearSelection()
+            MapRef.view?.setToast("已载入好友的城市（槽位 " + (free + 1) + "）")
+        } else {
+            MapRef.view?.setToast("城市存档已损坏或格式不符")
+        }
     }
 }
 

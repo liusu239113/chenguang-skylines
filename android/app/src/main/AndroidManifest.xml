@@ -54,7 +54,29 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- 接收好友发来的城市存档：在微信/QQ 里点 .citymap 文件可选本作打开 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.citymap" />
+            </intent-filter>
         </activity>
+
+        <!-- 分享城市存档文件用（仅暴露 files/share 目录） -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.citymap.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/citymap_file_paths" />
+        </provider>
 
         <provider
             android:name="com.bytedance.sdk.openadsdk.TTFileProvider"

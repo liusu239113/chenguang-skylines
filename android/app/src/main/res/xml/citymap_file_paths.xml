@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <\!-- 分享城市存档：只暴露 files/share 目录 -->
+    <files-path name="share" path="share/" />
+</paths>

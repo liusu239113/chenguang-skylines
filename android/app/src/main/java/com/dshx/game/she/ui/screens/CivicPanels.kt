@@ -612,12 +612,42 @@ fun SharePanel() {
     // 分片二维码：城市大就切成多张，轮播显示
     val chunks = remember { com.dshx.game.she.ShareCode.exportChunks() }
     var qrIndex by remember { mutableStateOf(0) }
+    // 多张时自动轮播：对方举着手机不动就能连续扫完，不用手动翻页
+    if (totalChunks > 1) {
+        LaunchedEffect(totalChunks) {
+            while (true) {
+                kotlinx.coroutines.delay(2200)
+                qrIndex = (qrIndex + 1) % totalChunks
+            }
+        }
+    }
     val qrBitmaps = remember(chunks) {
         chunks?.map { com.dshx.game.she.QrCode.encode(it, 640) }
     }
     val qrBitmap = qrBitmaps?.getOrNull(qrIndex.coerceIn(0, (qrBitmaps.size - 1).coerceAtLeast(0)))
     val totalChunks = chunks?.size ?: 0
     var scanning by remember { mutableStateOf(false) }
+    // 选城市存档文件（SAF 系统文件选择器，不需要存储权限）
+    val pickFile = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
+            .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) } ?: AppState.activeSlot
+        if (com.dshx.game.she.CityFile.importFromUri(ctx, uri, free) &&
+            com.dshx.game.she.SaveManager.load(free)
+        ) {
+            AppState.activeSlot = free
+            com.dshx.game.she.Prefs.lastSlot = free
+            AppState.shareOpen = false
+            AppState.menuOpen = false
+            MapRef.view?.resetCamera()
+            MapRef.view?.clearSelection()
+            MapRef.view?.setToast("已载入好友的城市（槽位 " + (free + 1) + "）")
+        } else {
+            msg = "存档已损坏或不是本作的存档"
+        }
+    }
     // 相册选图
     val pickImage = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -735,17 +765,49 @@ fun SharePanel() {
                     contentAlignment = Alignment.Center
                 ) { Text("复制地图种子", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
 
-                // 二维码：整座城市（含建筑）都塞进码里，另一台设备扫一下就导入
+                // 文件分享（推荐）：任意大小城市都完整复刻，一步发送
                 Text(
-                    "扫码分享（推荐）", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    "发给好友（推荐）", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                     color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
                 )
                 Text(
-                    if (totalChunks <= 1)
-                        "让对方用本作「扫码导入」扫这张码，或存图发论坛，整座城市连同建筑一起还原。"
-                    else
-                        "城市较大，共 $totalChunks 张码。对方需逐张扫（或逐张存图后用相册导入），全部扫齐才会还原。",
+                    "点下面按钮，选微信/QQ 直接把城市存档发给好友。对方点开文件选「用本作打开」就能进入你的城市，多大都完整还原。",
                     fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                        .background(C.accentGreen.toColor(), RoundedCornerShape(21.dp))
+                        .clickable {
+                            Sfx.play("sfx_click")
+                            val cur = GameData.current
+                            val f = com.dshx.game.she.CityFile.exportToFile(
+                                ctx, cur?.cityName ?: "城市"
+                            )
+                            if (f == null) {
+                                msg = "导出失败"
+                            } else {
+                                val it = com.dshx.game.she.CityFile.shareIntent(ctx, f)
+                                if (it == null) {
+                                    msg = "无法唤起分享面板"
+                                } else {
+                                    try {
+                                        ctx.startActivity(it)
+                                        msg = "已生成存档，选微信/QQ 发给好友即可"
+                                    } catch (t: Throwable) {
+                                        msg = "分享失败：" + (t.message ?: "")
+                                    }
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) { Text("发送城市给好友", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+
+                // 二维码：小城市可直接扫码（备用通道）
+                Text(
+                    "或扫码分享（小城市）", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current
                 )
                 val qr = qrBitmap
                 if (qr != null) {
@@ -895,7 +957,23 @@ fun SharePanel() {
                 contentAlignment = Alignment.Center
             ) { Text("按种子开新城 / 导入并载入", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
 
-            // 扫码导入：相机 + 相册两种方式
+            // 导入方式：选存档文件 / 相机扫码 / 相册选二维码图
+            Text(
+                "或从本地导入", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.accentGold.toColor(), RoundedCornerShape(20.dp))
+                    .clickable {
+                        Sfx.play("sfx_click")
+                        pickFile.launch(arrayOf("*/*"))
+                    },
+                contentAlignment = Alignment.Center
+            ) { Text("选好友发来的城市存档（.citymap）", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

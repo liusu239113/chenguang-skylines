@@ -92,13 +92,19 @@ object CityCodec {
         return out.toByteArray()
     }
 
-    /** 单格打包：4 枚举 + 1 flags + 建筑 */
+    /**
+     * 单格打包（极限压缩）。
+     *
+     * 旧格式每格 7~13 字节，装不下大城。新格式用「类型字节 + 可选扩展」：
+     *   首字节高 2 位是类型标签，低 6 位塞常用信息。
+     *   绝大多数格子（只有路 / 只有分区）2 字节搞定，带建筑的 4~6 字节。
+     */
     private fun packTile(t: com.dshx.game.she.world.Tile, terrainChanged: Boolean): ByteArray {
         val mo = ByteArrayOutputStream()
-        mo.write(if (terrainChanged) TERRAINS.indexOf(t.terrain).coerceAtLeast(0) else 0)
-        mo.write(ZONES.indexOf(t.zone).coerceAtLeast(0))
-        mo.write(ROADS.indexOf(t.road ?: "").coerceAtLeast(0))
-        mo.write(SPECS.indexOf(t.spec).coerceAtLeast(0))
+        val zoneIdx = ZONES.indexOf(t.zone).coerceAtLeast(0)
+        val roadIdx = ROADS.indexOf(t.road ?: "").coerceAtLeast(0)
+        val specIdx = SPECS.indexOf(t.spec).coerceAtLeast(0)
+        val terrainIdx = if (terrainChanged) TERRAINS.indexOf(t.terrain).coerceAtLeast(0) else 0
         var flags = 0
         if (t.pipe) flags = flags or 1
         if (t.cable) flags = flags or 2
@@ -106,12 +112,20 @@ object CityCodec {
         if (t.metro) flags = flags or 8
         if (t.rail) flags = flags or 16
         if (t.bridge) flags = flags or 32
-        mo.write(flags)
+
+        // 类型字节：bit7=有建筑, bit6=有地形变化, bit5=有管线, 低5位=分区
+        var tag = 0
         val bd = t.building
-        if (bd == null) {
-            mo.write(0)
-        } else {
-            mo.write(1)
+        if (bd != null) tag = tag or 0x80
+        if (terrainChanged) tag = tag or 0x40
+        if (flags != 0) tag = tag or 0x20
+        tag = tag or (zoneIdx and 0x1F)
+        mo.write(tag)
+        // 道路 + 专精合一个字节（路 4 位 + 专精 4 位）
+        mo.write(((roadIdx and 0x0F) shl 4) or (specIdx and 0x0F))
+        if (terrainChanged) mo.write(terrainIdx)
+        if (flags != 0) mo.write(flags)
+        if (bd != null) {
             if (bd.isService) {
                 mo.write(1)
                 mo.write(SERVICES.indexOf(bd.service).coerceAtLeast(0))
@@ -120,15 +134,15 @@ object CityCodec {
             } else {
                 mo.write(0)
                 mo.write(ZONES.indexOf(bd.zone ?: "none").coerceAtLeast(0))
-                mo.write(bd.level)
+                var lv = bd.level and 0x03
+                if (bd.abandoned) lv = lv or 0x04
+                if (bd.w > 1 || bd.h > 1) lv = lv or 0x08
+                mo.write(lv)
                 if (bd.w > 1 || bd.h > 1) {
                     mo.write(bd.ax); mo.write(bd.ay)
                     mo.write(bd.w); mo.write(bd.h)
-                } else {
-                    mo.write(0); mo.write(0); mo.write(0); mo.write(0)
                 }
             }
-            mo.write(if (bd.abandoned) 1 else 0)
         }
         return mo.toByteArray()
     }
@@ -189,13 +203,20 @@ object CityCodec {
                 prevK = k
                 val x = k % cols + 1
                 val y = k / cols + 1
-                val terrainIdx = rb()
-                val zoneIdx = rb()
-                val roadIdx = rb()
-                val specIdx = rb()
-                val flags = rb()
+                // 类型字节
+                val tag = rb()
+                val hasBuilding = (tag and 0x80) != 0
+                val hasTerrain = (tag and 0x40) != 0
+                val hasFlags = (tag and 0x20) != 0
+                val zoneIdx = tag and 0x1F
+                // 道路 + 专精
+                val rs2 = rb()
+                val roadIdx = (rs2 shr 4) and 0x0F
+                val specIdx = rs2 and 0x0F
+                val terrainIdx = if (hasTerrain) rb() else 0
+                val flags = if (hasFlags) rb() else 0
                 val o = JSONObject().put("x", x).put("y", y)
-                if (terrainIdx in TERRAINS.indices) o.put("terrain", TERRAINS[terrainIdx])
+                if (hasTerrain && terrainIdx in TERRAINS.indices) o.put("terrain", TERRAINS[terrainIdx])
                 if (zoneIdx in ZONES.indices) o.put("zone", ZONES[zoneIdx])
                 if (roadIdx in ROADS.indices && ROADS[roadIdx].isNotEmpty()) o.put("road", ROADS[roadIdx])
                 if (specIdx in SPECS.indices && SPECS[specIdx].isNotEmpty()) o.put("spec", SPECS[specIdx])
@@ -205,7 +226,7 @@ object CityCodec {
                 if (flags and 8 != 0) o.put("metro", true)
                 if (flags and 16 != 0) o.put("rail", true)
                 if (flags and 32 != 0) o.put("bridge", true)
-                if (rb() == 1) {
+                if (hasBuilding) {
                     val isSvc = rb() == 1
                     val bo = JSONObject()
                     if (isSvc) {
@@ -216,11 +237,14 @@ object CityCodec {
                     } else {
                         val zi = rb()
                         bo.put("zone", ZONES.getOrNull(zi) ?: "residential")
-                        bo.put("level", rb())
-                        val ax = rb(); val ay = rb(); val bw = rb(); val bh = rb()
-                        if (bw > 0 && bh > 0) bo.put("ax", ax).put("ay", ay).put("w", bw).put("h", bh)
+                        val lv = rb()
+                        bo.put("level", (lv and 0x03).coerceAtLeast(1))
+                        bo.put("abandoned", (lv and 0x04) != 0)
+                        if ((lv and 0x08) != 0) {
+                            val ax = rb(); val ay = rb(); val bw = rb(); val bh = rb()
+                            bo.put("ax", ax).put("ay", ay).put("w", bw).put("h", bh)
+                        }
                     }
-                    bo.put("abandoned", rb() == 1)
                     // 多格建筑：非锚点格复用同一份对象，避免读档后变多栋
                     val bw2 = bo.optInt("w", 1)
                     val bh2 = bo.optInt("h", 1)
