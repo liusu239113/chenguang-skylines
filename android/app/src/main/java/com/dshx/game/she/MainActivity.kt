@@ -114,7 +114,18 @@ fun AppRoot() {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val activity = context as? MainActivity
+    // 小屏适配：按屏宽缩放整个 UI 密度，小屏收紧、大屏不变
+    com.dshx.game.she.ui.ProvideUiScale(configuration.screenWidthDp.toFloat()) {
+        AppRootInner(context, configuration, activity)
+    }
+}
 
+@Composable
+private fun AppRootInner(
+    context: android.content.Context,
+    configuration: android.content.res.Configuration,
+    activity: MainActivity?
+) {
     val mapView = remember {
         MapRenderView(context).apply { initView() }
     }

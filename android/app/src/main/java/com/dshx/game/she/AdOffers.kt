@@ -158,7 +158,7 @@ object AdOffers {
             }
             "buff_growth" -> {
                 Buffs.grant(Buffs.FAST_GROWTH, 30)
-                MapRef.view?.setToast("入住加速：30 分钟内居民增长速度翻倍")
+                MapRef.view?.setToast("入住加速：30 分钟内住户增长速度翻倍")
             }
             "buff_income" -> {
                 Buffs.grant(Buffs.INCOME_BOOST, 30)

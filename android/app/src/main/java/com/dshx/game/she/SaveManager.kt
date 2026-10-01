@@ -5,6 +5,7 @@ import com.dshx.game.she.world.Building
 import com.dshx.game.she.world.Citizens
 import com.dshx.game.she.world.Growth
 import com.dshx.game.she.world.Networks
+import com.dshx.game.she.world.RealEstate
 import com.dshx.game.she.world.Traffic
 import com.dshx.game.she.world.Transit
 import com.dshx.game.she.world.RoadLine
@@ -86,6 +87,9 @@ object SaveManager {
         json.put("sandbox", GameData.sandbox)
         json.put("speedIdx", GameData.speedIdx)
         json.put("simTime", Growth.simTime)
+        json.put("marketIndex", RealEstate.marketIndex)
+        json.put("soldCount", RealEstate.soldCount)
+        json.put("landSold", RealEstate.landSold)
         json.put("timeOfDay", GameData.timeOfDay.toDouble())
         json.put("cityName", s.cityName)
         json.put("mayorName", s.mayorName)
@@ -239,6 +243,7 @@ object SaveManager {
                     val bo = JSONObject().put("level", b.level).put("born", b.born)
                         .put("residents", b.residents).put("workers", b.workers)
                         .put("abandoned", b.abandoned).put("ageDays", b.ageDays)
+                    if (b.sold) bo.put("sold", true).put("soldPrice", b.soldPrice)
                     b.zone?.let { bo.put("zone", it) }
                     b.service?.let { bo.put("service", it) }
                     // 设施与多格成长楼都要记锚点/占地，读档才能还原
@@ -351,6 +356,8 @@ object SaveManager {
                     b.workers = bo.optInt("workers", 0)
                     b.abandoned = bo.optBoolean("abandoned", false)
                     b.ageDays = bo.optInt("ageDays", 0)
+                    b.sold = bo.optBoolean("sold", false)
+                    b.soldPrice = bo.optDouble("soldPrice", 0.0)
                     if (bo.has("zone")) b.zone = bo.optString("zone")
                     if (bo.has("service")) b.service = bo.optString("service")
                     b.ax = ax
@@ -519,6 +526,9 @@ object SaveManager {
 
         GameData.speedIdx = json.optInt("speedIdx", 1).coerceIn(0, 3)
         Growth.simTime = json.optDouble("simTime", 0.0)
+        RealEstate.marketIndex = json.optDouble("marketIndex", 1.0).coerceIn(0.70, 1.40)
+        RealEstate.soldCount = json.optInt("soldCount", 0)
+        RealEstate.landSold = json.optInt("landSold", 0)
         GameData.timeOfDay = json.optDouble("timeOfDay", 0.25).toFloat()
         World.current?._pop = s.population.toInt()
         Transit.fromJson(json.optJSONArray("busLines"))

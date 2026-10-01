@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -60,6 +61,7 @@ import com.dshx.game.she.world.CitySystems
 import com.dshx.game.she.world.Growth
 import com.dshx.game.she.world.MapRenderView
 import com.dshx.game.she.world.Networks
+import com.dshx.game.she.world.RealEstate
 import com.dshx.game.she.world.Tool
 import com.dshx.game.she.world.Traffic
 import com.dshx.game.she.world.Transit
@@ -148,7 +150,10 @@ object MapScreen {
     }
 
     fun onShow(view: MapRenderView, wDp: Float, hDp: Float) {
-        view.setViewport(wDp, hDp, 214f, 108f)
+        // 小屏适配：HUD 已按 UiScale 收紧，地图预留的上下边距也要同步缩放，
+        // 否则小屏上顶/底栏会盖住地图可操作区。
+        val sc = com.dshx.game.she.ui.UiScale.current
+        view.setViewport(wDp, hDp, 214f * sc, 108f * sc)
         view.fitCameraIfNeeded()
         view.onTileChanged = {
             AppState.bumpMap()
@@ -278,7 +283,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     val left = (need - have).coerceAtLeast(0)
                     Text(
                         if (World.isFullyUnlocked()) "全图已解锁"
-                        else if (left <= 0) "城区已尽量向外展开"
+                        else if (left <= 0) "新区已尽量向外展开"
                         else "黑色区域：再增加 $left 人自动解锁（目标 $need 人）",
                         fontSize = 10.sp,
                         color = C.textMid.toColor(),
@@ -666,6 +671,47 @@ fun MapScreenContent(mapView: MapRenderView) {
                     val tile = World.tile(sel.first, sel.second)
                     if (tile?.metro == true) UIHelper.InfoRow("地铁隧", "已挖")
                     if (tile?.rail == true) UIHelper.InfoRow("铁轨", "已铺")
+                    // ---- 地产经营：挂牌出售 / 回购 / 转让地皮 ----
+                    if (tb != null && !tb.isService) {
+                        val entry = World.allBuildings().firstOrNull { it.x == sel.first && it.y == sel.second }
+                        if (entry != null) {
+                            val val0 = RealEstate.buildingValue(entry)
+                            if (tb.sold) {
+                                UIHelper.InfoRow("持有状态", "已售出", C.accentGold.toColor())
+                                UIHelper.InfoRow("当前市值", val0.toInt().toString() + " 万")
+                                UIHelper.InfoRow("回购价", RealEstate.buybackCost(entry).toInt().toString() + " 万（含 10% 溢价）")
+                                Spacer(modifier = Modifier.height(4.dp))
+                                UIHelper.ActionButton("回购（重新自持收租）", C.accentBlue.toColor()) {
+                                    val (ok, msg) = GameData.buybackBuilding(sel.first, sel.second)
+                                    mapView.setToast(msg ?: if (ok) "已回购" else "回购失败")
+                                    AppState.bumpLive()
+                                }
+                            } else {
+                                UIHelper.InfoRow("持有状态", "自持 · 每天收物业费", C.accentGreen.toColor())
+                                UIHelper.InfoRow("当前市值", val0.toInt().toString() + " 万")
+                                UIHelper.InfoRow("出售可得", RealEstate.sellProceeds(entry).toInt().toString() + " 万（扣 6% 手续费）")
+                                Spacer(modifier = Modifier.height(4.dp))
+                                UIHelper.ActionButton("挂牌出售（一次性套现）", C.accentGreen.toColor()) {
+                                    val (ok, msg) = GameData.sellBuilding(sel.first, sel.second)
+                                    mapView.setToast(msg ?: if (ok) "已出售" else "出售失败")
+                                    AppState.bumpLive()
+                                }
+                            }
+                        }
+                    } else if (tb == null && tile != null && tile.zone != "none" && tile.zone.isNotEmpty() &&
+                        tile.road == null && tile.building == null
+                    ) {
+                        val landV = RealEstate.landValueAt(sel.first, sel.second)
+                        UIHelper.InfoRow("空地", "已征地 · 待开发", C.accentBlue.toColor())
+                        UIHelper.InfoRow("地皮估值", landV.toInt().toString() + " 万")
+                        UIHelper.InfoRow("转让可得", RealEstate.landProceeds(sel.first, sel.second).toInt().toString() + " 万")
+                        Spacer(modifier = Modifier.height(4.dp))
+                        UIHelper.ActionButton("转让地皮（清空征地并套现）", C.accentGold.toColor()) {
+                            val (ok, msg) = GameData.sellLand(sel.first, sel.second)
+                            mapView.setToast(msg ?: if (ok) "已转让" else "转让失败")
+                            AppState.bumpLive()
+                        }
+                    }
                     Config.specOf(tile?.spec ?: "")?.let { sp ->
                         UIHelper.InfoRow("产业专精", sp.name + " 每天 +" + sp.income + " 万")
                     }
@@ -675,7 +721,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     if (World.current?.highwayConnected == true) {
                         UIHelper.InfoRow("外环高速", "已接通 · 繁荣 " + (World.current?.prosperity ?: 0))
                     } else if (World.tile(sel.first, sel.second)?.road == "highway") {
-                        UIHelper.InfoRow("外环高速", "未接通城区，外地车进不来", C.accentRed.toColor())
+                        UIHelper.InfoRow("外环高速", "未接通新区，外地车进不来", C.accentRed.toColor())
                     }
                         }
                     }
@@ -1029,7 +1075,7 @@ private fun DrawerContent(mapView: MapRenderView) {
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    "选择设施（放进城区里，覆盖周边）", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    "选择设施（放进新区里，覆盖周边）", fontSize = 12.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                 )
                 val groups = listOf(
@@ -1918,7 +1964,7 @@ private fun LedgerPanel() {
                     Text("支出 −" + floor(outTotal).toInt() + "万", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
                     LedgerRow("道路维护", s.lastRoadUpkeep, false)
                     LedgerRow("设施运营", s.lastServiceUpkeep, false)
-                    LedgerRow("城区养护", s.lastGrownUpkeep, false)
+                    LedgerRow("楼盘养护", s.lastGrownUpkeep, false)
                     LedgerRow("贷款还款", s.lastLoanRepay, false)
                 }
             }
@@ -2044,6 +2090,26 @@ private fun DataPanel() {
                     modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.dataOpen = false }.padding(4.dp)
                 )
             }
+
+            // 地产行情
+            Text("地产行情", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.accentGold.toColor(), fontFamily = LocalGameFont.current)
+            val mIdx = com.dshx.game.she.world.RealEstate.marketIndex
+            val mPct = ((mIdx - 1.0) * 100).roundToInt()
+            Text(
+                "楼市指数 " + String.format("%.2f", mIdx) + "（" + com.dshx.game.she.world.RealEstate.marketLabel() +
+                    " · 较基准 " + (if (mPct >= 0) "+" else "") + mPct + "%）",
+                fontSize = 11.sp,
+                color = if (mIdx >= 1.0) C.accentGreen.toColor() else C.accentRed.toColor(),
+                fontFamily = LocalGameFont.current
+            )
+            UIHelper.InfoRow("自持楼盘", com.dshx.game.she.world.RealEstate.ownedAssetValue().toInt().toString() + " 万市值")
+            UIHelper.InfoRow("已售楼盘", com.dshx.game.she.world.RealEstate.soldAssetValue().toInt().toString() + " 万市值")
+            UIHelper.InfoRow("已售楼栋", com.dshx.game.she.world.RealEstate.soldCount.toString() + " 栋")
+            UIHelper.InfoRow("自持收租占比", (com.dshx.game.she.world.RealEstate.ownedShare() * 100).roundToInt().toString() + "%")
+            Text(
+                "点任意楼盘可挂牌出售套现，行情高时出手更划算；已售出的楼可回购重新收租。",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
 
             // 覆盖率
             if (cov != null) {

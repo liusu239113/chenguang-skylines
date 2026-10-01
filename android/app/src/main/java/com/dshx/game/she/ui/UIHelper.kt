@@ -173,6 +173,27 @@ object UIHelper {
         }
     }
 
+    /** 面板内操作按钮（地产经营：出售 / 回购 / 转让地皮） */
+    @Composable
+    fun ActionButton(
+        text: String,
+        bg: Color,
+        enabled: Boolean = true,
+        onClick: () -> Unit
+    ) {
+        val alpha = if (enabled) 1f else 0.45f
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .background(bg.copy(alpha = alpha), RoundedCornerShape(19.dp))
+                .clickable(enabled = enabled) { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            gameText(text, 13.sp, Color.White, bold = true, align = TextAlign.Center)
+        }
+    }
+
     /** 建筑 / 工具选择小卡 */
     @Composable
     fun PickChip(

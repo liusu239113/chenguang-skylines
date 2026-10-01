@@ -224,7 +224,7 @@ object Traffic {
         if (ambientPlaneT <= 0f) {
             ambientPlaneT = 80f + Random.nextFloat() * 100f
             if (planes.count { it.ambient } < 1) {
-                // 盘旋圆心取城区中心（有楼就按楼算，没楼就地图中间）
+                // 盘旋圆心取新区中心（有楼就按楼算，没楼就地图中间）
                 val built = World.allBuildings()
                 val cx: Float
                 val cy: Float
@@ -1108,7 +1108,7 @@ object Traffic {
         for (i in planes.indices.reversed()) {
             val p = planes[i]
             if (p.ambient) {
-                // 过境航班：绕城区上空盘几圈再走
+                // 过境航班：绕新区上空盘几圈再走
                 p.life += dt
                 if (p.life > 150f) {
                     planes.removeAt(i)
@@ -1127,7 +1127,7 @@ object Traffic {
                 if (kotlin.math.abs(p.vx) + kotlin.math.abs(p.vy) > 0.3f) {
                     p.angle = Math.toDegrees(kotlin.math.atan2(p.vy.toDouble(), p.vx.toDouble())).toFloat()
                 }
-                // 刚进入城区上空时拉一声掠空声（听得见）
+                // 刚进入新区上空时拉一声掠空声（听得见）
                 if (!p.soundPlayed) {
                     val dx = p.x - p.ax
                     val dy = p.y - p.ay

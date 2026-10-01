@@ -254,7 +254,7 @@ object Config {
         ServiceDef("incinerator", "焚烧厂", 2200, 52, 8, -2, false, 2, 2,
             "收运 160 栋并发电 12，烟尘按距离衰减。", ServiceCat.GARBAGE, 300, 5, 12, 0, 160, 0, 7),
         ServiceDef("waste_plant", "综合处理厂", 6500, 115, 10, -3, false, 3, 3,
-            "大型垃圾综合处理：收运 420 栋并发电 20。城区一大就靠它，烟尘按距离衰减，适合放远郊。",
+            "大型垃圾综合处理：收运 420 栋并发电 20。新区一大就靠它，烟尘按距离衰减，适合放远郊。",
             ServiceCat.GARBAGE, 900, 4, 20, 0, 420, 0, 8),
         // ---- 医疗 ----
         ServiceDef("clinic", "诊所", 640, 28, 7, 5, false, 1, 1,
@@ -393,7 +393,7 @@ object Config {
         AchievementDef("pop100", "初具规模", "人口达到 100", 300, "pop", 100.0),
         AchievementDef("pop500", "初具雏形", "人口达到 500", 800, "pop", 500.0),
         AchievementDef("pop1000", "千人之城", "人口达到 1000", 1500, "pop", 1000.0),
-        AchievementDef("pop2000", "城区气象", "人口达到 2000", 2500, "pop", 2000.0),
+        AchievementDef("pop2000", "片区气象", "人口达到 2000", 2500, "pop", 2000.0),
         AchievementDef("pop4000", "新城气象", "人口达到 4000", 5000, "pop", 4000.0),
         AchievementDef("pop6000", "新城崛起", "人口达到 6000", 7000, "pop", 6000.0),
         AchievementDef("pop10000", "万人大都会", "人口达到 10000", 10000, "pop", 10000.0),
@@ -409,7 +409,7 @@ object Config {
         AchievementDef("exam1", "持证上岗", "通过 1 次项目评级", 400, "exam", 1.0),
         AchievementDef("exam3", "考核能手", "累计通过 3 次项目评级", 900, "exam", 3.0),
         AchievementDef("mail8", "有求必应", "处理 8 封客户反馈", 700, "mail", 8.0),
-        AchievementDef("school60", "书香城区", "升学率达到 60%", 800, "school", 60.0),
+        AchievementDef("school60", "书香片区", "升学率达到 60%", 800, "school", 60.0),
         AchievementDef("school80", "学风鼎盛", "升学率达到 80%", 1600, "school", 80.0),
         AchievementDef("road80", "路网成型", "道路达到 80 格", 600, "roads", 80.0),
         AchievementDef("svc12", "设施齐全", "建成 12 座服务设施", 900, "services", 12.0)

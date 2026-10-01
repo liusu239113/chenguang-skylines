@@ -73,6 +73,9 @@ class Building {
     var ageDays: Int = 0
     var garbage: Int = 0              // 建筑垃圾堆积
     var crime: Int = 0                // 建筑巡防热度
+    // 地产：是否已售出（售出后不再贡献物业费，除非回购）
+    var sold: Boolean = false
+    var soldPrice: Double = 0.0
     // service
     var service: String? = null
     var ax: Int = 0
@@ -329,7 +332,7 @@ class World {
                 )
             )
 
-            // 外环高速：贴地图边缘，不直接进城区。玩家把城区路接到高速后才会进外地车。
+            // 外环高速：贴地图边缘，不直接进新区。玩家把城区路接到高速后才会进外地车。
             fun setHwy(x: Int, y: Int) {
                 val t = w.grid[y - 1][x - 1]
                 if (t.terrain == "water") return

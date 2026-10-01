@@ -1081,7 +1081,7 @@ fun BenefitPanel() {
             )
             BenefitBtn(
                 "入住加速",
-                (com.dshx.game.she.Buffs.remainText(com.dshx.game.she.Buffs.FAST_GROWTH)?.let { "剩余 " + it } ?: "30 分钟内居民增长翻倍"),
+                (com.dshx.game.she.Buffs.remainText(com.dshx.game.she.Buffs.FAST_GROWTH)?.let { "剩余 " + it } ?: "30 分钟内住户增长翻倍"),
                 act, "buff_growth", true
             )
             BenefitBtn(

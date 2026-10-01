@@ -7,6 +7,7 @@ import com.dshx.game.she.world.Citizens
 import com.dshx.game.she.world.Transit
 import com.dshx.game.she.world.CitySystems
 import com.dshx.game.she.world.Networks
+import com.dshx.game.she.world.RealEstate
 import com.dshx.game.she.world.Traffic
 import kotlin.math.floor
 import kotlin.math.max
@@ -350,6 +351,7 @@ object GameData {
         Networks.reset()
         CitySystems.reset()
         Civic.reset()
+        RealEstate.reset()
         AdOffers.reset()
         Traffic.reset()
         current = createState()
@@ -676,7 +678,7 @@ object GameData {
                     if (powered && watered && b.residents < lv.cap) {
                         val pace = if (s.happiness >= 45) 1 else 2
                         if (b.ageDays % pace == 0) b.residents = min(lv.cap, b.residents + 1)
-                        // 增益：居民增长速度翻倍（每天多进一户）
+                        // 增益：住户增长速度翻倍（每天多进一户）
                         if (Buffs.isActive(Buffs.FAST_GROWTH) && b.residents < lv.cap) {
                             b.residents = min(lv.cap, b.residents + 1)
                         }
@@ -736,9 +738,11 @@ object GameData {
             (if (World.hasLandmark("stadium")) 8.0 else 0.0)
         val bizBase = (bizCom * s.taxCom / 10.0 * landmarkCom + bizInd * s.taxInd / 10.0 + bizOff * s.taxOff / 10.0) *
             powerMul * eduMul * congMul
+        // 地产：卖掉的楼不再归你收租，物业费按自持比例结算
+        val ownedShare = RealEstate.ownedShare()
         val taxIncome = (s.population * E.taxPerPopPerDay + E.baseIncomePerDay) *
-            policyMul("taxMul") * (s.taxRes / 10.0)
-        val bizIncome = bizBase * policyMul("incomeMul")
+            policyMul("taxMul") * (s.taxRes / 10.0) * ownedShare
+        val bizIncome = bizBase * policyMul("incomeMul") * ownedShare
         val rankTrade = if (s.rankLevel >= 5) 1.08 else 1.0
         val taxBoost = if (s.doubleTaxDays > 0) 2.0 else 1.0
         val scale = cityScale()
@@ -833,7 +837,7 @@ object GameData {
         post("income", "biz", "产业专精", specIncome)
         post("spend", "road", "道路维护", s.lastRoadUpkeep)
         post("spend", "service", "设施运营", s.lastServiceUpkeep)
-        post("spend", "service", "城区养护", s.lastGrownUpkeep)
+        post("spend", "service", "楼盘养护", s.lastGrownUpkeep)
         if (s.funds < 0) {
             s.bankruptDays += 1
             if (s.bankruptDays == 1) pushNews("账面告急", "金库见底，片区服务将收缩。尽快扩收益来源或贷款。", "账面")
@@ -864,6 +868,7 @@ object GameData {
         s.merit += max(0.0, s.lastNet * 0.02 + s.population * 0.001)
         Civic.tickDay(s)
         AdOffers.tickDay(s)
+        RealEstate.tickDay()
         World.refreshHighwayLink()
         refreshRank()
 
@@ -1080,7 +1085,7 @@ object GameData {
         if (kind == "metro" || kind == "rail") Networks.recount()
         World.refreshHighwayLink()
         if (!linkedBefore && World.current?.highwayConnected == true) {
-            pushNews("外环接通", "城区路接到外环高速，外地游客将按繁荣度进城。", "交通")
+            pushNews("外环接通", "新区路接到外环高速，外地游客将按繁荣度进城。", "交通")
             MapRef.view?.setToast("外环高速已接通")
         }
         return true to null
@@ -1240,6 +1245,80 @@ object GameData {
             "营建"
         )
         return true to (cfg.name + "已建成，扣 " + pay + " 万")
+    }
+
+    // -----------------------------------------------------------------------
+    // 地产经营：挂牌出售 / 回购 / 地皮转让
+    // -----------------------------------------------------------------------
+
+    /** 挂牌出售一栋楼：一次性套现，之后不再贡献物业费 */
+    fun sellBuilding(x: Int, y: Int): Pair<Boolean, String?> {
+        val s = current ?: return false to "未开始"
+        val e = World.allBuildings().firstOrNull { it.x == x && it.y == y && !it.b.isService }
+            ?: return false to "这里没有可出售的楼"
+        if (e.b.sold) return false to "这栋楼已经卖过了"
+        if (e.b.abandoned) return false to "废弃楼没人接手，先修复"
+        beginStroke("出售")
+        val price = RealEstate.sellProceeds(e)
+        e.b.sold = true
+        e.b.soldPrice = price
+        if (!sandbox) {
+            s.funds += price
+            s.totalIncome += price
+            post("income", "other", "售楼款", price)
+        }
+        endStroke()
+        val name = Traffic.grownName(e.b.zone ?: "residential", x, y)
+        pushNews("售楼成交", name + " 以 " + price.toInt() + " 万成交（已扣手续费）。", "地产")
+        RealEstate.refreshCounts()
+        return true to ("已出售 " + name + " · 到账 " + price.toInt() + " 万")
+    }
+
+    /** 回购已售出的楼：付溢价买回，重新纳入自持收租 */
+    fun buybackBuilding(x: Int, y: Int): Pair<Boolean, String?> {
+        val s = current ?: return false to "未开始"
+        val e = World.allBuildings().firstOrNull { it.x == x && it.y == y && !it.b.isService }
+            ?: return false to "这里没有可回购的楼"
+        if (!e.b.sold) return false to "这栋楼本来就在你手里"
+        val cost = RealEstate.buybackCost(e)
+        if (!sandbox && s.funds < cost) {
+            AdOffers.offerShortfall(cost.toInt(), "回购")
+            return false to ("资金不足（需 ¥" + cost.toInt() + "万）")
+        }
+        beginStroke("回购")
+        e.b.sold = false
+        e.b.soldPrice = 0.0
+        if (!sandbox) {
+            s.funds -= cost
+            s.totalSpent += cost
+            post("spend", "other", "回购楼宇", cost)
+        }
+        endStroke()
+        val name = Traffic.grownName(e.b.zone ?: "residential", x, y)
+        pushNews("回购完成", "以 " + cost.toInt() + " 万回购 " + name + "，重新自持收租。", "地产")
+        RealEstate.refreshCounts()
+        return true to ("已回购 " + name + " · 支出 " + cost.toInt() + " 万")
+    }
+
+    /** 转让地皮：卖掉一块已征地但还没盖楼的空地 */
+    fun sellLand(x: Int, y: Int): Pair<Boolean, String?> {
+        val s = current ?: return false to "未开始"
+        val t = World.tile(x, y) ?: return false to "无效地块"
+        if (t.zone == "none" || t.zone.isEmpty()) return false to "这里还没征地"
+        if (t.building != null) return false to "地上已有建筑，请先推平"
+        if (t.road != null) return false to "这里是道路"
+        beginStroke("转让地皮")
+        val price = RealEstate.landProceeds(x, y)
+        t.zone = "none"
+        t.spec = ""
+        if (!sandbox) {
+            s.funds += price
+            s.totalIncome += price
+            post("income", "other", "地皮转让", price)
+        }
+        endStroke()
+        RealEstate.landSold++
+        return true to ("地皮已转让 · 到账 " + price.toInt() + " 万")
     }
 
     fun activatePolicy(pid: String): Pair<Boolean, String?> {

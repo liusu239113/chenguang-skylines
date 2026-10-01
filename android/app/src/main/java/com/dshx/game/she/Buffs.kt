@@ -11,7 +11,7 @@ object Buffs {
 
     // 增益类型
     const val NO_HAPPY_DROP = "no_happy_drop"   // 满意度不再下降
-    const val FAST_GROWTH = "fast_growth"       // 居民增长速度提升
+    const val FAST_GROWTH = "fast_growth"       // 住户增长速度提升
     const val INCOME_BOOST = "income_boost"     // 项目收益提升
     const val NO_UPKEEP = "no_upkeep"           // 免维护费
 
