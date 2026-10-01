@@ -45,8 +45,9 @@ object Config {
     // -----------------------------------------------------------------------
     // 世界信息（纯虚构）
     // -----------------------------------------------------------------------
-    const val TITLE = "地产大亨"
-    const val SUBTITLE = "地产大亨 · 从荒土到繁华之城"
+    const val TITLE = "地产大亨：从荒土到繁华之城"
+    const val SHORT = "地产大亨"
+    const val SUBTITLE = "从荒土到繁华之城"
 
     object World {
         const val country = "架空平行世界"

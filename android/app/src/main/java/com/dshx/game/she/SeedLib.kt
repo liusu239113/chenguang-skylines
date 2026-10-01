@@ -54,7 +54,7 @@ object SeedLib {
     fun shareText(seed: Int, cityName: String, pop: Int, happy: Int): String {
         val e = find(seed)
         val head = if (e != null) "种子 $seed · ${e.name}（${e.tag}）" else "种子 $seed"
-        return "【${Config.TITLE}】$head ｜ $cityName · 人口 $pop · 满意 $happy"
+        return "【${Config.SHORT}】$head ｜ $cityName · 人口 $pop · 满意 $happy"
     }
 
     /**

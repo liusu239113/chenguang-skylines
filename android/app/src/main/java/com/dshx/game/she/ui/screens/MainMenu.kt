@@ -117,8 +117,8 @@ private fun MainMenuScreen(mapView: MapRenderView) {
                 contentDescription = Config.TITLE,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(110.dp)
-                    .padding(horizontal = 12.dp),
+                    .height(150.dp)
+                    .padding(horizontal = 8.dp),
                 contentScale = ContentScale.Fit
             )
             if (recent != null && recentMeta != null && recentMeta.exists) {
