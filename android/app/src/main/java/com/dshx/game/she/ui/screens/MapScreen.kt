@@ -1474,7 +1474,7 @@ private fun HelpPanel() {
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "新手指引 · 筑城纪，营造一座架空古城", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    "新手指引 · 城守模拟，营造一座架空古城", fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                 )

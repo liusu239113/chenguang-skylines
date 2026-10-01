@@ -87,7 +87,7 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    "欢迎使用「筑城纪：古城经营」。进入前请阅读并同意《隐私政策》。不同意请退出，我们不会开始收集。",
+                    "欢迎使用「城守模拟：古邦沙盘」。进入前请阅读并同意《隐私政策》。不同意请退出，我们不会开始收集。",
                     fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                 )
                 Text(
