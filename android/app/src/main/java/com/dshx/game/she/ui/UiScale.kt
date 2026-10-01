@@ -2,7 +2,6 @@ package com.dshx.game.she.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 
@@ -25,18 +24,13 @@ object UiScale {
 
     /** 当前生效的缩放系数（1.0 = 不缩放） */
     var current: Float = 1.0f
-        private set
+        internal set
 
     /** 按屏幕宽度算缩放系数：小屏 < 1，大屏 = 1 */
     fun factor(screenWidthDp: Float): Float {
         if (screenWidthDp <= 0f) return 1.0f
         return (screenWidthDp / REF_WIDTH).coerceIn(MIN, 1f)
     }
-
-    /** 供 Compose 读取当前缩放（给需要手动换算的地方用） */
-    @Composable
-    @ReadOnlyComposable
-    fun dp(v: Float): Float = v * current
 }
 
 /**
