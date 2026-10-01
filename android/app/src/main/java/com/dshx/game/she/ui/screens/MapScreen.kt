@@ -69,7 +69,7 @@ import kotlin.math.roundToInt
 // ============================================================================
 // MapScreen — 主界面，与 scripts/Screens/MapScreen.lua 1:1 对应
 //   顶部：资金/人口/满意/日期 + RCI 需求条 + 时间速度 + 简报
-//   底部：道路 | 住宅区 | 商业区 | 工业区 | 推平 | 服务 | 查看
+//   底部：道路 | 民坊 | 市肆 | 工坊 | 推平 | 营造 | 规划
 // ============================================================================
 
 object MapScreen {
@@ -170,7 +170,7 @@ object MapScreen {
         if (GameData.pendingRankUp) {
             GameData.pendingRankUp = false
             Sfx.play("sfx_levelup")
-            view?.setToast("营造职级升为「" + GameData.rankDef().name + "」")
+            view?.setToast("官阶升为「" + GameData.rankDef().name + "」")
         } else if (GameData.pendingLevelUp) {
             GameData.pendingLevelUp = false
             Sfx.play("sfx_levelup")
@@ -479,7 +479,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                             )
                             UIHelper.InfoRow("职务", CitySystems.job(svcCar.kind), C.accentGold.toColor())
                             UIHelper.InfoRow("任务", "前往 (" + svcCar.destX + "," + svcCar.destY + ")")
-                            UIHelper.InfoRow("身份", "市政公务车 · 可点查看")
+                            UIHelper.InfoRow("身份", "城政公车 · 可点查看")
                         }
                         car != null -> {
                             val d = car.driver
@@ -511,23 +511,23 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                             )
                             UIHelper.InfoRow("类型", "城际列车")
-                            UIHelper.InfoRow("铁轨", Networks.railCount.toString() + " 格")
-                            UIHelper.InfoRow("说明", "火车站 + 铁轨才会发车")
+                            UIHelper.InfoRow("石轨", Networks.railCount.toString() + " 格")
+                            UIHelper.InfoRow("说明", "驿站 + 石轨才会发车")
                         }
                         plane != null -> {
                             Text(
-                                plane.flight + " 航班",
+                                plane.flight + " 飞舟",
                                 fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                             )
                             if (plane.ambient) {
-                                UIHelper.InfoRow("类型", "过境航班")
+                                UIHelper.InfoRow("类型", "过境飞舟")
                                 UIHelper.InfoRow("航线", "穿越本市上空")
-                                UIHelper.InfoRow("说明", "没建机场也会飞过，纯观光；建机场才有航班收入")
+                                UIHelper.InfoRow("说明", "没建飞舟坞也会飞过，纯观光；建飞舟坞才有飞舟进项")
                             } else {
-                                UIHelper.InfoRow("类型", "民航客机")
-                                UIHelper.InfoRow("起降", "机场上空盘旋进出")
-                                UIHelper.InfoRow("说明", "建机场后才会有飞机")
+                                UIHelper.InfoRow("类型", "客舟")
+                                UIHelper.InfoRow("起降", "飞舟坞上空盘旋进出")
+                                UIHelper.InfoRow("说明", "建飞舟坞后才会有飞舟")
                             }
                         }
                         ship != null -> {
@@ -537,11 +537,11 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                             )
                             if (ship.ambient) {
-                                UIHelper.InfoRow("类型", "过境远洋货轮")
+                                UIHelper.InfoRow("类型", "过境远洋商船")
                                 UIHelper.InfoRow("航线", "外海 ↔ 本海域转一圈")
                                 UIHelper.InfoRow("说明", "没建港口也会路过，纯观光；建港口才有水运贸易")
                             } else {
-                                UIHelper.InfoRow("类型", if (ship.loaded) "出港货船" else "进港货轮")
+                                UIHelper.InfoRow("类型", if (ship.loaded) "出港商船" else "进港商船")
                                 UIHelper.InfoRow("航线", "水域边界 ↔ 港口 (" + ship.harborX + "," + ship.harborY + ")")
                                 UIHelper.InfoRow("说明", if (ship.loaded) "载货出港，结算水运贸易" else "空船进港装货")
                             }
@@ -562,7 +562,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     if (facNoise > 0) {
                         UIHelper.InfoRow(
                             "设施噪音",
-                            facNoise.toString() + "（垃圾场/工厂/电厂按距离衰减）",
+                            facNoise.toString() + "（秽物场/作坊/炭窑坊按距离衰减）",
                             if (facNoise >= 25) C.accentRed.toColor() else C.textMid.toColor()
                         )
                     }
@@ -605,7 +605,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                             val eduOk = (GameData.current?.education ?: 0.0) >= 28.0 || Civic.schoolRate >= 0.48
                             UIHelper.InfoRow(
                                 "办公入职",
-                                if (eduOk) "有中学以上学历的居民才能进写字楼" else "学历不够，白领进不来，先建小学/中学",
+                                if (eduOk) "有中学以上学历的居民才能进官署" else "学历不够，白领进不来，先建小学/中学",
                                 if (eduOk) C.accentGreen.toColor() else C.accentRed.toColor()
                             )
                         }
@@ -656,8 +656,8 @@ fun MapScreenContent(mapView: MapRenderView) {
                         }
                     }
                     val tile = World.tile(sel.first, sel.second)
-                    if (tile?.metro == true) UIHelper.InfoRow("地铁隧", "已挖")
-                    if (tile?.rail == true) UIHelper.InfoRow("铁轨", "已铺")
+                    if (tile?.metro == true) UIHelper.InfoRow("地道", "已挖")
+                    if (tile?.rail == true) UIHelper.InfoRow("石轨", "已铺")
                     Config.specOf(tile?.spec ?: "")?.let { sp ->
                         UIHelper.InfoRow("产业专精", sp.name + " 每天 +" + sp.income + " 万")
                     }
@@ -772,7 +772,7 @@ fun MapScreenContent(mapView: MapRenderView) {
         ) {
             val items = listOf(
                 Triple("road", "道路", null as String?),
-                Triple("zone", "住宅", "residential"),
+                Triple("zone", "民坊", "residential"),
                 Triple("zone", "商业", "commercial"),
                 Triple("zone", "工业", "industrial"),
                 Triple("zone", "办公", "office"),
@@ -1051,7 +1051,7 @@ private fun DrawerContent(mapView: MapRenderView) {
                                 val lockTxt = when {
                                     rankLocked -> {
                                         val need = Config.RANKS.firstOrNull { it.unlockIds.contains(sv.id) }
-                                        "需" + (need?.name ?: "更高职级")
+                                        "需" + (need?.name ?: "更高官阶")
                                     }
                                     popLocked -> "人口" + sv.unlockPop
                                     else -> "¥" + price + "万"
@@ -1068,7 +1068,7 @@ private fun DrawerContent(mapView: MapRenderView) {
                                     when {
                                         rankLocked -> {
                                             val need = Config.RANKS.firstOrNull { it.unlockIds.contains(sv.id) }
-                                            mapView.setToast("升到「" + (need?.name ?: "更高职级") + "」后解锁")
+                                            mapView.setToast("升到「" + (need?.name ?: "更高官阶") + "」后解锁")
                                         }
                                         popLocked -> mapView.setToast("人口达到 " + sv.unlockPop + " 后解锁")
                                         poor -> mapView.setToast("资金不足")
@@ -1135,14 +1135,14 @@ private fun DrawerContent(mapView: MapRenderView) {
                 val hasMetro = World.hasService("metro")
                 val hasRail = World.hasService("rail_station")
                 UIHelper.PickChip(
-                    text = "地铁隧",
-                    sub = if (hasMetro) "¥6万/格" else "先建地铁站",
+                    text = "地道",
+                    sub = if (hasMetro) "¥6万/格" else "先建地道口",
                     selected = AppState.roadKind == "metro",
                     disabled = !hasMetro,
                     width = 110.dp
                 ) {
                     if (!hasMetro) {
-                        mapView.setToast("先在【服务】里建地铁站")
+                        mapView.setToast("先在【营造】里建地道口")
                     } else {
                         AppState.roadKind = "metro"
                         MapScreen.syncTool()
@@ -1150,14 +1150,14 @@ private fun DrawerContent(mapView: MapRenderView) {
                     }
                 }
                 UIHelper.PickChip(
-                    text = "铁轨",
-                    sub = if (hasRail) "¥8万/格" else "先建火车站",
+                    text = "石轨",
+                    sub = if (hasRail) "¥8万/格" else "先建驿站",
                     selected = AppState.roadKind == "rail",
                     disabled = !hasRail,
                     width = 110.dp
                 ) {
                     if (!hasRail) {
-                        mapView.setToast("先在【服务】里建火车站")
+                        mapView.setToast("先在【营造】里建驿站")
                     } else {
                         AppState.roadKind = "rail"
                         MapScreen.syncTool()
@@ -1166,7 +1166,7 @@ private fun DrawerContent(mapView: MapRenderView) {
                 }
             }
             Text(
-                "开局十字就是两车道。四车道有双黄线和并排车。选完路型后面板会关，可在地图上拖着画。地铁/铁轨要先建对应车站。",
+                "开局十字就是石板巷。石板大街有双黄线和并排车。选完路型后面板会关，可在地图上拖着画。地道/石轨要先建对应场站。",
                 fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
             )
         } else if (AppState.planOpen) {
@@ -1185,7 +1185,7 @@ private fun PlanDrawer(mapView: MapRenderView) {
         MapScreen.syncTool()
         mapView.setToast(
             when (mode) {
-                "bus" -> "点公交站连线，面板已关，可看地图"
+                "bus" -> "点车马站连线，面板已关，可看地图"
                 "spec" -> "在对应分区上刷专精，格子立刻变色"
                 "tree" -> "点空地点树"
                 "raise" -> "点空地抬升地形"
@@ -1209,7 +1209,7 @@ private fun PlanDrawer(mapView: MapRenderView) {
             color = C.textDark.toColor(), fontFamily = LocalGameFont.current
         )
         Text(
-            "电水靠「道路预埋管线 + 地下电缆/水管」送到建筑；电厂水厂只产能，可放远郊。地铁隧/铁轨在【道路】里，要先建地铁站/火车站。",
+            "电水靠「道路预埋管线 + 地下电缆/水管」送到建筑；电厂水楼只产能，可放远郊。地道隧/石轨在【道路】里，要先建地道站/驿站。",
             fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1224,7 +1224,7 @@ private fun PlanDrawer(mapView: MapRenderView) {
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            UIHelper.PickChip("公交线", "${Transit.draft.size}站", AppState.mode == "bus", width = 86.dp) {
+            UIHelper.PickChip("车马线", "${Transit.draft.size}站", AppState.mode == "bus", width = 86.dp) {
                 pickAndClose("bus")
             }
             UIHelper.PickChip("抬升", "3万/格", AppState.mode == "raise", width = 86.dp) {
@@ -1235,9 +1235,9 @@ private fun PlanDrawer(mapView: MapRenderView) {
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            UIHelper.PickChip("确认公交", "≥2站", false, width = 86.dp) {
+            UIHelper.PickChip("确认车马", "≥2站", false, width = 86.dp) {
                 // 开通线路也算一步操作，开错了可以直接【撤】
-                GameData.beginStroke("开通公交线")
+                GameData.beginStroke("开通车马线")
                 GameData.noteTransit()
                 val (ok, msg) = Transit.confirmDraft()
                 GameData.endStroke()
@@ -1256,7 +1256,7 @@ private fun PlanDrawer(mapView: MapRenderView) {
             }
         }
         Text(
-            "公交草稿 " + Transit.draft.size + " 站 · 线路 " + Transit.lines.size + " 条（站点设施本身走【推平】）",
+            "车马草稿 " + Transit.draft.size + " 站 · 线路 " + Transit.lines.size + " 条（站点设施本身走【推平】）",
             fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
         )
         // 已有线路：可以逐条拆除（拆完还能用左上【撤】还原）
@@ -1275,7 +1275,7 @@ private fun PlanDrawer(mapView: MapRenderView) {
                         .background(C.accentRed.toColor(), RoundedCornerShape(12.dp))
                         .clickable {
                             Sfx.play("sfx_click")
-                            GameData.beginStroke("拆除公交线")
+                            GameData.beginStroke("拆除车马线")
                             GameData.noteTransit()
                             val (_, msg) = Transit.removeLine(line.first)
                             GameData.endStroke()
@@ -1299,7 +1299,7 @@ private fun PlanDrawer(mapView: MapRenderView) {
             color = C.textDark.toColor(), fontFamily = LocalGameFont.current
         )
         Text(
-            "先划住宅/商业/工业/办公，再刷对应专精。格子立刻变色，当天账本「产业专精」进账。全城法令在左上【策】。",
+            "先划民坊/市肆/工坊/官署，再刷对应专精。格子立刻变色，当天账本「产业专精」进账。全城政令在左上【策】。",
             fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
         )
         val specInc = Networks.specTotals().first
@@ -1353,7 +1353,7 @@ private fun PolicyPanel() {
             val live = AppState.liveTick
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "营造政策", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    "营造政令", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                 )
@@ -1370,7 +1370,7 @@ private fun PolicyPanel() {
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
             )
             Text(
-                "启用后立刻改税收/需求/污染/拥堵，并持续到倒计时结束。",
+                "启用后立刻改赋税/需求/浊气/拥挤，并持续到倒计时结束。",
                 fontSize = 10.sp, color = C.textMid.toColor(),
                 fontFamily = LocalGameFont.current,
                 modifier = Modifier.fillMaxWidth()
@@ -1389,7 +1389,7 @@ private fun PolicyPanel() {
                                 MapRef.view?.setToast(msg ?: "无法启用")
                             } else {
                                 Sfx.play("sfx_policy")
-                                MapRef.view?.setToast(msg ?: "政策已生效")
+                                MapRef.view?.setToast(msg ?: "政令已生效")
                             }
                             AppState.bumpLive()
                         }
@@ -1420,12 +1420,12 @@ private fun PolicyPanel() {
                     )
                 }
             }
-            // ---- 税率（RCI 三档） ----
+            // ---- 赋税（三档） ----
             Text(
-                "税率（% 越高收入越多，满意度与需求越低）",
+                "赋税（% 越高进项越多，民心与需求越低）",
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
-            TaxSlider("住宅", s.taxRes) { s.taxRes = it; AppState.bumpLive() }
+            TaxSlider("民坊", s.taxRes) { s.taxRes = it; AppState.bumpLive() }
             TaxSlider("商业", s.taxCom) { s.taxCom = it; AppState.bumpLive() }
             TaxSlider("工业", s.taxInd) { s.taxInd = it; AppState.bumpLive() }
             TaxSlider("办公", s.taxOff) { s.taxOff = it; AppState.bumpLive() }
@@ -1474,7 +1474,7 @@ private fun HelpPanel() {
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "新手指引 · 模拟市长，经营一座虚构都市", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    "新手指引 · 筑城纪，营造一座架空古城", fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                 )
@@ -1485,14 +1485,14 @@ private fun HelpPanel() {
                 )
             }
             HelpRow("手", "手掌在确认条上方，点它退出建造并拖地图。划区/设施都要点底部「确认」才扣费。")
-            HelpRow("职", "点顶栏职级打开营造档案。达标后点「晋升」立刻升一级：到账营造基金，并解锁新建设施（广场/地铁/机场等）。")
+            HelpRow("职", "点顶栏官阶打开营造档案。达标后点「晋升」立刻升一级：到账营造银钱，并解锁新建设施（鼓楼广场/地道/飞舟坞等）。")
             HelpRow("路", "开局十字是【两车道】，和建造菜单里同一种。泥土路无标线；两车道一条中虚线；四车道中央双黄、两侧白虚线，车分内外道并排。外环高速全天有过路车；接进城后才会进游客。")
-            HelpRow("铁", "先在【服务】建火车站，再在【道路】里选铁轨去地图上画。地铁同理，先建地铁站。机场建好会有飞机。")
-            HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。设施会清掉底下分区，不会被后长出来的楼盖掉。小学点在占地内任意一格即可。【办公】要中学以上学历才进得去，收益比商业高。【推平】拆楼会连底下分区一起清掉。")
+            HelpRow("铁", "先在【服务】建驿站，再在【道路】里选石轨去地图上画。地道同理，先建地道站。飞舟坞建好会有飞舟。")
+            HelpRow("区", "【民坊/市肆/工坊/官署】在街巷旁点格子进草稿，点「确认划界」才扣费。设施会清掉底下坊界，不会被后长出来的屋舍盖掉。蒙学点在占地内任意一格即可。【官署】要书院以上学历才进得去，进项比市肆高。【推平】拆屋会连底下坊界一起清掉。")
             HelpRow("电", "电厂只负责产能，可放远郊。电力靠「道路预埋电缆 + 地下电缆」送到建筑：临路的楼自动通电，偏远地块要在【规划】里拖电缆，首尾相接才算连通。")
-            HelpRow("水", "水塔/抽水站/污水处理厂必须建在水边（取水/排水），只负责产能，靠「道路预埋水管 + 地下水管」送到建筑；污水和供水共用一条管道网。")
-            HelpRow("规", "【规划】里选水管/电缆/公交/种树/抬升，以及产业专精。管线要沿着一条线拖，首尾对齐才连得上，两根并排的竖管不会互通。专精刷在已划的分区上，格子立刻变色。全城法令在左上【策】。")
-            HelpRow("污", "垃圾场、焚烧厂、电厂、火葬场、工厂会给周边住宅带来噪音和臭气，按距离衰减。贴太近居民会来信投诉并拉低满意度，放远郊或隔开就好。")
+            HelpRow("水", "水塔/水车坊/污水处理厂必须建在水边（取水/排水），只负责产能，靠「道路预埋水管 + 地下水管」送到建筑；污水和供水共用一条管道网。")
+            HelpRow("规", "【规划】里选水渠/灵线/车马/种树/抬升，以及产业专精。管线要沿着一条线拖，首尾对齐才连得上，两根并排的竖管不会互通。专精刷在已划的坊界上，格子立刻变色。全城政令在左上【策】。")
+            HelpRow("污", "秽物场、焚秽窑、炭窑坊、火化场、作坊会给周边民居带来噪音和秽气，按距离衰减。贴太近百姓会上书并拉低民心，放远郊或隔开就好。")
             HelpRow("策", "【数/?/策/银/账】在状态栏左下。【银】贷款；【账】看每天每月收支。人口过 180 后维护和造价逐步加重。暂停用顶栏 ‖；1x 比以前慢一半；2x/3x 都要看广告。右上 ≡ 在顶栏下方，点开建筑详情时会先藏起来。")
             HelpRow("存", "每月结算和切出游戏都会自动写入当前槽位。主菜单「继续游戏」读最近一档。右上【≡】也可手动保存。")
             Box(
@@ -1533,14 +1533,14 @@ private fun overlayLabel(cat: String): String = when (cat) {
     Config.ServiceCat.HEALTH -> "医疗"
     Config.ServiceCat.EDUCATION -> "教育"
     Config.ServiceCat.SAFETY -> "治安消防"
-    Config.ServiceCat.TRANSIT -> "公交轨道"
+    Config.ServiceCat.TRANSIT -> "车马轨道"
     Config.ServiceCat.DEATH -> "殡葬"
     Config.ServiceCat.AMENITY -> "公园广场"
     Config.ServiceCat.LANDMARK -> "地标"
     "traffic" -> "拥堵"
     "landvalue" -> "地价"
-    "metro" -> "地铁"
-    "rail" -> "铁轨"
+    "metro" -> "地道"
+    "rail" -> "石轨"
     "spec" -> "产业专精"
     "pipe" -> "水管"
     "cable" -> "电缆"
@@ -1552,13 +1552,13 @@ private fun overlayLabel(cat: String): String = when (cat) {
 private fun overlayHint(cat: String): String = when (cat) {
     "traffic" -> "绿畅行 · 黄缓行 · 红拥堵"
     "landvalue" -> "绿高地价 · 红受污染拉低"
-    "rail" -> "只显示铁轨网络"
+    "rail" -> "只显示石轨网络"
     "spec" -> "已刷专精的分区会叠色"
     "pipe" -> "蓝=水管 · 淡蓝=道路自带预埋管 · 走线要首尾相接"
     "cable" -> "黄=电缆 · 淡黄=道路自带预埋缆 · 走线要首尾相接"
-    "sewer" -> "绿=污水管 · 排污厂要接进同一张水网"
-    "metro" -> "紫=地铁隧道 · 只显示地下，地表看不见"
-    "underground" -> "蓝水管 · 黄电缆 · 绿污水 · 紫地铁（地表压暗）"
+    "sewer" -> "绿=污水管 · 净水渠要接进同一张水网"
+    "metro" -> "紫=地道隧道 · 只显示地下，地表看不见"
+    "underground" -> "蓝水管 · 黄电缆 · 绿污水 · 紫地道（地表压暗）"
     else -> "绿=已覆盖 · 红=未覆盖 · 圈=该座设施半径，圈内哪坨归哪座一看就明"
 }
 
@@ -1605,12 +1605,12 @@ private fun HappyPanel() {
             )
             Text("基础分 ${bd.base.toInt()}：城市底子，没有设施时也有这么多。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("公园/广场/学校/诊所等服务 ${if (bd.service >= 0) "+" else ""}${bd.service.toInt()}：多建公园、广场、学校、诊所会涨。公园会吸收污染、抬地价。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("污染 ${bd.pollution.toInt()}：工厂、电厂、垃圾堆会拉低。绿化、种树、把住工分开能缓解。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("覆盖 ${bd.coveragePenalty.toInt()}：住宅要在电/水/垃圾圈里，圈外会扣分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("税率 ${bd.taxPenalty.toInt()}：税率高于 10% 会扣分。点【策】可调。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("事件 ${if (bd.event >= 0) "+" else ""}${bd.event.toInt()}：市民来信和城建事件。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("政策 ${if (bd.policy >= 0) "+" else ""}${bd.policy.toInt()}：民生改善、绿化行动等会加分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("通勤 ${if (bd.commute >= 0) "+" else ""}${bd.commute.toInt()}：路堵会扣，公交/地铁能加。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("浊气 ${bd.pollution.toInt()}：作坊、炭窑坊、秽物堆会拉低。植木、种树、把民居与工坊分开能缓解。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("覆盖 ${bd.coveragePenalty.toInt()}：民居要接上电/水/净秽，接不上会扣分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("赋税 ${bd.taxPenalty.toInt()}：赋税高于 10% 会扣分。点【策】可调。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("事件 ${if (bd.event >= 0) "+" else ""}${bd.event.toInt()}：百姓上书和城政事件。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("政令 ${if (bd.policy >= 0) "+" else ""}${bd.policy.toInt()}：赈济安民、植木造林等会加分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("通勤 ${if (bd.commute >= 0) "+" else ""}${bd.commute.toInt()}：路堵会扣，车马/地道能加。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("就业/健康/教育 ${if (bd.jobs >= 0) "+" else ""}${bd.jobs.toInt()}：商工办岗位、医院学校、治安都算在这里。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Box(
                 modifier = Modifier
@@ -1675,14 +1675,14 @@ private fun DemandPanel() {
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text("住 ${(d.r * 100).toInt()}% · ${tip(d.r)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
-            Text("人口 $pop / 住宅容量 ${st.resCap}。岗位多、满意度高时住房需求涨；房子盖太多会回落。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("人口 $pop / 民居容量 ${st.resCap}。岗位多、民心高时住房需求涨；屋舍盖太多会回落。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("商 ${(d.c * 100).toInt()}% · ${tip(d.c)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
             Text("人口多了才要店。现有商业容量 ${st.comCap}。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("工 ${(d.i * 100).toInt()}% · ${tip(d.i)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentGold.toColor(), fontFamily = LocalGameFont.current)
-            Text("工厂提供岗位，但会污染。现有工业容量 ${st.indCap}。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("工坊提供岗位，但会生浊气。现有工坊容量 ${st.indCap}。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("办 ${(d.o * 100).toInt()}% · ${tip(d.o)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
             Text("教育越高、白领越多，办公需求越大。现有办公容量 ${st.offCap}。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("税率过高会压需求。通电通水的路旁住宅才会进人，进人后黑色区域每 20 人扩一圈。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+            Text("赋税过高会压需求。通电通水的街巷旁民居才会进人，进人后黑区每 20 人扩一圈。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2058,23 +2058,23 @@ private fun DataPanel() {
                 )
             }
             Text(
-                "职级 " + GameData.rankDef().name + " · " + GameData.rankDef().perk +
+                "官阶 " + GameData.rankDef().name + " · " + GameData.rankDef().perk +
                     (GameData.nextRank()?.let { " → 下一级 " + it.name + "（人口" + it.popReq + "/满意" + it.happyReq + "）" } ?: " · 已满级"),
                 fontSize = 11.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "升学率 ${(Civic.schoolRate * 100).toInt()}% · 营造测评通过 ${Civic.examPassed} · 来信 ${Civic.complaintsHandled}",
+                "识字率 ${(Civic.schoolRate * 100).toInt()}% · 营造考评通过 ${Civic.examPassed} · 上书 ${Civic.complaintsHandled}",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
                 "犯罪 ${s.crime.toInt()} · 垃圾积压 ${s.garbageBacklog} · 污水覆盖 ${(s.sewerCoverage * 100).toInt()}% · 待安葬 ${s.deathsPending}",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
-            Text("服务预算", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-            TaxSlider("医疗预算", s.budgetHealth, 50, 150) { s.budgetHealth = it; AppState.bumpLive() }
-            TaxSlider("教育预算", s.budgetEdu, 50, 150) { s.budgetEdu = it; AppState.bumpLive() }
-            TaxSlider("治安预算", s.budgetSafety, 50, 150) { s.budgetSafety = it; AppState.bumpLive() }
-            TaxSlider("公交预算", s.budgetTransit, 50, 150) { s.budgetTransit = it; AppState.bumpLive() }
+            Text("供养用度", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+            TaxSlider("医署用度", s.budgetHealth, 50, 150) { s.budgetHealth = it; AppState.bumpLive() }
+            TaxSlider("学塾用度", s.budgetEdu, 50, 150) { s.budgetEdu = it; AppState.bumpLive() }
+            TaxSlider("捕房用度", s.budgetSafety, 50, 150) { s.budgetSafety = it; AppState.bumpLive() }
+            TaxSlider("车马用度", s.budgetTransit, 50, 150) { s.budgetTransit = it; AppState.bumpLive() }
 
             // 满意度根因
             val bd = GameData.happinessBreakdown()
@@ -2085,7 +2085,7 @@ private fun DataPanel() {
                 fontFamily = LocalGameFont.current
             )
             Text(
-                "基础 ${bd.base.toInt()} · 服务 ${bd.service.toInt()} · 污染 ${bd.pollution.toInt()} · 覆盖 ${bd.coveragePenalty.toInt()} · 税 ${bd.taxPenalty.toInt()} · 事件 ${bd.event.toInt()} · 政策 ${bd.policy.toInt()} · 通勤 ${bd.commute.toInt()} · 就业 ${bd.jobs.toInt()}",
+                "基础 ${bd.base.toInt()} · 服务 ${bd.service.toInt()} · 浊气 ${bd.pollution.toInt()} · 覆盖 ${bd.coveragePenalty.toInt()} · 赋税 ${bd.taxPenalty.toInt()} · 事件 ${bd.event.toInt()} · 政令 ${bd.policy.toInt()} · 通勤 ${bd.commute.toInt()} · 就业 ${bd.jobs.toInt()}",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -2095,7 +2095,7 @@ private fun DataPanel() {
             Text(
                 "在岗 " + Citizens.employed +
                     " · 通勤拥堵 " + (Citizens.avgCommute * 100).toInt() +
-                    "% · 公交 " + Transit.lines.size + " 条/" + Transit.ridership + " 客",
+                    "% · 车马 " + Transit.lines.size + " 条/" + Transit.ridership + " 客",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -2107,7 +2107,7 @@ private fun DataPanel() {
                 fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current
             )
 
-            // 市政任务
+            // 城政任务
             s.quest?.let { q ->
                 val v = GameData.questValue(q.type)
                 Text(
@@ -2125,7 +2125,7 @@ private fun DataPanel() {
                 color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "住宅 ${(d.r * 100).toInt()}% · 商业 ${(d.c * 100).toInt()}% · 工业 ${(d.i * 100).toInt()}% · 办公 ${(d.o * 100).toInt()}%",
+                "民坊 ${(d.r * 100).toInt()}% · 市肆 ${(d.c * 100).toInt()}% · 工坊 ${(d.i * 100).toInt()}% · 官署 ${(d.o * 100).toInt()}%",
                 fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
 
@@ -2187,7 +2187,7 @@ private fun DataPanel() {
                 }
             }
 
-            // 地下管网图层：压暗地表，专门看水管/电缆/污水/地铁怎么走的
+            // 地下管网图层：压暗地表，专门看水管/电缆/污水/地道怎么走的
             Text(
                 "地下管网图层", fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 color = C.textMid.toColor(), fontFamily = LocalGameFont.current
@@ -2361,7 +2361,7 @@ private fun PausePanel() {
                 fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                s.mayorName + " · 职级 " + GameData.rankDef().name + " · " + GameData.rankDef().perk,
+                s.mayorName + " · 官阶 " + GameData.rankDef().name + " · " + GameData.rankDef().perk,
                 fontSize = 12.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
             )
             Text(

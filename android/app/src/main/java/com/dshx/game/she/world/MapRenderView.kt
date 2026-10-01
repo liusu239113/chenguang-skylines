@@ -954,7 +954,7 @@ class MapRenderView @JvmOverloads constructor(
     }
 
     /**
-     * 地下管网图层滤镜：压暗地表，把水管/电缆/污水/地铁画成发光线，
+     * 地下管网图层滤镜：压暗地表，把水管/电缆/污水/地道画成发光线，
      * 让玩家一眼看清线路怎么走的（正在铺的那一种最亮，其余变暗作参考）。
      */
     private fun drawUndergroundLayer(canvas: Canvas, w: World, x0: Int, x1: Int, y0: Int, y1: Int) {
@@ -1008,7 +1008,7 @@ class MapRenderView @JvmOverloads constructor(
                 }
             }
         }
-        // 3) 相关设施高亮：水厂/水塔/抽水站/排污厂 + 地铁站
+        // 3) 相关设施高亮：水楼/水塔/水车坊/净水渠 + 地道口
         for (e in World.allBuildings()) {
             val cfg = World.serviceConfig(e.b.service ?: continue) ?: continue
             val c = when {
@@ -1145,7 +1145,7 @@ class MapRenderView @JvmOverloads constructor(
         val y0 = Config.clamp(tileAtY(0f), 1, w.rows)
         val y1 = Config.clamp(tileAtY(viewH), 1, w.rows)
 
-        // 地下图层：铺管/铺缆/修地铁时自动打开，也可以手动切覆盖图查看
+        // 地下图层：铺管/铺缆/修地道时自动打开，也可以手动切覆盖图查看
         val underLayer = overlay in listOf("pipe", "cable", "sewer", "metro", "underground") ||
             tool?.kind in listOf("pipe", "cable", "sewer") ||
             (tool?.kind == "road" && (tool?.roadKind == "metro"))
@@ -1249,7 +1249,7 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // ---- 1.4) 地铁隧 / 铁轨 ----
+        // ---- 1.4) 地道 / 石轨 ----
         val showNet = overlay in listOf("metro", "rail") ||
             tool?.kind in listOf("metro", "rail") ||
             (tool?.kind == "road" && (tool?.roadKind == "metro" || tool?.roadKind == "rail"))
@@ -1516,7 +1516,7 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // ---- 3.6) 公交车 + 草稿线路 ----
+        // ---- 3.6) 车马车 + 草稿线路 ----
         if (cell >= 8) {
             val draftCols = draftLineColors
             fun drawStopLine(stops: List<BusStopRef>, col: RGBA) {
@@ -1546,7 +1546,7 @@ class MapRenderView @JvmOverloads constructor(
                 val (wx, wy) = Transit.vehicleCell(v)
                 var sx = worldToScreenX(wx)
                 var sy = worldToScreenY(wy)
-                // 公交过桥/上高架：跟车一样抬到桥面
+                // 车马过桥/上高架：跟车一样抬到桥面
                 val bi = v.pathI.coerceIn(0, max(0, v.path.lastIndex))
                 if (v.path.isNotEmpty()) {
                     val bk = v.path[bi]
@@ -1554,7 +1554,7 @@ class MapRenderView @JvmOverloads constructor(
                     if (bt?.bridge == true || bt?.elevated == true) {
                         sy -= cell * 0.20f
                     }
-                    // 公交靠右进站车道行驶，不压中线
+                    // 车马靠右进站车道行驶，不压中线
                     val bDir = Transit.heading(v)
                     val bRoad = bt?.underRoad ?: bt?.road ?: "local"
                     val bOff = cell * when (bRoad) {
@@ -1633,7 +1633,7 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // 市民通勤只体现在车辆上，不画路上行人圆点。
+        // 百姓通勤只体现在车辆上，不画路上行人圆点。
 
         // ---- 4) 建筑（格内斜二测三面体块，从后往前画） ----
         for (ty in y0..y1) {
@@ -1827,7 +1827,7 @@ class MapRenderView @JvmOverloads constructor(
                 val (ccx, ccy) = World.coverCenter(e)
                 val cx = worldToScreenX(ccx)
                 val cy = worldToScreenY(ccy)
-                // 电厂/水厂只产能，靠路网输送，不再画地面覆盖圈
+                // 电厂/水楼只产能，靠路网输送，不再画地面覆盖圈
                 val networkBased = cfg.category == Config.ServiceCat.POWER ||
                     cfg.category == Config.ServiceCat.WATER
                 val r = cell * (World.coverRadius(cfg) + 0.5f)
@@ -1849,7 +1849,7 @@ class MapRenderView @JvmOverloads constructor(
         }
 
         // ---- 4.7) 地下管网图层滤镜 ----
-        // 铺管/铺缆/地铁，或手动打开覆盖图时：压暗地表，只让地下线路发光，方便看清怎么走线
+        // 铺管/铺缆/地道，或手动打开覆盖图时：压暗地表，只让地下线路发光，方便看清怎么走线
         if (underLayer) {
             drawUndergroundLayer(canvas, w, x0, x1, y0, y1)
         }
@@ -2034,7 +2034,7 @@ class MapRenderView @JvmOverloads constructor(
 
     private fun zoneBaseColor(t: Tile, x: Int, y: Int): RGBA {
         val C = Config.COLORS
-        // 地铁在地下，地表不显示（只看地铁视图）；铁轨在地面，正常画
+        // 地道在地下，地表不显示（只看地道视图）；石轨在地面，正常画
         if (t.rail) return RGBA(72, 72, 78)
         // 跨水桥：脚下是水，桥面在上一层单独画，这里透出水色
         if (t.bridge) return if ((x + y) % 2 == 0) C.water else C.waterAlt
@@ -2100,12 +2100,13 @@ class MapRenderView @JvmOverloads constructor(
                 drawSolidBox(canvas, bx + bw * 0.74f, by + bh * 0.70f, cell * 0.16f, cell * 0.16f, hpx * 0.22f, RGBA(70, 130, 80))
             }
             bl.service == "wind_farm" -> {
-                drawSolidBox(canvas, bx + bw * 0.32f, by + bh * 0.52f, bw * 0.36f, bh * 0.32f, hpx * 0.28f, RGBA(210, 214, 218))
+                // 风车坊：木塔 + 风车叶
+                drawSolidBox(canvas, bx + bw * 0.34f, by + bh * 0.56f, bw * 0.32f, bh * 0.28f, hpx * 0.26f, Config.BUILD.wallWood.shade(0.90))
                 val cxp = bx + bw * 0.5f
                 val cyp = by - hpx * 0.55f
-                strokeColor(RGBA(230, 230, 230), 255, max(1.4f, cell * 0.05f))
+                strokeColor(Config.BUILD.wallWood, 255, max(1.4f, cell * 0.05f))
                 canvas.drawLine(cxp, by + bh * 0.2f, cxp, cyp, paint)
-                fillCircle(canvas, cxp, cyp, cell * 0.07f, RGBA(240, 240, 240))
+                fillCircle(canvas, cxp, cyp, cell * 0.07f, RGBA(214, 196, 158))
                 val ang = rainPhase * 4.2f
                 for (k in 0..2) {
                     val a = ang + k * 2.094f
@@ -2113,12 +2114,14 @@ class MapRenderView @JvmOverloads constructor(
                 }
             }
             bl.service == "solar_plant" -> {
-                drawSolidBox(canvas, bx + bw * 0.04f, by + bh * 0.62f, bw * 0.92f, bh * 0.28f, hpx * 0.12f, RGBA(70, 92, 78))
-                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.12f, bw * 0.38f, bh * 0.30f, hpx * 0.22f, RGBA(40, 70, 130))
-                drawSolidBox(canvas, bx + bw * 0.52f, by + bh * 0.12f, bw * 0.38f, bh * 0.30f, hpx * 0.22f, RGBA(40, 70, 130))
-                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.48f, bw * 0.38f, bh * 0.28f, hpx * 0.18f, RGBA(50, 86, 150))
-                drawSolidBox(canvas, bx + bw * 0.52f, by + bh * 0.48f, bw * 0.38f, bh * 0.28f, hpx * 0.18f, RGBA(50, 86, 150))
-                drawSolidBox(canvas, bx + bw * 0.40f, by + bh * 0.40f, bw * 0.20f, bh * 0.20f, hpx * 0.4f, RGBA(200, 204, 208))
+                // 日曜台：石台 + 四面铜镜聚日
+                drawSolidBox(canvas, bx + bw * 0.06f, by + bh * 0.60f, bw * 0.88f, bh * 0.30f, hpx * 0.14f, RGBA(178, 172, 158))
+                val mirror = RGBA(214, 186, 96)
+                drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.14f, bw * 0.34f, bh * 0.28f, hpx * 0.24f, mirror)
+                drawSolidBox(canvas, bx + bw * 0.56f, by + bh * 0.14f, bw * 0.34f, bh * 0.28f, hpx * 0.24f, mirror)
+                drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.46f, bw * 0.34f, bh * 0.26f, hpx * 0.20f, mirror.shade(0.92))
+                drawSolidBox(canvas, bx + bw * 0.56f, by + bh * 0.46f, bw * 0.34f, bh * 0.26f, hpx * 0.20f, mirror.shade(0.92))
+                drawSolidBox(canvas, bx + bw * 0.42f, by + bh * 0.38f, bw * 0.16f, bh * 0.18f, hpx * 0.42f, RGBA(190, 184, 170))
             }
             bl.service == "coal_plant" -> {
                 drawSolidBox(canvas, bx + bw * 0.06f, by + bh * 0.28f, bw * 0.58f, bh * 0.58f, hpx * 0.7f, RGBA(92, 90, 86))
@@ -2133,23 +2136,26 @@ class MapRenderView @JvmOverloads constructor(
                 drawSolidBox(canvas, bx + bw * 0.44f, by + bh * 0.18f, bw * 0.12f, bh * 0.18f, hpx * 1.1f, RGBA(90, 120, 90))
             }
             bl.service == "clinic" -> {
-                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.18f, bw * 0.84f, bh * 0.64f, hpx * 0.7f, RGBA(236, 236, 240))
-                drawSolidBox(canvas, bx + bw * 0.38f, by + bh * 0.28f, bw * 0.24f, bh * 0.12f, hpx * 0.88f, RGBA(210, 70, 70))
-                drawSolidBox(canvas, bx + bw * 0.46f, by + bh * 0.18f, bw * 0.08f, bh * 0.32f, hpx * 0.92f, RGBA(210, 70, 70))
-                drawSolidBox(canvas, bx + bw * 0.16f, by + bh * 0.62f, bw * 0.22f, bh * 0.12f, hpx * 0.18f, RGBA(90, 140, 190))
+                // 医馆：白墙青瓦，门前挂药幌
+                drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.22f, bw * 0.80f, bh * 0.60f, hpx * 0.70f, RGBA(236, 234, 226))
+                drawChineseRoof(canvas, bx + bw * 0.10f, by + bh * 0.22f, bw * 0.80f, bh * 0.60f, hpx * 0.70f, Config.BUILD.roofTile)
+                fillRect(canvas, bx + bw * 0.74f, by + bh * 0.34f - hpx * 0.34f, max(1.4f, cell * 0.06f), max(2.6f, cell * 0.22f), RGBA(186, 72, 66))
+                fillRect(canvas, bx + bw * 0.24f, by + bh * 0.64f, bw * 0.52f, bh * 0.18f, RGBA(64, 48, 38))
             }
             bl.service == "hospital" -> {
-                drawSolidBox(canvas, bx + bw * 0.06f, by + bh * 0.14f, bw * 0.88f, bh * 0.72f, hpx * 1.05f, RGBA(236, 240, 244))
-                drawSolidBox(canvas, bx + bw * 0.40f, by + bh * 0.20f, bw * 0.20f, bh * 0.10f, hpx * 1.22f, RGBA(210, 70, 70))
-                drawSolidBox(canvas, bx + bw * 0.46f, by + bh * 0.10f, bw * 0.08f, bh * 0.30f, hpx * 1.28f, RGBA(210, 70, 70))
-                drawSolidBox(canvas, bx + bw * 0.14f, by + bh * 0.58f, bw * 0.72f, bh * 0.18f, hpx * 0.22f, RGBA(70, 120, 180))
+                // 医署：重檐官式建筑
+                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.18f, bw * 0.84f, bh * 0.68f, hpx * 1.05f, RGBA(238, 236, 230))
+                drawChineseRoof(canvas, bx + bw * 0.08f, by + bh * 0.18f, bw * 0.84f, bh * 0.68f, hpx * 1.05f, Config.BUILD.roofGlaze)
+                fillRect(canvas, bx + bw * 0.02f, by + bh * 0.60f - hpx * 0.46f, bw * 0.96f, max(1.4f, cell * 0.06f), Config.BUILD.roofGlaze.shade(0.80))
+                fillRect(canvas, bx + bw * 0.34f, by + bh * 0.40f - hpx * 0.66f, bw * 0.32f, max(2.2f, cell * 0.16f), RGBA(150, 96, 60))
+                fillRect(canvas, bx + bw * 0.24f, by + bh * 0.62f, bw * 0.52f, bh * 0.18f, RGBA(66, 46, 36))
             }
             bl.service == "school" -> {
-                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.22f, bw * 0.84f, bh * 0.62f, hpx * 0.7f, RGBA(232, 214, 170))
-                drawPitchedRoof(canvas, bx + bw * 0.08f, by + bh * 0.22f, bw * 0.84f, bh * 0.62f, hpx * 0.7f, RGBA(150, 70, 62))
-                drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.55f, bw * 0.18f, bh * 0.18f, hpx * 0.22f, RGBA(80, 130, 180))
-                drawSolidBox(canvas, bx + bw * 0.64f, by + bh * 0.55f, bw * 0.18f, bh * 0.18f, hpx * 0.22f, RGBA(80, 130, 180))
-                drawSolidBox(canvas, bx + bw * 0.42f, by + bh * 0.62f, bw * 0.16f, bh * 0.16f, hpx * 0.18f, RGBA(90, 70, 50))
+                // 蒙学：粉墙青瓦，门悬匾额
+                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.24f, bw * 0.84f, bh * 0.60f, hpx * 0.70f, RGBA(236, 230, 214))
+                drawChineseRoof(canvas, bx + bw * 0.08f, by + bh * 0.24f, bw * 0.84f, bh * 0.60f, hpx * 0.70f, Config.BUILD.roofTile)
+                fillRect(canvas, bx + bw * 0.36f, by + bh * 0.42f - hpx * 0.30f, bw * 0.28f, max(2f, cell * 0.14f), RGBA(96, 64, 42))
+                fillRect(canvas, bx + bw * 0.26f, by + bh * 0.64f, bw * 0.48f, bh * 0.16f, RGBA(70, 50, 40))
             }
             bl.service == "middle_school" -> {
                 drawSolidBox(canvas, bx + bw * 0.06f, by + bh * 0.16f, bw * 0.88f, bh * 0.70f, hpx * 0.9f, RGBA(220, 204, 168))
@@ -2196,14 +2202,22 @@ class MapRenderView @JvmOverloads constructor(
                 drawSolidBox(canvas, bx + bw * 0.32f, by + bh * 0.10f, bw * 0.18f, bh * 0.16f, hpx * 0.22f, RGBA(70, 150, 96))
             }
             bl.service == "pump_station" -> {
-                drawSolidBox(canvas, bx + bw * 0.12f, by + bh * 0.28f, bw * 0.76f, bh * 0.52f, hpx * 0.5f, RGBA(70, 130, 170))
-                fillCircle(canvas, bx + bw * 0.32f, by + bh * 0.4f, cell * 0.12f, RGBA(50, 90, 130))
-                fillCircle(canvas, bx + bw * 0.68f, by + bh * 0.48f, cell * 0.10f, RGBA(50, 90, 130))
+                // 水车坊：木屋 + 立式水轮
+                drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.30f, bw * 0.52f, bh * 0.50f, hpx * 0.48f, Config.BUILD.wallWood.shade(0.92))
+                drawChineseRoof(canvas, bx + bw * 0.10f, by + bh * 0.30f, bw * 0.52f, bh * 0.50f, hpx * 0.48f, Config.BUILD.roofThatch)
+                val wx = bx + bw * 0.76f
+                val wy = by + bh * 0.50f - hpx * 0.20f
+                val wr = min(bw * 0.22f, bh * 0.30f)
+                strokeColor(Config.BUILD.wallWood, 255, max(1.2f, cell * 0.045f))
+                canvas.drawCircle(wx, wy, wr, paint)
+                canvas.drawLine(wx - wr, wy, wx + wr, wy, paint)
+                canvas.drawLine(wx, wy - wr, wx, wy + wr, paint)
             }
             bl.service == "water_tower" -> {
-                drawSolidBox(canvas, bx + bw * 0.38f, by + bh * 0.42f, bw * 0.24f, bh * 0.42f, hpx * 0.85f, RGBA(90, 120, 140))
-                drawSolidBox(canvas, bx + bw * 0.22f, by + bh * 0.10f, bw * 0.56f, bh * 0.38f, hpx * 0.55f, RGBA(70, 140, 190))
-                drawSolidBox(canvas, bx + bw * 0.30f, by + bh * 0.02f, bw * 0.40f, bh * 0.18f, hpx * 0.22f, RGBA(90, 160, 210))
+                // 水楼：木架高台蓄水
+                drawSolidBox(canvas, bx + bw * 0.40f, by + bh * 0.44f, bw * 0.20f, bh * 0.40f, hpx * 0.80f, Config.BUILD.wallWood.shade(0.88))
+                drawSolidBox(canvas, bx + bw * 0.24f, by + bh * 0.14f, bw * 0.52f, bh * 0.34f, hpx * 0.52f, RGBA(126, 150, 160))
+                drawChineseRoof(canvas, bx + bw * 0.24f, by + bh * 0.14f, bw * 0.52f, bh * 0.34f, hpx * 0.52f, Config.BUILD.roofTile)
             }
             bl.service == "sewage" -> {
                 drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.28f, bw * 0.84f, bh * 0.56f, hpx * 0.5f, RGBA(86, 118, 92))
@@ -2211,29 +2225,41 @@ class MapRenderView @JvmOverloads constructor(
                 fillCircle(canvas, bx + bw * 0.68f, by + bh * 0.50f, cell * 0.10f, RGBA(50, 90, 70))
             }
             bl.service == "airport" -> {
-                drawSolidBox(canvas, bx, by, bw, bh, hpx * 0.10f, RGBA(168, 176, 184))
-                drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.28f, bw * 0.64f, bh * 0.44f, hpx * 0.7f, RGBA(210, 214, 220))
-                drawSolidBox(canvas, bx + bw * 0.04f, by + bh * 0.46f, bw * 0.92f, bh * 0.12f, hpx * 0.08f, RGBA(90, 96, 104))
-                drawSolidBox(canvas, bx + bw * 0.46f, by + bh * 0.10f, bw * 0.08f, bh * 0.80f, hpx * 0.08f, RGBA(90, 96, 104))
+                // 飞舟坞：石砌船坞 + 高塔 + 停放的飞舟
+                drawSolidBox(canvas, bx, by, bw, bh, hpx * 0.10f, RGBA(172, 166, 152))
+                drawSolidBox(canvas, bx + bw * 0.16f, by + bh * 0.26f, bw * 0.62f, bh * 0.44f, hpx * 0.66f, RGBA(206, 200, 186))
+                drawChineseRoof(canvas, bx + bw * 0.16f, by + bh * 0.26f, bw * 0.62f, bh * 0.44f, hpx * 0.66f, Config.BUILD.roofGlaze)
+                drawSolidBox(canvas, bx + bw * 0.80f, by + bh * 0.18f, bw * 0.12f, bh * 0.60f, hpx * 1.05f, RGBA(190, 184, 170))
+                fillRect(canvas, bx + bw * 0.08f, by + bh * 0.52f, bw * 0.44f, max(1.6f, cell * 0.09f), RGBA(160, 132, 92))
             }
             bl.service == "rail_station" -> {
-                drawSolidBox(canvas, bx + bw * 0.1f, by + bh * 0.18f, bw * 0.8f, bh * 0.64f, hpx * 0.85f, RGBA(70, 92, 128))
-                drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.55f, bw * 0.64f, bh * 0.18f, hpx * 0.22f, RGBA(230, 210, 90))
-                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.78f, bw * 0.84f, bh * 0.08f, hpx * 0.10f, RGBA(48, 48, 52))
+                // 驿站：重檐门楼 + 石轨
+                drawSolidBox(canvas, bx + bw * 0.12f, by + bh * 0.20f, bw * 0.76f, bh * 0.60f, hpx * 0.85f, RGBA(214, 206, 188))
+                drawChineseRoof(canvas, bx + bw * 0.12f, by + bh * 0.20f, bw * 0.76f, bh * 0.60f, hpx * 0.85f, Config.BUILD.roofGlaze)
+                fillRect(canvas, bx + bw * 0.36f, by + bh * 0.44f - hpx * 0.56f, bw * 0.28f, max(2.2f, cell * 0.15f), RGBA(120, 78, 50))
+                fillRect(canvas, bx + bw * 0.08f, by + bh * 0.82f, bw * 0.84f, max(1.4f, cell * 0.07f), RGBA(96, 92, 86))
             }
             bl.service == "metro" -> {
-                drawSolidBox(canvas, bx + bw * 0.12f, by + bh * 0.22f, bw * 0.76f, bh * 0.58f, hpx * 0.55f, RGBA(48, 72, 110))
-                drawSolidBox(canvas, bx + bw * 0.22f, by + bh * 0.58f, bw * 0.56f, bh * 0.16f, hpx * 0.18f, RGBA(230, 210, 80))
+                // 地道口：砖砌拱门 + 下行石阶
+                drawSolidBox(canvas, bx + bw * 0.14f, by + bh * 0.24f, bw * 0.72f, bh * 0.56f, hpx * 0.52f, RGBA(160, 154, 142))
+                drawChineseRoof(canvas, bx + bw * 0.14f, by + bh * 0.24f, bw * 0.72f, bh * 0.56f, hpx * 0.52f, Config.BUILD.roofTile)
+                fillRect(canvas, bx + bw * 0.36f, by + bh * 0.50f, bw * 0.28f, bh * 0.30f, RGBA(38, 40, 48))
+                fillRect(canvas, bx + bw * 0.38f, by + bh * 0.74f, bw * 0.24f, max(1.2f, cell * 0.05f), RGBA(190, 186, 176))
             }
             bl.service == "bus_stop" -> {
-                drawSolidBox(canvas, bx + bw * 0.22f, by + bh * 0.42f, bw * 0.56f, bh * 0.32f, hpx * 0.28f, RGBA(40, 90, 170))
-                drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.32f, bw * 0.64f, bh * 0.08f, hpx * 0.16f, RGBA(230, 232, 238))
-                drawSolidBox(canvas, bx + bw * 0.46f, by + bh * 0.18f, bw * 0.08f, bh * 0.28f, hpx * 0.55f, RGBA(70, 70, 74))
+                // 车马站：木牌坊 + 拴马桩
+                drawSolidBox(canvas, bx + bw * 0.26f, by + bh * 0.44f, bw * 0.48f, bh * 0.30f, hpx * 0.26f, Config.BUILD.wallWood.shade(0.92))
+                drawChineseRoof(canvas, bx + bw * 0.20f, by + bh * 0.36f, bw * 0.60f, bh * 0.34f, hpx * 0.30f, Config.BUILD.roofTile)
+                drawSolidBox(canvas, bx + bw * 0.16f, by + bh * 0.54f, bw * 0.06f, bh * 0.30f, hpx * 0.24f, Config.BUILD.wallWood)
             }
             bl.service == "harbor" -> {
-                drawSolidBox(canvas, bx, by, bw, bh, hpx * 0.10f, RGBA(70, 110, 140))
-                drawSolidBox(canvas, bx + bw * 0.12f, by + bh * 0.18f, bw * 0.50f, bh * 0.50f, hpx * 0.6f, RGBA(150, 120, 80))
-                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.72f, bw * 0.84f, bh * 0.16f, hpx * 0.16f, RGBA(90, 90, 86))
+                // 码头：木栈桥 + 仓房 + 桅杆
+                drawSolidBox(canvas, bx, by, bw, bh, hpx * 0.10f, RGBA(112, 96, 74))
+                drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.22f, bw * 0.48f, bh * 0.46f, hpx * 0.58f, Config.BUILD.wallWood.shade(0.90))
+                drawChineseRoof(canvas, bx + bw * 0.10f, by + bh * 0.22f, bw * 0.48f, bh * 0.46f, hpx * 0.58f, Config.BUILD.roofThatch)
+                strokeColor(Config.BUILD.wallWood.shade(0.80), 255, max(1.2f, cell * 0.045f))
+                canvas.drawLine(bx + bw * 0.76f, by + bh * 0.86f, bx + bw * 0.76f, by - hpx * 0.20f, paint)
+                fillRect(canvas, bx + bw * 0.06f, by + bh * 0.74f, bw * 0.88f, max(1.6f, cell * 0.09f), RGBA(126, 106, 80))
             }
             bl.service == "cemetery" -> {
                 drawSolidBox(canvas, bx + bw * 0.04f, by + bh * 0.58f, bw * 0.92f, bh * 0.32f, hpx * 0.10f, RGBA(110, 130, 108))
@@ -2268,67 +2294,90 @@ class MapRenderView @JvmOverloads constructor(
                 drawSolidBox(canvas, bx + bw * 0.64f, by + bh * 0.28f, bw * 0.18f, bh * 0.18f, hpx * 0.32f, RGBA(80, 120, 170))
             }
             bl.zone == "residential" && bl.level == 1 -> {
+                // 古风民宅：粉墙黛瓦，歇山飞檐
                 val wall = when (variant) {
-                    0 -> RGBA(236, 214, 150)
-                    1 -> RGBA(224, 196, 168)
-                    else -> RGBA(210, 186, 150)
+                    0 -> RGBA(238, 230, 214)
+                    1 -> RGBA(228, 216, 196)
+                    else -> RGBA(220, 208, 186)
                 }
                 val roof = when (variant) {
-                    0 -> RGBA(150, 78, 62)
-                    1 -> RGBA(92, 118, 86)
-                    else -> RGBA(168, 92, 70)
+                    0 -> Config.BUILD.roofTile
+                    1 -> Config.BUILD.roofTile.shade(1.12)
+                    else -> Config.BUILD.roofThatch
                 }
                 if (variant == 0) {
-                    drawSolidBox(canvas, bx + bw * 0.06f, by + bh * 0.22f, bw * 0.52f, bh * 0.62f, hpx, wall)
-                    drawPitchedRoof(canvas, bx + bw * 0.06f, by + bh * 0.22f, bw * 0.52f, bh * 0.62f, hpx, roof)
-                    drawSolidBox(canvas, bx + bw * 0.62f, by + bh * 0.46f, bw * 0.28f, bh * 0.38f, hpx * 0.55f, wall.shade(0.9))
+                    drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.26f, bw * 0.56f, bh * 0.58f, hpx, wall)
+                    drawChineseRoof(canvas, bx + bw * 0.10f, by + bh * 0.26f, bw * 0.56f, bh * 0.58f, hpx, roof)
+                    drawSolidBox(canvas, bx + bw * 0.68f, by + bh * 0.50f, bw * 0.22f, bh * 0.34f, hpx * 0.42f, Config.BUILD.wallWood)
                 } else if (variant == 1) {
-                    drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.14f, bw * 0.64f, bh * 0.70f, hpx * 1.12f, wall)
-                    drawPitchedRoof(canvas, bx + bw * 0.18f, by + bh * 0.14f, bw * 0.64f, bh * 0.70f, hpx * 1.12f, roof)
-                    drawSolidBox(canvas, bx + bw * 0.72f, by + bh * 0.52f, bw * 0.16f, bh * 0.28f, hpx * 0.4f, RGBA(120, 88, 64))
+                    drawSolidBox(canvas, bx + bw * 0.20f, by + bh * 0.18f, bw * 0.60f, bh * 0.64f, hpx * 1.12f, wall)
+                    drawChineseRoof(canvas, bx + bw * 0.20f, by + bh * 0.18f, bw * 0.60f, bh * 0.64f, hpx * 1.12f, roof)
+                    drawSolidBox(canvas, bx + bw * 0.74f, by + bh * 0.54f, bw * 0.14f, bh * 0.24f, hpx * 0.36f, Config.BUILD.wallWood.shade(0.85))
                 } else {
-                    drawSolidBox(canvas, bx + bw * 0.04f, by + bh * 0.32f, bw * 0.40f, bh * 0.50f, hpx * 0.78f, wall)
-                    drawSolidBox(canvas, bx + bw * 0.48f, by + bh * 0.16f, bw * 0.44f, bh * 0.66f, hpx, wall.shade(0.92))
-                    drawPitchedRoof(canvas, bx + bw * 0.48f, by + bh * 0.16f, bw * 0.44f, bh * 0.66f, hpx, roof)
+                    drawSolidBox(canvas, bx + bw * 0.06f, by + bh * 0.34f, bw * 0.42f, bh * 0.46f, hpx * 0.76f, wall)
+                    drawChineseRoof(canvas, bx + bw * 0.06f, by + bh * 0.34f, bw * 0.42f, bh * 0.46f, hpx * 0.76f, roof)
+                    drawSolidBox(canvas, bx + bw * 0.52f, by + bh * 0.20f, bw * 0.40f, bh * 0.60f, hpx, wall.shade(0.94))
+                    drawChineseRoof(canvas, bx + bw * 0.52f, by + bh * 0.20f, bw * 0.40f, bh * 0.60f, hpx, roof.shade(0.94))
                 }
             }
             bl.zone == "residential" && bl.level == 2 -> {
-                val wall = if (variant == 0) RGBA(228, 204, 164) else RGBA(214, 186, 150)
+                // 二层宅院：两进院子，各带飞檐
+                val wall = if (variant == 0) RGBA(232, 222, 202) else RGBA(222, 210, 188)
+                val rf = Config.BUILD.roofTile
                 if (variant == 0) {
-                    drawSolidBox(canvas, bx + bw * 0.04f, by + bh * 0.16f, bw * 0.42f, bh * 0.70f, hpx * 0.82f, wall)
-                    drawSolidBox(canvas, bx + bw * 0.50f, by + bh * 0.10f, bw * 0.44f, bh * 0.76f, hpx, wall.shade(0.9))
+                    drawSolidBox(canvas, bx + bw * 0.06f, by + bh * 0.20f, bw * 0.40f, bh * 0.66f, hpx * 0.82f, wall)
+                    drawChineseRoof(canvas, bx + bw * 0.06f, by + bh * 0.20f, bw * 0.40f, bh * 0.66f, hpx * 0.82f, rf)
+                    drawSolidBox(canvas, bx + bw * 0.52f, by + bh * 0.14f, bw * 0.42f, bh * 0.72f, hpx, wall.shade(0.92))
+                    drawChineseRoof(canvas, bx + bw * 0.52f, by + bh * 0.14f, bw * 0.42f, bh * 0.72f, hpx, rf.shade(0.95))
                 } else if (variant == 1) {
-                    drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.12f, bw * 0.80f, bh * 0.74f, hpx, wall)
-                    drawPitchedRoof(canvas, bx + bw * 0.10f, by + bh * 0.12f, bw * 0.80f, bh * 0.74f, hpx, RGBA(140, 80, 70))
+                    drawSolidBox(canvas, bx + bw * 0.12f, by + bh * 0.16f, bw * 0.76f, bh * 0.70f, hpx, wall)
+                    drawChineseRoof(canvas, bx + bw * 0.12f, by + bh * 0.16f, bw * 0.76f, bh * 0.70f, hpx, rf)
+                    drawSolidBox(canvas, bx + bw * 0.44f, by + bh * 0.46f, bw * 0.16f, bh * 0.40f, hpx * 0.30f, Config.BUILD.wallWood)
                 } else {
-                    drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.20f, bw * 0.36f, bh * 0.64f, hpx * 0.7f, wall)
-                    drawSolidBox(canvas, bx + bw * 0.46f, by + bh * 0.08f, bw * 0.44f, bh * 0.76f, hpx * 1.15f, wall.shade(0.88))
+                    drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.24f, bw * 0.34f, bh * 0.60f, hpx * 0.70f, wall)
+                    drawChineseRoof(canvas, bx + bw * 0.10f, by + bh * 0.24f, bw * 0.34f, bh * 0.60f, hpx * 0.70f, rf.shade(1.06))
+                    drawSolidBox(canvas, bx + bw * 0.50f, by + bh * 0.12f, bw * 0.40f, bh * 0.72f, hpx * 1.15f, wall.shade(0.90))
+                    drawChineseRoof(canvas, bx + bw * 0.50f, by + bh * 0.12f, bw * 0.40f, bh * 0.72f, hpx * 1.15f, rf)
                 }
             }
             bl.zone == "residential" -> {
-                val wall = if (variant == 0) RGBA(210, 186, 150) else RGBA(196, 176, 158)
-                drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.08f, bw * 0.80f, bh * 0.82f, hpx, wall)
-                drawSolidBox(canvas, bx + bw * 0.18f, by + bh * 0.16f, bw * 0.22f, bh * 0.18f, hpx * 0.18f, RGBA(70, 92, 112))
+                // 三层楼院：主楼带重檐
+                val wall = if (variant == 0) RGBA(224, 214, 194) else RGBA(212, 200, 180)
+                drawSolidBox(canvas, bx + bw * 0.12f, by + bh * 0.12f, bw * 0.76f, bh * 0.78f, hpx, wall)
+                drawChineseRoof(canvas, bx + bw * 0.12f, by + bh * 0.12f, bw * 0.76f, bh * 0.78f, hpx, Config.BUILD.roofTile)
+                // 重檐（下层腰檐）
+                fillRect(canvas, bx + bw * 0.06f, by + bh * 0.52f - hpx * 0.42f, bw * 0.88f, max(1.2f, cell * 0.05f), Config.BUILD.roofTile.shade(0.82))
+                drawSolidBox(canvas, bx + bw * 0.20f, by + bh * 0.22f, bw * 0.18f, bh * 0.16f, hpx * 0.16f, Config.BUILD.wallWood)
             }
             bl.zone == "commercial" && bl.level == 1 -> {
+                // 古风铺面：朱漆木墙 + 青瓦挑檐 + 招幌
                 val wall = when (variant) {
-                    0 -> RGBA(226, 176, 150)
-                    1 -> RGBA(210, 150, 142)
-                    else -> RGBA(196, 168, 140)
+                    0 -> RGBA(186, 118, 88)
+                    1 -> RGBA(172, 106, 82)
+                    else -> RGBA(196, 140, 100)
                 }
-                val awning = when (variant) {
-                    0 -> RGBA(190, 70, 70)
-                    1 -> RGBA(70, 110, 170)
-                    else -> RGBA(210, 150, 60)
+                val banner = when (variant) {
+                    0 -> RGBA(198, 62, 58)
+                    1 -> RGBA(64, 104, 160)
+                    else -> RGBA(206, 156, 56)
                 }
-                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.16f, bw * 0.84f, bh * 0.70f, hpx, wall)
-                drawSolidBox(canvas, bx + bw * 0.16f, by + bh * 0.56f, bw * 0.68f, bh * 0.22f, hpx * 0.12f, RGBA(40, 50, 70))
-                drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.48f, bw * 0.80f, bh * 0.10f, hpx * 0.08f, awning)
+                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.20f, bw * 0.84f, bh * 0.66f, hpx, wall)
+                drawChineseRoof(canvas, bx + bw * 0.08f, by + bh * 0.20f, bw * 0.84f, bh * 0.66f, hpx, Config.BUILD.roofTile)
+                // 招幌（挂在檐下的小旗）
+                fillRect(canvas, bx + bw * 0.72f, by + bh * 0.40f - hpx * 0.30f, max(1.4f, cell * 0.07f), max(2.4f, cell * 0.20f), banner)
+                // 门脸
+                fillRect(canvas, bx + bw * 0.20f, by + bh * 0.62f, bw * 0.60f, bh * 0.20f, RGBA(58, 42, 34))
             }
             bl.zone == "commercial" -> {
-                val wall = if (variant == 0) RGBA(214, 160, 138) else RGBA(186, 150, 168)
-                drawSolidBox(canvas, bx + bw * 0.08f, by + bh * 0.10f, bw * 0.84f, bh * 0.78f, hpx, wall)
-                drawSolidBox(canvas, bx + bw * 0.16f, by + bh * 0.52f, bw * 0.68f, bh * 0.26f, hpx * 0.16f, RGBA(40, 50, 70))
+                // 酒楼茶肆：重檐楼阁
+                val wall = if (variant == 0) RGBA(182, 116, 86) else RGBA(168, 108, 96)
+                drawSolidBox(canvas, bx + bw * 0.10f, by + bh * 0.14f, bw * 0.80f, bh * 0.76f, hpx, wall)
+                drawChineseRoof(canvas, bx + bw * 0.10f, by + bh * 0.14f, bw * 0.80f, bh * 0.76f, hpx, Config.BUILD.roofTile)
+                // 腰檐
+                fillRect(canvas, bx + bw * 0.04f, by + bh * 0.58f - hpx * 0.44f, bw * 0.92f, max(1.3f, cell * 0.055f), Config.BUILD.roofTile.shade(0.80))
+                // 匾额
+                fillRect(canvas, bx + bw * 0.36f, by + bh * 0.36f - hpx * 0.62f, bw * 0.28f, max(2f, cell * 0.14f), RGBA(92, 62, 40))
+                fillRect(canvas, bx + bw * 0.22f, by + bh * 0.64f, bw * 0.56f, bh * 0.18f, RGBA(52, 38, 30))
             }
             bl.zone == "industrial" -> {
                 val shed = if (variant == 0) RGBA(176, 168, 148) else RGBA(158, 154, 140)
@@ -2346,8 +2395,8 @@ class MapRenderView @JvmOverloads constructor(
             }
             bl.zone == "office" -> {
                 val wall = when (variant) {
-                    0 -> RGBA(168, 196, 224)
-                    1 -> RGBA(150, 176, 210)
+                    0 -> RGBA(200, 194, 180)
+                    1 -> RGBA(186, 180, 168)
                     else -> RGBA(186, 190, 212)
                 }
                 val glass = when (variant) {
@@ -2652,6 +2701,62 @@ class MapRenderView @JvmOverloads constructor(
             val hy = if (dir == 1) ry + rh else if (dir == 3) ry - lift else sy
             fillCircle(canvas, hx, hy, cell * 0.06f, RGBA(255, 236, 170, 180))
         }
+    }
+
+    /**
+     * 古风歇山顶：青瓦屋面 + 翘起的飞檐 + 正脊 + 屋脊两端鸱吻。
+     * 比 drawPitchedRoof 多两侧出挑的檐角，一眼能看出是中式屋顶。
+     */
+    private fun drawChineseRoof(
+        canvas: Canvas, x: Float, y: Float, w: Float, h: Float, lift: Float, col: RGBA
+    ) {
+        if (w <= 2f || h <= 2f) return
+        val H = max(lift, 1.6f)
+        val over = min(w * 0.14f, cell * 0.16f)     // 出檐（屋檐比墙体宽）
+        val peak = min(h * 0.30f, cell * 0.26f)     // 屋面进深
+        val by = y + h
+        val eaveY = by - H
+        val ridgeY = eaveY - peak
+        val lx = x - over
+        val rx = x + w + over
+        val midX = (lx + rx) * 0.5f
+        // 后坡（受光）
+        path.reset()
+        path.moveTo(lx, eaveY)
+        path.lineTo(midX, ridgeY)
+        path.lineTo(rx, eaveY)
+        path.lineTo(midX, ridgeY + peak * 0.42f)
+        path.close()
+        fillPath(canvas, path, col.shade(1.10))
+        // 前坡（背光）
+        path.reset()
+        path.moveTo(lx, eaveY)
+        path.lineTo(rx, eaveY)
+        path.lineTo(midX, ridgeY + peak * 0.42f)
+        path.close()
+        fillPath(canvas, path, col.shade(0.74))
+        // 飞檐翘角：两端向外上方挑出的三角
+        val tip = min(cell * 0.20f, peak * 0.62f)
+        fillTri(canvas, lx, eaveY, lx - tip * 0.75f, eaveY - tip, lx, eaveY - tip * 0.35f, col.shade(0.86))
+        fillTri(canvas, rx, eaveY, rx + tip * 0.75f, eaveY - tip, rx, eaveY - tip * 0.35f, col.shade(0.86))
+        // 檐口线
+        strokeColor(col.shade(0.46), 190, max(0.7f, cell * 0.022f))
+        canvas.drawLine(lx, eaveY, rx, eaveY, paint)
+        // 正脊
+        val rw = max(1.2f, cell * 0.035f)
+        strokeColor(col.shade(0.42), 220, rw)
+        canvas.drawLine(midX - (rx - lx) * 0.30f, ridgeY + peak * 0.42f, midX + (rx - lx) * 0.30f, ridgeY + peak * 0.42f, paint)
+        // 鸱吻（脊端小翘）
+        val kx = (rx - lx) * 0.30f
+        fillTri(canvas, midX - kx, ridgeY + peak * 0.42f,
+            midX - kx - tip * 0.5f, ridgeY + peak * 0.42f - tip * 0.7f,
+            midX - kx, ridgeY + peak * 0.42f - tip * 0.25f, col.shade(0.50))
+        fillTri(canvas, midX + kx, ridgeY + peak * 0.42f,
+            midX + kx + tip * 0.5f, ridgeY + peak * 0.42f - tip * 0.7f,
+            midX + kx, ridgeY + peak * 0.42f - tip * 0.25f, col.shade(0.50))
+        // 檐下木枋
+        val bandH = max(0.9f, H * 0.10f)
+        fillRect(canvas, x, eaveY - bandH * 0.5f, w, bandH, Config.BUILD.wallWood.shade(0.80))
     }
 
     private fun drawPitchedRoof(

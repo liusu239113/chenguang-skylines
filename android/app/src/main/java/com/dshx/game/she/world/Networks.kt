@@ -6,7 +6,7 @@ import org.json.JSONObject
 import kotlin.math.max
 
 /**
- * 地下管网。旧档可能仍带水管/电缆/区划字段，读档保留但不玩区划政策。
+ * 地下管网。旧档可能仍带水管/电缆/坊界字段，读档保留但不玩坊界政令。
  */
 class District(
     val id: Int,
@@ -145,7 +145,7 @@ object Networks {
         return true
     }
 
-    /** 水厂落成后，沿邻路自动铺一段干管，玩家再往外拖 */
+    /** 水楼落成后，沿邻路自动铺一段干管，玩家再往外拖 */
     fun seedPipesAround(ax: Int, ay: Int, bw: Int, bh: Int, radius: Int = 2) {
         for (y in (ay - radius)..(ay + bh - 1 + radius)) {
             for (x in (ax - radius)..(ax + bw - 1 + radius)) {
@@ -211,7 +211,7 @@ object Networks {
     }
 
     // -----------------------------------------------------------------------
-    // 管网连通性：电厂/水厂只负责产能，靠「道路预埋管线 + 地下电缆/水管」输送到建筑。
+    // 管网连通性：电厂/水楼只负责产能，靠「道路预埋管线 + 地下电缆/水管」输送到建筑。
     // 道路天生带电带水；地下电缆/水管用于把偏远厂站接进管网。
     // -----------------------------------------------------------------------
     private val powerTiles = HashSet<Int>()
@@ -354,8 +354,8 @@ object Networks {
     }
 
     /**
-     * 地铁连通：从每个地铁站出发，沿地下隧道四向扩散，
-     * 返回「已接入隧道网的地铁站数量」。没接隧道的地铁站不算运力。
+     * 地道连通：从每个地道口出发，沿地下隧道四向扩散，
+     * 返回「已接入隧道网的地道口数量」。没接隧道的地道口不算运力。
      */
     fun connectedMetroStations(): Int {
         val w = World.current ?: return 0

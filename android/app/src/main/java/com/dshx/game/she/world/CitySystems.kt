@@ -68,7 +68,7 @@ object CitySystems {
             // 多格成长楼只在锚点结算一次
             if (b != null && !b.isService && (b.w <= 1 && b.h <= 1 || (b.ax == x && b.ay == y))) {
                 sewerNeed++
-                // 污水与供水共用管道管网：接入水管网 + 有污水厂即可处理
+                // 污水与供水共用管道管网：接入水管网 + 有污水楼即可处理
                 val onSewerNet = Networks.isWatered(x, y) && sewageN > 0
                 if (onSewerNet) {
                     sewerHits++
@@ -152,7 +152,7 @@ object CitySystems {
         s.crime = if (crimeN == 0) 8.0 else crimeSum.toDouble() / crimeN
         s.prisonUsed = 0
 
-        // 健康：污水 / 水污染 / 医疗预算
+        // 健康：污水 / 水污染 / 医疗用度
         val waterHit = waterPolAvg / 12.0
         val healthBudget = s.budgetHealth / 100.0
         s.health = min(
@@ -200,7 +200,7 @@ object CitySystems {
             }
         }
 
-        // 地铁运量：只有「地铁站 + 连成网的地下隧道」才算数；
+        // 地道运量：只有「地道口 + 连成网的地下隧道」才算数；
         // 光建站不挖隧道、或隧道没接到站，都不减拥堵。
         val metroStations = Networks.connectedMetroStations()
         if (metroStations >= 2 && Networks.metroCount > 6) {
@@ -439,6 +439,6 @@ object CitySystems {
         "police" -> "巡警"
         "garbage" -> "清运司机"
         "hearse" -> "殡仪司机"
-        else -> "市政司机"
+        else -> "城政司机"
     }
 }

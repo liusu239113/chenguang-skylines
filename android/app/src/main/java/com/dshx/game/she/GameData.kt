@@ -15,7 +15,7 @@ import kotlin.math.min
 // ============================================================================
 // GameData — 实时城市模拟，与 scripts/GameData.lua 1:1 对应
 //   时间持续流动：tick(dt) 由主循环每帧调用，内部按速度倍率推进
-//   每游戏日小额收支；每 30 日自动翻月 → 结算新闻 / 政策倒计时 / 晋级检查
+//   每游戏日小额收支；每 30 日自动翻月 → 结算简报 / 政令倒计时 / 晋级检查
 // ============================================================================
 
 data class PolicyActive(val id: String, var daysLeft: Int)
@@ -68,7 +68,7 @@ class CityState {
     val policyCooldowns: MutableMap<String, Int> = mutableMapOf()
     val news: MutableList<NewsItem> = mutableListOf()
     var lastLevel: Int = 0
-    // 税收（RCI 三税率，%）
+    // 赋税（三税赋，%）
     var taxRes: Int = Config.TAX.default
     var taxCom: Int = Config.TAX.default
     var taxInd: Int = Config.TAX.default
@@ -88,12 +88,12 @@ class CityState {
     val achievements: MutableSet<String> = mutableSetOf()
     // 进行中的事件
     val activeEvents: MutableList<ActiveEvent> = mutableListOf()
-    // 当前市政任务
+    // 当前城政任务
     var quest: Quest? = null
     // 城市名
     var cityName: String = Config.World.city
     var mayorName: String = "未署名"
-    // 市民慢变量（对照拆解文档：教育/健康/就业驱动长线循环）
+    // 百姓慢变量（教育/健康/就业驱动长线循环）
     var education: Double = 18.0
     var health: Double = 62.0
     var jobs: Int = 0
@@ -157,7 +157,7 @@ object GameData {
         /** 这一步的净资金变化：正=花掉、负=赚到（推平退款）。撤销时原样反向结清 */
         var delta: Double = 0.0
         var label: String = ""
-        /** 涉及公交线路的改动（开通/拆除）先存一份线路快照，撤销时整份还原 */
+        /** 涉及车马线路的改动（开通/拆除）先存一份线路快照，撤销时整份还原 */
         var transitSnap: org.json.JSONArray? = null
     }
 
@@ -202,7 +202,7 @@ object GameData {
         st.keys.add(k)
     }
 
-    /** 改公交线路前先拍一张线路快照，这样【撤】也能把线路改回来 */
+    /** 改车马线路前先拍一张线路快照，这样【撤】也能把线路改回来 */
     fun noteTransit() {
         val st = stroke ?: return
         if (st.transitSnap == null) st.transitSnap = Transit.toJson()
@@ -239,7 +239,7 @@ object GameData {
         Networks.recount()
         Traffic.reset()
         if (st.keys.isEmpty()) {
-            return "已撤销" + (if (st.label.isNotEmpty()) "（" + st.label + "）" else "公交线路改动")
+            return "已撤销" + (if (st.label.isNotEmpty()) "（" + st.label + "）" else "车马线路改动")
         }
         return "已撤销 " + st.keys.size + " 格" + (if (st.label.isNotEmpty()) "（" + st.label + "）" else "")
     }
@@ -454,18 +454,18 @@ object GameData {
         s.rankLevel = next.level
         if (!sandbox && next.grant > 0) {
             s.funds += next.grant
-            post("income", "other", next.name + "授衔", next.grant.toDouble())
+            post("income", "other", next.name + "受封", next.grant.toDouble())
         }
         val unlockTxt = if (next.unlockIds.isEmpty()) "" else {
             " 新建设施：" + next.unlockIds.mapNotNull { World.serviceConfig(it)?.name }.joinToString("、") + "。"
         }
         val grantTxt = if (next.grant > 0) " 营造基金到账 " + next.grant + " 万。" else ""
-        pushNews("营造职级提升", s.mayorName + " 升为「" + next.name + "」。" + next.perk + "。" + grantTxt + unlockTxt, "营造")
+        pushNews("营造官阶提升", s.mayorName + " 升为「" + next.name + "」。" + next.perk + "。" + grantTxt + unlockTxt, "营造")
         pendingRankUp = true
     }
 
     // -----------------------------------------------------------------------
-    // 政策效果聚合（生效期内每天都吃到，而不是启用瞬间冲一次）
+    // 政令效果聚合（生效期内每天都吃到，而不是启用瞬间冲一次）
     // -----------------------------------------------------------------------
     fun policyMul(key: String): Double {
         val s = current ?: return 1.0
@@ -503,8 +503,8 @@ object GameData {
     }
 
     fun policyStatusLine(): String {
-        val s = current ?: return "暂无生效政策"
-        if (s.activePolicies.isEmpty()) return "暂无生效政策"
+        val s = current ?: return "暂无生效政令"
+        if (s.activePolicies.isEmpty()) return "暂无生效政令"
         return s.activePolicies.joinToString(" · ") { ap ->
             val p = Config.POLICIES.firstOrNull { it.id == ap.id }
             (p?.name ?: ap.id) + " 剩" + ap.daysLeft + "天"
@@ -520,7 +520,7 @@ object GameData {
         val policy: Double, val commute: Double, val jobs: Double, val target: Double
     )
 
-    /** 满意度分解（对照拆解文档：健康/教育/通勤/就业/犯罪/政策） */
+    /** 民心分解（健康/教育/通勤/就业/犯罪/政令） */
     fun happinessBreakdown(): HappyBreakdown {
         val s = current ?: return HappyBreakdown(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         val st = World.stats()
@@ -702,7 +702,7 @@ object GameData {
         s.population = totalRes.toDouble()
         World.current?._pop = totalRes
         if (sandbox) {
-            // 沙盒：人口锁定，方便解锁全部设施和职级条件
+            // 沙盒：人口锁定，方便解锁全部设施和官阶条件
             s.population = Config.SANDBOX.pop.toDouble()
             World.current?._pop = Config.SANDBOX.pop
         }
@@ -803,7 +803,7 @@ object GameData {
 
         val taxPart = taxIncome * taxBoost * diff.incomeMul * eventIncomeMul * lateIncomeCut
         val bizPart = bizIncome * diff.incomeMul * eventIncomeMul * lateIncomeCut
-        // 实际发生的船运/航班外贸额也算进今日贸易，然后清零重新累计
+        // 实际发生的漕运/飞舟外贸额也算进今日贸易，然后清零重新累计
         val tradePart = (tradeIncome + landmarkTour) * rankTrade * diff.incomeMul * eventIncomeMul * lateIncomeCut
         s.dayIncomeTax = taxPart
         s.dayIncomeBiz = bizPart
@@ -821,7 +821,7 @@ object GameData {
         s.funds += net + specIncome
         if (net + specIncome >= 0) s.totalIncome += net + specIncome else s.totalSpent += -(net + specIncome)
         post("income", "tax", "居民税", taxPart)
-        post("income", "biz", "工商税收", bizPart)
+        post("income", "biz", "工商赋税", bizPart)
         post("income", "trade", "贸易观光", tradePart)
         post("income", "biz", "产业专精", specIncome)
         post("spend", "road", "道路维护", s.lastRoadUpkeep)
@@ -829,7 +829,7 @@ object GameData {
         post("spend", "service", "城区养护", s.lastGrownUpkeep)
         if (s.funds < 0) {
             s.bankruptDays += 1
-            if (s.bankruptDays == 1) pushNews("财政告急", "金库见底，公共服务将收缩。尽快扩税基或贷款。", "财政")
+            if (s.bankruptDays == 1) pushNews("府库告急", "金库见底，城政供养将收缩。尽快拓宽赋税或借贷。", "府库")
         } else {
             s.bankruptDays = 0
         }
@@ -847,7 +847,7 @@ object GameData {
                 s.loanDaily = 0.0
                 s.loanKind = ""
                 s.loanCooldown = Config.LOAN.cooldown
-                pushNews("贷款还清", "银行贷款已全部还清。", "财政")
+                pushNews("贷款还清", "钱庄借款已全部还清。", "府库")
             }
         } else {
             s.lastLoanRepay = 0.0
@@ -864,7 +864,7 @@ object GameData {
         val target = if (s.population < 1) 52.0 else computeHappinessTarget(st)
         s.happiness += (target - s.happiness) * 0.12
         if (sandbox) {
-            // 沙盒：满意度不掉、资金不变、职级保持满级（全设施解锁）
+            // 沙盒：民心不掉、资金不变、官阶保持满级（全设施解锁）
             s.happiness = Config.SANDBOX.happy
             s.funds = Config.SANDBOX.FUNDS
             val top = Config.RANKS.maxByOrNull { it.level }
@@ -966,7 +966,7 @@ object GameData {
             }
         }
 
-        // 市政任务检查
+        // 城政任务检查
         ensureQuest()
         val q = s.quest
         if (q != null && !q.done && questValue(q.type) >= q.target) {
@@ -976,7 +976,7 @@ object GameData {
             pushNews("任务完成：" + q.name, "达成目标，奖励 " + q.reward + " 万。", "任务")
         }
 
-        // 政策倒计时
+        // 政令倒计时
         for (i in s.activePolicies.indices.reversed()) {
             s.activePolicies[i].daysLeft -= 1
             if (s.activePolicies[i].daysLeft <= 0) s.activePolicies.removeAt(i)
@@ -1178,11 +1178,11 @@ object GameData {
                     s.funds += back
                     post("income", "other", "拆除退款", back)
                 }
-                // 拆掉公交站/地铁站：线路里不能留着空气站点，掉到不足 2 站的线路自动停运
+                // 拆掉车马站/地道口：线路里不能留着空站点，掉到不足 2 站的线路自动停运
                 if (res.second == "bus_stop" || res.second == "metro") {
                     noteTransit()
                     val dead = Transit.onStopRemoved(x, y)
-                    if (dead != null) pushNews("公交停运", dead + " 因站点不足 2 个已自动停运。", "交通")
+                    if (dead != null) pushNews("车马停运", dead + " 因站点不足 2 个已自动停运。", "交通")
                 }
                 pushNews("拆除设施", "退还部分造价。", "城建")
             }
@@ -1239,7 +1239,7 @@ object GameData {
         if ((s.policyCooldowns[pid] ?: 0) > 0) {
             return false to ("冷却中，还需 " + (s.policyCooldowns[pid] ?: 0) + " 天")
         }
-        val p = Config.POLICIES.firstOrNull { it.id == pid } ?: return false to "未知政策"
+        val p = Config.POLICIES.firstOrNull { it.id == pid } ?: return false to "未知政令"
         if (p.effect.cost > 0 && !sandbox && s.funds < p.effect.cost) return false to "资金不足"
         s.activePolicies.add(PolicyActive(pid, p.days))
         s.policyCooldowns[pid] = p.days + p.cooldown
@@ -1250,8 +1250,8 @@ object GameData {
         }
         pushNews(
             "新政发布：" + p.name,
-            p.desc + " 生效 " + p.days + " 天。今日起税收/需求/污染按政策结算。",
-            "政策"
+            p.desc + " 生效 " + p.days + " 天。今日起赋税/需求/浊气按政令结算。",
+            "政令"
         )
         return true to ("已启用：" + p.name + " · 生效 " + p.days + " 天")
     }
@@ -1341,14 +1341,14 @@ object GameData {
     fun paintMetro(x: Int, y: Int): Pair<Boolean, String?> {
         val t = World.tile(x, y) ?: return false to "越界"
         if (!World.isUnlocked(x, y)) return false to World.lockedHint()
-        if (t.terrain == "water") return false to "水域无法挖地铁"
+        if (t.terrain == "water") return false to "水域无法挖地道"
         if (t.metro) return true to null
         val s = current ?: return false to null
-        if (!sandbox && s.funds < 6) return false to "资金不足（地铁隧道 6 万/格）"
+        if (!sandbox && s.funds < 6) return false to "资金不足（地道 6 万/格）"
         Networks.setMetro(x, y, true)
         if (!sandbox) {
             s.funds -= 6
-            post("spend", "build", "地铁隧道", 6.0)
+            post("spend", "build", "地道", 6.0)
         }
         Networks.recount()
         return true to null
@@ -1357,17 +1357,17 @@ object GameData {
     fun paintRail(x: Int, y: Int): Pair<Boolean, String?> {
         val t = World.tile(x, y) ?: return false to "越界"
         if (!World.isUnlocked(x, y)) return false to World.lockedHint()
-        if (t.terrain == "water") return false to "水域无法铺铁轨"
+        if (t.terrain == "water") return false to "水域无法铺石轨"
         if (t.rail) return true to null
         val s = current ?: return false to null
         if (!sandbox && s.funds < 8) {
-            AdOffers.offerShortfall(8, "铺铁轨")
-            return false to "资金不足（铁轨 8 万/格）"
+            AdOffers.offerShortfall(8, "铺石轨")
+            return false to "资金不足（石轨 8 万/格）"
         }
         Networks.setRail(x, y, true)
         if (!sandbox) {
             s.funds -= 8
-            post("spend", "build", "铁轨", 8.0)
+            post("spend", "build", "石轨", 8.0)
         }
         Networks.recount()
         return true to null
@@ -1436,12 +1436,12 @@ object GameData {
         pushNews(
             title,
             "到账 " + amount.toInt() + " 万，每日自动还 " + daily.toInt() + " 万。",
-            "财政"
+            "府库"
         )
         return true to (title + "到账 " + amount.toInt() + " 万")
     }
 
-    /** 市政任务当前进度值 */
+    /** 城政任务当前进度值 */
     fun questValue(type: String): Double {
         val s = current ?: return 0.0
         val st = World.stats()

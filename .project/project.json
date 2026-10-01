@@ -2,7 +2,7 @@
   "$schema": "../schemas/project.schema.json",
   "project_id": "m_vxn3",
   "name": "模拟市长：城市经营",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "entry": "main.lua",
   "author": {
     "name": "GameDev",
@@ -14,8 +14,10 @@
   },
   "taptap_publish": {
     "developer_id": 377480,
-    "title": "模拟市长：城市经营",
-    "screen_orientation": "portrait"
+    "title": "筑城纪：古城经营",
+    "screen_orientation": "portrait",
+    "category": "simulation",
+    "collection_type": "simulation"
   },
   "metadata": {
     "updated_at": "2026-09-08T16:15:12.801Z"

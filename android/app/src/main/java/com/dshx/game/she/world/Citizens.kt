@@ -8,7 +8,7 @@ import kotlin.math.min
 import kotlin.random.Random
 
 /**
- * 市民 Agent（对照拆解文档第十二章）
+ * 百姓 Agent（通勤与出行模拟）
  * 家 → 通勤 → 工作 → 购物 → 回家 / 娱乐。最多采样 80 人，避免卡顿。
  */
 class Citizen {
@@ -142,7 +142,7 @@ object Citizens {
         return (ax + (bx - ax) * c.prog - 0.5f) to (ay + (by - ay) * c.prog - 0.5f)
     }
 
-    /** 按住宅/岗位重建采样市民（每日或载档后） */
+    /** 按民居/岗位重建采样百姓（每日或载档后） */
     fun rebuild() {
         agents.clear()
         val homes = World.allBuildings().filter { !it.b.isService && it.b.zone == "residential" && !it.b.abandoned && it.b.residents > 0 }

@@ -67,7 +67,7 @@ class PlaneCraft(
     var ax: Int,
     var ay: Int,
     var flight: String,
-    var ambient: Boolean = false,     // 过境航班：没有机场也会在城市上空盘旋
+    var ambient: Boolean = false,     // 过境航班：没有飞舟坞也会在城市上空盘旋
     var soundPlayed: Boolean = false,
     var life: Float = 0f,             // 过境航班盘旋计时，到点飞走
     var angle: Float = 0f             // 机头朝向（度）
@@ -117,7 +117,7 @@ object Traffic {
     private val JOBS_IND = listOf("技工", "仓管", "质检", "司机", "电工")
     private val JOBS_HOME = listOf("居家看店", "自由撰稿", "待业")
     private val VISITOR_FROM = listOf("望江县", "桂香镇", "临湖市", "青藤港", "云溪区", "银杏乡")
-    private val CAR_TYPES = listOf("家用轿车", "两厢代步", "旅行车", "小货车")
+    private val CAR_TYPES = listOf("青篷马车", "独轮小车", "骡车", "板车")
     private val roadFlow = IntArray(Config.MAP.cols * Config.MAP.rows)
 
     fun flowAt(x: Int, y: Int): Int {
@@ -163,15 +163,15 @@ object Traffic {
     }
 
     // ------------------------------------------------------------------
-    // 过境交通：没有港口/机场也会有货轮路过海面、客机从城市上空飞过。
-    // 有港口机场时还能顺带赚一点转口贸易和旅客消费。
+    // 过境交通：没有港口/飞舟坞也会有货轮路过海面、客机从城市上空飞过。
+    // 有港口飞舟坞时还能顺带赚一点转口贸易和旅客消费。
     // ------------------------------------------------------------------
     private var ambientShipT = 18f
     private var ambientPlaneT = 30f
     var shipVisits = 0            // 累计到港船次（含过境）
     var flightVisits = 0          // 累计航班架次
     var trainVisits = 0           // 累计进出站车次
-    var passengersToday = 0       // 今日客运量（船+飞机+火车）
+    var passengersToday = 0       // 今日客运量（船+飞舟+火车）
     var tradeToday = 0.0          // 今日外贸额
     var tradeAccum = 0.0          // 当日实时累计的船运/航班贸易额（结算日清空）
 
@@ -347,7 +347,7 @@ object Traffic {
                     harborX = harbor.x,
                     harborY = harbor.y,
                     loaded = loaded,
-                    name = (if (loaded) "晨光货运 " else "外来货轮 ") + (100 + Random.nextInt(899))
+                    name = (if (loaded) "云川漕运 " else "外来商船 ") + (100 + Random.nextInt(899))
                 )
             )
         }
@@ -664,7 +664,7 @@ object Traffic {
             }
             val from = VISITOR_FROM[Random.nextInt(VISITOR_FROM.size)]
             val driver = makeDriver(start.first, start.second, "过路司机", dest.first, dest.second, "外环高速", local = false)
-                .copy(from = from, homeName = from, carType = if (Random.nextFloat() < 0.25f) "厢式货车" else "过路轿车")
+                .copy(from = from, homeName = from, carType = if (Random.nextFloat() < 0.25f) "运货骡车" else "过路马车")
             cars.add(
                 TrafficCar(
                     kind = "through",
@@ -697,7 +697,7 @@ object Traffic {
         val from = VISITOR_FROM[Random.nextInt(VISITOR_FROM.size)]
         val job = if (freight) "货运司机" else "外地游客"
         val driver = makeDriver(ramp.first, ramp.second, job, dest.x, dest.y, grownName(dest.b.zone ?: "commercial", dest.x, dest.y), local = false)
-            .copy(from = from, homeName = from, carType = if (freight) "厢式货车" else "自驾轿车")
+            .copy(from = from, homeName = from, carType = if (freight) "运货骡车" else "自家马车")
         cars.add(
             TrafficCar(
                 kind = if (freight) "freight" else "visitor",
@@ -989,7 +989,7 @@ object Traffic {
     }
 
     // ------------------------------------------------------------------
-    // 火车：铺了铁轨并建了火车站才会跑
+    // 火车：铺了石轨并建了驿站才会跑
     // ------------------------------------------------------------------
     private fun syncTrains() {
         val stations = World.allBuildings().filter { it.b.service == "rail_station" }
@@ -1021,7 +1021,7 @@ object Traffic {
 
     private fun isRail(x: Int, y: Int) = World.tile(x, y)?.rail == true
 
-    /** 该格或四邻是否有火车站（列车进站判定用） */
+    /** 该格或四邻是否有驿站（列车进站判定用） */
     private fun stationNear(x: Int, y: Int): BuildingEntry? {
         for (dy in -1..1) {
             for (dx in -1..1) {
@@ -1074,7 +1074,7 @@ object Traffic {
     }
 
     // ------------------------------------------------------------------
-    // 飞机：建了机场才会飞进飞出
+    // 飞舟：建了飞舟坞才会飞进飞出
     // ------------------------------------------------------------------
     private fun syncPlanes() {
         val air = World.allBuildings().filter { it.b.service == "airport" }

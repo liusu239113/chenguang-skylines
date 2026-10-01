@@ -29,8 +29,8 @@ class Tile {
     var pipeMask: Int = 0
     var cableMask: Int = 0
     var sewer: Boolean = false        // 污水管
-    var metro: Boolean = false        // 地铁隧道
-    var rail: Boolean = false         // 地面铁轨
+    var metro: Boolean = false        // 地道道
+    var rail: Boolean = false         // 地面石轨
     var district: Int = 0             // 旧档兼容，不再玩
     var spec: String = ""             // "" | tourism | retail | factory | campus
     var groundPol: Int = 0            // 地面污染 0-100
@@ -132,10 +132,10 @@ class World {
         var current: World? = null
 
         private val STREET_PRE = arrayOf(
-            "晨光", "望江", "振兴", "青年", "碧湖", "桂香", "和平", "解放",
+            "云川", "望江", "通济", "青石", "碧湖", "桂香", "太平", "承恩",
             "文昌", "梧桐", "朝阳", "临江", "锦绣", "长虹", "育才", "银杏"
         )
-        private val STREET_SUF = arrayOf("大道", "大街", "路", "街", "南路", "北路", "东路", "西路")
+        private val STREET_SUF = arrayOf("大街", "长街", "巷", "里", "南巷", "北巷", "东巷", "西巷")
 
         private fun pickName(seed: Int, i: Int): String {
             val pre = STREET_PRE[i % STREET_PRE.size]
@@ -268,7 +268,7 @@ class World {
             w.spawnX = startX
             w.spawnY = startY
 
-            // 保底水域：抽水站/污水厂必须临水，开局附近没水就在城边挖一口小塘
+            // 保底水域：水车坊/污水楼必须临水，开局附近没水就在城边挖一口小塘
             var waterNear = false
             outer@ for (y in (startY - 8).coerceAtLeast(1)..(startY + 8).coerceAtMost(w.rows)) {
                 for (x in (startX - 8).coerceAtLeast(1)..(startX + 8).coerceAtMost(w.cols)) {
@@ -329,7 +329,7 @@ class World {
                 )
             )
 
-            // 外环高速：贴地图边缘，不直接进城区。玩家把城区路接到高速后才会进外地车。
+            // 环城官道：贴地图边缘，不直接进城。玩家把街巷接到官道后才会进外乡车。
             fun setHwy(x: Int, y: Int) {
                 val t = w.grid[y - 1][x - 1]
                 if (t.terrain == "water") return
@@ -350,7 +350,7 @@ class World {
             }
             w.roadLines.add(
                 RoadLine(
-                    name = "北环高速",
+                    name = "北官道",
                     kind = "highway",
                     segX = IntArray(hx1 - hx0 + 1) { hx0 + it },
                     segY = IntArray(hx1 - hx0 + 1) { hy0 },
@@ -361,7 +361,7 @@ class World {
             )
             w.roadLines.add(
                 RoadLine(
-                    name = "南环高速",
+                    name = "南宫道",
                     kind = "highway",
                     segX = IntArray(hx1 - hx0 + 1) { hx0 + it },
                     segY = IntArray(hx1 - hx0 + 1) { hy1 },
@@ -372,7 +372,7 @@ class World {
             )
             w.roadLines.add(
                 RoadLine(
-                    name = "西环高速",
+                    name = "西官道",
                     kind = "highway",
                     segX = IntArray(hy1 - hy0 + 1) { hx0 },
                     segY = IntArray(hy1 - hy0 + 1) { hy0 + it },
@@ -383,7 +383,7 @@ class World {
             )
             w.roadLines.add(
                 RoadLine(
-                    name = "东环高速",
+                    name = "东官道",
                     kind = "highway",
                     segX = IntArray(hy1 - hy0 + 1) { hx1 },
                     segY = IntArray(hy1 - hy0 + 1) { hy0 + it },
@@ -593,8 +593,8 @@ class World {
         fun canRoad(x: Int, y: Int, kind: String = "local"): Pair<Boolean, String?> {
             val t = tile(x, y) ?: return false to "越界"
             if (!isUnlocked(x, y) && kind != "highway") return false to lockedHint()
-            if (kind == "metro" && !hasService("metro")) return false to "先建地铁站才能挖隧道"
-            if (kind == "rail" && !hasService("rail_station")) return false to "先建火车站才能铺铁轨"
+            if (kind == "metro" && !hasService("metro")) return false to "先建地道口才能挖隧道"
+            if (kind == "rail" && !hasService("rail_station")) return false to "先建驿站才能铺石轨"
             if (kind == "overpass") {
                 // 立交桥是抬高的一层：可以跨过任何已有道路，四面都能上下
                 if (t.elevated) return false to null
@@ -602,7 +602,7 @@ class World {
                 return true to null
             }
             if (t.terrain == "water" && kind != "metro") {
-                // 跨水架桥：水域可以修桥（造价更高），地铁本来就是地下
+                // 跨水架桥：水域可以修桥（造价更高），地道本来就是地下
                 return true to null
             }
             if (t.building != null) return false to "先拆除这里的建筑"
@@ -700,7 +700,7 @@ class World {
             val cols = w.cols
             if (cols <= 0 || w.rows <= 0) return
 
-            // 1) 高速保留原有名字（只清理被推平的格子），单独成段
+            // 1) 官道保留原有名字（只清理被推平的格子），单独成段
             val kept = ArrayList<RoadLine>()
             val done = HashSet<Int>()
             for (line in w.roadLines) {
@@ -966,7 +966,7 @@ class World {
             val s = serviceConfig(id) ?: return false to "未知设施"
             if (!Config.rankUnlocksService(id, GameData.current?.rankLevel ?: 1)) {
                 val need = Config.RANKS.firstOrNull { it.unlockIds.contains(id) }
-                return false to ("需「" + (need?.name ?: "更高职级") + "」才能建")
+                return false to ("需「" + (need?.name ?: "更高官阶") + "」才能建")
             }
             val anchor = findServiceAnchor(id, x, y)
             val ax = anchor?.first ?: x
@@ -984,7 +984,7 @@ class World {
                 }
             }
             // 只有要派车出入的设施才必须临路（垃圾车/灵车/消防/警车/救护），
-            // 电厂、水塔、抽水站、排污厂这类靠管网输送的不再强制临路
+            // 电厂、水塔、水车坊、净水渠这类靠管网输送的不再强制临路
             if (s.needsRoad && s.category != Config.ServiceCat.AMENITY) {
                 var adjacent = false
                 outer@ for (yy in ay - 1..ay + s.sizeH) {
@@ -997,7 +997,7 @@ class World {
                 }
                 if (!adjacent) return false to (s.name + "要用车，需建在道路旁")
             }
-            // 抽水站/水厂/污水厂必须临水：取水与排放都要接水域
+            // 水车坊/水楼/污水楼必须临水：取水与排放都要接水域
             if (s.nearWater) {
                 var nearWater = false
                 outer2@ for (yy in ay - 1..ay + s.sizeH) {

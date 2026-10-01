@@ -7,8 +7,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 公交线路（对照拆解文档 7.1）
- * 点击公交站按顺序连线 → 确认成环/往返 → 公交车沿路网跑。
+ * 车马线路（对照拆解文档 7.1）
+ * 点击车马站按顺序连线 → 确认成环/往返 → 车马车沿路网跑。
  */
 class BusStopRef(val x: Int, val y: Int)
 
@@ -59,7 +59,7 @@ object Transit {
     }
 
     fun addDraftStop(x: Int, y: Int): Pair<Boolean, String?> {
-        val a = stopAnchor(x, y) ?: return false to "请点在公交站或地铁站上"
+        val a = stopAnchor(x, y) ?: return false to "请点在车马站或地道口上"
         if (draft.any { it.x == a.x && it.y == a.y }) return false to "该站已在草稿线路里"
         draft.add(a)
         return true to ("已加入站点 " + draft.size)
@@ -82,12 +82,12 @@ object Transit {
         if (idx < 0) return false to "线路不存在"
         val line = lines.removeAt(idx)
         vehicles.removeAll { it.lineId == id }
-        GameData.pushNews("公交停运", line.name + " 已拆除，车辆已撤回。", "交通")
+        GameData.pushNews("车马停运", line.name + " 已拆除，车马已撤回。", "交通")
         return true to (line.name + " 已拆除")
     }
 
     /**
-     * 公交站/地铁站被推平时调用：把该站从所有线路里摘掉。
+     * 车马站/地道口被推平时调用：把该站从所有线路里摘掉。
      * 掉到不足 2 站的线路自动停运（返回线路名，交给调用方提示）。
      */
     fun onStopRemoved(x: Int, y: Int): String? {
@@ -120,7 +120,7 @@ object Transit {
         lines.add(line)
         spawnBuses(line)
         draft.clear()
-        GameData.pushNews("公交开通", line.name + " 投入运营，缓解通勤拥堵。", "交通")
+        GameData.pushNews("车马开通", line.name + " 投入运转，缓解街市拥挤。", "交通")
         return true to (line.name + " 已开通")
     }
 
