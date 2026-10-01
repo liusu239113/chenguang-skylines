@@ -80,7 +80,7 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: "地产大亨：从荒土到繁华之城 · build ${{ github.run_number }}"
-          body: "正式签名 APK（com.dshx.game.she · 1.3.6），可直接安装。旧包名需先卸载。\n\n1.3.6 地产玩法 + 小屏适配：新增楼市行情指数、楼盘挂牌出售套现 / 回购、地皮转让；物业费改为按自持比例结算；新增全局 UI 缩放修复小屏 HUD 挤压。"
+          body: "正式签名 APK（com.dshx.game.she · 1.3.7），可直接安装。旧包名需先卸载。\n\n1.3.7 标题与素材统一完整游戏名「地产大亨：从荒土到繁华之城」；游戏内标题图改为完整两行标题。"
           files: android/app/build/outputs/apk/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
