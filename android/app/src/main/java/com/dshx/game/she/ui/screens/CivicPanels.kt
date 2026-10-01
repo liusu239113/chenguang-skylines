@@ -612,9 +612,10 @@ fun SharePanel() {
     // 分片二维码：城市大就切成多张，轮播显示
     val chunks = remember { com.dshx.game.she.ShareCode.exportChunks() }
     var qrIndex by remember { mutableStateOf(0) }
+    val totalChunks = chunks?.size ?: 0
     // 多张时自动轮播：对方举着手机不动就能连续扫完，不用手动翻页
     if (totalChunks > 1) {
-        LaunchedEffect(totalChunks) {
+        androidx.compose.runtime.LaunchedEffect(totalChunks) {
             while (true) {
                 kotlinx.coroutines.delay(2200)
                 qrIndex = (qrIndex + 1) % totalChunks
@@ -625,7 +626,7 @@ fun SharePanel() {
         chunks?.map { com.dshx.game.she.QrCode.encode(it, 640) }
     }
     val qrBitmap = qrBitmaps?.getOrNull(qrIndex.coerceIn(0, (qrBitmaps.size - 1).coerceAtLeast(0)))
-    val totalChunks = chunks?.size ?: 0
+    val code = chunks?.firstOrNull()
     var scanning by remember { mutableStateOf(false) }
     // 选城市存档文件（SAF 系统文件选择器，不需要存储权限）
     val pickFile = androidx.activity.compose.rememberLauncherForActivityResult(
