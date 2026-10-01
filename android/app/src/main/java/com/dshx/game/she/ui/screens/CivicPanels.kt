@@ -530,12 +530,41 @@ fun SettingsPanel() {
                 if (SpeedBoost.isActive()) "加速剩余 ${SpeedBoost.remainingSec() / 60} 分 ${SpeedBoost.remainingSec() % 60} 秒" else "2x、3x 都要看广告解锁 20 分钟",
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
-            Text("看广告能拿到这些（看完才到账，不是空点）：", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("①每周礼包 +120 万  ②经营收入加倍 12 天  ③民心安抚 满意+8  ④营造拨款 +90 万。缺钱修路时还会弹应急拨款。银行低息贷也在左上【银】。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
-            AdBtn("每周礼包 +120万", !AdOffers.weeklyClaimed, act, "daily")
-            AdBtn("经营收入加倍 12 天", true, act, "doubletax")
-            AdBtn("民心安抚 满意+8", true, act, "happy")
-            AdBtn("营造拨款 +90万", true, act, "grant")
+            // 分享码：把自己的城市导出，或导入别人的城市
+            Text("城市分享码", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text(
+                "生成一串分享码发给别人，对方导入后就能进入和你一模一样的城市（地形、建筑、道路全部还原）。",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.accentBlue.toColor(), RoundedCornerShape(20.dp))
+                    .clickable {
+                        Sfx.play("sfx_click")
+                        AppState.settingsOpen = false
+                        AppState.shareOpen = true
+                    },
+                contentAlignment = Alignment.Center
+            ) { Text("分享 / 导入城市", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+
+            Text(
+                "广告奖励已移到左侧【福】按钮，那里领更快。银行低息贷在【银】。",
+                fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(C.accentGold.toColor(), RoundedCornerShape(20.dp))
+                    .clickable {
+                        Sfx.play("sfx_click")
+                        AppState.settingsOpen = false
+                        AppState.benefitOpen = true
+                    },
+                contentAlignment = Alignment.Center
+            ) { Text("打开福利中心", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -562,6 +591,281 @@ fun SettingsPanel() {
                 contentAlignment = Alignment.Center
             ) { Text("关闭", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
             if (live < 0) Text("")
+        }
+    }
+}
+
+/**
+ * 分享 / 导入城市。
+ * 导出：把当前城市压成分享码，复制发给别人。
+ * 导入：粘贴别人的分享码，写进空闲槽位后载入。
+ */
+@Composable
+fun SharePanel() {
+    val C = Config.COLORS
+    val ctx = LocalContext.current
+    val s = GameData.current
+    var importText by remember { mutableStateOf("") }
+    var msg by remember { mutableStateOf<String?>(null) }
+    // 导出码：进入面板时生成一次
+    val code = remember { com.dshx.game.she.ShareCode.export() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .clickable { AppState.shareOpen = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.90f)
+                .heightIn(max = 520.dp)
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(16.dp)
+                .clickable(enabled = false) {}
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "分享 / 导入城市", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                        .clickable { AppState.shareOpen = false }.padding(4.dp)
+                )
+            }
+
+            // ---- 导出 ----
+            Text("① 导出我的城市", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            if (code == null) {
+                Text("当前没有可导出的城市", fontSize = 11.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
+            } else {
+                Text(
+                    "把下面这串码发给别人，对方在「导入城市」里粘贴即可进入你的城市。",
+                    fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 130.dp)
+                        .background(C.chipBg.toColor(), RoundedCornerShape(10.dp))
+                        .padding(8.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        code, fontSize = 9.sp, color = C.textDark.toColor(),
+                        fontFamily = LocalGameFont.current
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
+                        .background(C.accentGreen.toColor(), RoundedCornerShape(19.dp))
+                        .clickable {
+                            Sfx.play("sfx_click")
+                            try {
+                                val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                cm.setPrimaryClip(android.content.ClipData.newPlainText("sharecode", code))
+                                msg = "分享码已复制到剪贴板"
+                            } catch (t: Throwable) {
+                                msg = "复制失败，请手动长按选择"
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) { Text("复制分享码", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+                if (s \!= null) {
+                    Text(
+                        "含：${s.cityName} · 人口 ${s.population.toInt()} · 幸福 ${kotlin.math.floor(s.happiness).toInt()}",
+                        fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                    )
+                }
+            }
+
+            // ---- 导入 ----
+            Text("② 导入别人的城市", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text(
+                "粘贴别人给的分享码，会占用一个空存档槽（最多 6 个）。",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 70.dp, max = 110.dp)
+                    .background(C.chipBg.toColor(), RoundedCornerShape(10.dp))
+                    .padding(6.dp)
+            ) {
+                androidx.compose.material3.TextField(
+                    value = importText,
+                    onValueChange = { importText = it },
+                    placeholder = { Text("在此粘贴分享码（CS1. 开头）", fontSize = 11.sp, fontFamily = LocalGameFont.current) },
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontSize = 10.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                    ),
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        focusedContainerColor = C.chipBg.toColor(),
+                        unfocusedContainerColor = C.chipBg.toColor(),
+                        focusedIndicatorColor = C.accentGreen.toColor(),
+                        unfocusedIndicatorColor = C.border2.toColor(),
+                        cursorColor = C.accentGreen.toColor()
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .background(C.accentBlue.toColor(), RoundedCornerShape(19.dp))
+                    .clickable {
+                        Sfx.play("sfx_click")
+                        val text = importText.trim()
+                        if (text.isEmpty()) {
+                            msg = "请先粘贴分享码"
+                            return@clickable
+                        }
+                        if (\!com.dshx.game.she.ShareCode.looksLikeCode(text)) {
+                            msg = "分享码格式不对（应以 CS1. 开头）"
+                            return@clickable
+                        }
+                        val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
+                            .firstOrNull { \!com.dshx.game.she.SaveManager.hasSlot(it) }
+                        val target = free ?: AppState.activeSlot
+                        if (com.dshx.game.she.ShareCode.import(text, target)) {
+                            if (com.dshx.game.she.SaveManager.load(target)) {
+                                AppState.activeSlot = target
+                                com.dshx.game.she.Prefs.lastSlot = target
+                                AppState.shareOpen = false
+                                AppState.menuOpen = false
+                                MapRef.view?.resetCamera()
+                                MapRef.view?.clearSelection()
+                                MapRef.view?.setToast("已载入分享的城市（槽位 " + (target + 1) + "）")
+                            } else {
+                                msg = "导入失败：存档无法载入"
+                            }
+                        } else {
+                            msg = "导入失败：分享码已损坏"
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) { Text("导入并载入", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+
+            msg?.let {
+                Text(it, fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
+            }
+        }
+    }
+}
+
+/**
+ * 福利中心（广告入口）。
+ * 放在左侧「福」按钮，玩家一眼能看到，比藏在设置里转化高得多。
+ * 分成两组：经营奖励（给钱/民心）与便利工具（加速/清运/修复/扩圈）。
+ */
+@Composable
+fun BenefitPanel() {
+    val C = Config.COLORS
+    val act = LocalContext.current as? Activity
+    val live = AppState.liveTick
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .clickable { AppState.benefitOpen = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.88f)
+                .heightIn(max = 540.dp)
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(16.dp)
+                .clickable(enabled = false) {}
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "福利中心", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                        .clickable { AppState.benefitOpen = false }.padding(4.dp)
+                )
+            }
+            Text(
+                "看广告领取，看完才到账。奖励即时生效，不用等。",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+
+            Text("经营奖励", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.accentGold.toColor(), fontFamily = LocalGameFont.current)
+            BenefitBtn("每周礼包 +120 万", if (AdOffers.weeklyClaimed) "本周已领" else "每周一次", act, "daily", \!AdOffers.weeklyClaimed)
+            BenefitBtn("经营收入加倍 12 天", "短期进项翻倍", act, "doubletax", true)
+            BenefitBtn("民心安抚 +8", "幸福度立刻回升", act, "happy", true)
+            BenefitBtn("营造拨款 +90 万", "应急用", act, "grant", true)
+
+            Text("便利工具", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
+            BenefitBtn("3x 加速 30 分钟", if (SpeedBoost.isActive()) "生效中 · 剩余 ${SpeedBoost.remainingSec() / 60} 分" else "省时间", act, "speed", true)
+            BenefitBtn("全城垃圾清运", "立刻清空积压", act, "cleartrash", true)
+            BenefitBtn("修复废弃建筑", "恢复入住", act, "repair", true)
+            BenefitBtn("解锁圈外扩一圈", "立刻扩地", act, "unlock", true)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .background(C.chipBg.toColor(), RoundedCornerShape(19.dp))
+                    .clickable { AppState.benefitOpen = false },
+                contentAlignment = Alignment.Center
+            ) { Text("关闭", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
+            if (live < 0) Text("")
+        }
+    }
+}
+
+/** 福利中心里的一个广告按钮 */
+@Composable
+private fun BenefitBtn(title: String, sub: String, act: Activity?, kind: String, enabled: Boolean) {
+    val C = Config.COLORS
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                if (enabled) C.accentGold.toColor() else C.border2.toColor(),
+                RoundedCornerShape(14.dp)
+            )
+            .clickable(enabled = enabled) {
+                if (act == null) return@clickable
+                Sfx.play("sfx_click", 0.5f)
+                Ads.reward(act, { AdOffers.grant(kind) })
+            }
+            .padding(horizontal = 14.dp, vertical = 9.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                title, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                color = if (enabled) Color.White else C.textMid.toColor(),
+                fontFamily = LocalGameFont.current
+            )
+            Text(
+                sub, fontSize = 10.sp,
+                color = if (enabled) Color.White.copy(alpha = 0.85f) else C.textFaint.toColor(),
+                fontFamily = LocalGameFont.current
+            )
         }
     }
 }

@@ -63,6 +63,8 @@ object AppState {
     var privacyOk by mutableStateOf(false)
     var loggedIn by mutableStateOf(false)
     var settingsOpen by mutableStateOf(false)
+    var shareOpen by mutableStateOf(false)
+    var benefitOpen by mutableStateOf(false)
     var civicOpen by mutableStateOf(false)
     var complaintOpen by mutableStateOf(false)
     var achievementOpen by mutableStateOf(false)

@@ -24,6 +24,13 @@ object SpeedBoost {
         p.edit().putLong("expire", System.currentTimeMillis() + DURATION_MS).apply()
     }
 
+    /** 指定分钟数解锁（福利广告用）。若已在生效中则从当前到期时间往后叠加。 */
+    fun grant(minutes: Int) {
+        val now = System.currentTimeMillis()
+        val base = maxOf(now, expireAt())
+        p.edit().putLong("expire", base + minutes * 60_000L).apply()
+    }
+
     fun allow(idx: Int): Boolean {
         if (idx <= 1) return true
         return isActive()

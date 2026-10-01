@@ -89,8 +89,8 @@ fun MainMenuContent(mapView: MapRenderView) {
 private fun MainMenuScreen(mapView: MapRenderView) {
     val C = Config.COLORS
     val saveTick = AppState.saveTick
-    val recent = (0..2).firstOrNull { it == com.dshx.game.she.Prefs.lastSlot && SaveManager.hasSlot(it) }
-        ?: (0..2).firstOrNull { SaveManager.hasSlot(it) }
+    val recent = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT).firstOrNull { it == com.dshx.game.she.Prefs.lastSlot && SaveManager.hasSlot(it) }
+        ?: (0 until com.dshx.game.she.SaveManager.SLOT_COUNT).firstOrNull { SaveManager.hasSlot(it) }
     val recentMeta = recent?.let { SaveManager.meta(it) }
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
@@ -267,7 +267,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
 
             // 地图种子
             Text(
-                "地图种子（不同种子不同地形）", fontSize = 12.sp, color = C.textMid.toColor(),
+                "地图种子（同一种子必定生成同一张地图，可分享给他人）", fontSize = 12.sp, color = C.textMid.toColor(),
                 fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth()
             )
             Row(
@@ -306,6 +306,83 @@ private fun NewGameScreen(mapView: MapRenderView) {
                 }
             }
 
+            // 精选种子：点一下直接套用，方便论坛分享地形
+            var featuredOpen by remember { mutableStateOf(false) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "精选地形（官方挑选，可分享给他人）", fontSize = 12.sp, color = C.textMid.toColor(),
+                    fontFamily = LocalGameFont.current
+                )
+                Box(
+                    modifier = Modifier
+                        .background(C.chipBg.toColor(), RoundedCornerShape(10.dp))
+                        .clickable { featuredOpen = !featuredOpen }
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        if (featuredOpen) "收起" else "展开",
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
+                    )
+                }
+            }
+            val picked = com.dshx.game.she.SeedLib.parse(seedText)
+            val pickedEntry = picked?.let { com.dshx.game.she.SeedLib.find(it) }
+            if (pickedEntry != null) {
+                Text(
+                    "当前：" + pickedEntry.name + " · " + pickedEntry.tag + " · " + pickedEntry.desc,
+                    fontSize = 10.sp, color = C.accentGreen.toColor(),
+                    fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth()
+                )
+            }
+            if (featuredOpen) {
+                for (row in com.dshx.game.she.SeedLib.FEATURED.chunked(2)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (e in row) {
+                            val on = picked == e.seed
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (on) C.accentSoftBg.toColor() else C.chipBg.toColor(),
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (on) C.accentRed.toColor() else C.border2.toColor(),
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable {
+                                        Sfx.play("sfx_click", 0.5f)
+                                        seedText = e.seed.toString()
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Column {
+                                    Text(
+                                        e.name, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                        color = if (on) C.accentRed.toColor() else C.textDark.toColor(),
+                                        fontFamily = LocalGameFont.current
+                                    )
+                                    Text(
+                                        e.tag + " · " + e.seed,
+                                        fontSize = 9.sp, color = C.textMid.toColor(),
+                                        fontFamily = LocalGameFont.current
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Text(
                 "存档槽位（新游戏会立刻写入该槽）", fontSize = 12.sp, color = C.textMid.toColor(),
                 fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth()
@@ -314,7 +391,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                for (i in 0..2) {
+                for (i in 0 until com.dshx.game.she.SaveManager.SLOT_COUNT) {
                     val meta = SaveManager.meta(i)
                     val active = slot == i
                     Box(
@@ -499,7 +576,7 @@ private fun SlotsScreen(mapView: MapRenderView) {
                 "存档管理", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
-            for (slot in 0..2) {
+            for (slot in 0 until com.dshx.game.she.SaveManager.SLOT_COUNT) {
                 val meta = SaveManager.meta(slot)
                 Column(
                     modifier = Modifier

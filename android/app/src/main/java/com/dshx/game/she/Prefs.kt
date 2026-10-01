@@ -33,7 +33,7 @@ object Prefs {
 
     var lastSlot: Int
         get() = p.getInt("last_slot", 0)
-        set(v) { p.edit().putInt("last_slot", v.coerceIn(0, 2)).apply() }
+        set(v) { p.edit().putInt("last_slot", v.coerceIn(0, SaveManager.SLOT_COUNT - 1)).apply() }
 
     /** 字体：false=手写体（默认），true=系统黑体 */
     var useSystemFont: Boolean

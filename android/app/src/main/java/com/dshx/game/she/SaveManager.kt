@@ -32,6 +32,9 @@ data class SlotMeta(
 
 object SaveManager {
 
+    /** 存档槽位数量（多存档，方便玩家同时经营多座城市） */
+    const val SLOT_COUNT = 6
+
     private lateinit var dir: File
 
     fun init(context: Context) {
@@ -53,12 +56,12 @@ object SaveManager {
             val j = JSONObject(f.readText())
             SlotMeta(
                 true,
-                j.optString("cityName", "晨光市"),
+                j.optString("cityName", "星野市"),
                 j.optInt("population", 0),
                 j.optDouble("funds", 0.0),
                 j.optString("dateLabel", ""),
                 f.lastModified(),
-                j.optString("levelName", "村庄"),
+                j.optString("levelName", "村落"),
                 j.optInt("playMinutes", 0)
             )
         } catch (t: Throwable) {
@@ -68,7 +71,15 @@ object SaveManager {
 
     fun save(slot: Int) {
         val s = GameData.current ?: return
-        val w = World.current ?: return
+        val json = buildJson() ?: return
+        path(slot).writeText(json.toString())
+        s.lastSavedLabel = GameData.dateLabel() + " · 槽位 " + (slot + 1)
+    }
+
+    /** 构建完整存档 JSON（save 与分享码共用，保证字段永远一致） */
+    fun buildJson(): JSONObject? {
+        val s = GameData.current ?: return null
+        val w = World.current ?: return null
         val json = JSONObject()
         json.put("seed", GameData.seed)
         json.put("difficulty", GameData.difficultyKey)
@@ -266,8 +277,12 @@ object SaveManager {
         json.put("busLines", Transit.toJson())
         json.put("networks", Networks.toJson())
 
+        return json
+    }
+
+    /** 直接写一份存档 JSON（分享码导入用，跳过正常序列化流程） */
+    fun writeRaw(slot: Int, json: JSONObject) {
         path(slot).writeText(json.toString())
-        s.lastSavedLabel = GameData.dateLabel() + " · 槽位 " + (slot + 1)
     }
 
     fun load(slot: Int): Boolean {

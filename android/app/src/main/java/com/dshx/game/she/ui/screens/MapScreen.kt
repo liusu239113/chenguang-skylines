@@ -373,7 +373,8 @@ fun MapScreenContent(mapView: MapRenderView) {
 
         val overlayOpen = AppState.policyOpen || AppState.helpOpen || AppState.dataOpen || AppState.menuOpen ||
             AppState.settingsOpen || AppState.civicOpen || AppState.complaintOpen || AppState.achievementOpen ||
-            AppState.adOfferOpen || AppState.happyOpen || AppState.demandOpen || AppState.bankOpen || AppState.ledgerOpen
+            AppState.adOfferOpen || AppState.happyOpen || AppState.demandOpen || AppState.bankOpen || AppState.ledgerOpen ||
+            AppState.benefitOpen || AppState.shareOpen
         if (!overlayOpen) {
             Column(
                 modifier = Modifier
@@ -382,6 +383,11 @@ fun MapScreenContent(mapView: MapRenderView) {
                     .padding(start = 10.dp, top = 168.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // 福利中心（广告入口）：放在最上面，玩家一眼能看到
+                UIHelper.RoundButton("福", size = 40.dp, fontSize = 16.sp) {
+                    Sfx.play("sfx_click", 0.6f)
+                    AppState.benefitOpen = !AppState.benefitOpen
+                }
                 UIHelper.RoundButton("数", size = 40.dp, fontSize = 16.sp) {
                     Sfx.play("sfx_click", 0.6f)
                     AppState.dataOpen = !AppState.dataOpen
@@ -949,6 +955,8 @@ fun MapScreenContent(mapView: MapRenderView) {
         if (AppState.civicOpen) CivicPanel()
         if (AppState.achievementOpen) AchievementPanel()
         if (AppState.settingsOpen) SettingsPanel()
+        if (AppState.shareOpen) SharePanel()
+        if (AppState.benefitOpen) BenefitPanel()
         if (AppState.complaintOpen && Civic.pending != null) ComplaintPanel()
         if (AppState.adOfferOpen) AdOfferDialog()
         if (AppState.bankOpen) BankPanel()
