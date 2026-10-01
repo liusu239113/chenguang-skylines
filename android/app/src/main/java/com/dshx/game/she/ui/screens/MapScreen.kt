@@ -53,6 +53,7 @@ import com.dshx.game.she.SpeedBoost
 import com.dshx.game.she.ui.UIHelper
 import com.dshx.game.she.ui.toColor
 import com.dshx.game.she.ui.theme.LocalGameFont
+import com.dshx.game.she.Prefs
 import com.dshx.game.she.world.Citizens
 import com.dshx.game.she.world.CitySystems
 import com.dshx.game.she.world.Growth
@@ -2631,15 +2632,16 @@ private fun SlotPickerPanel() {
             "覆盖槽位 " + (confirmSave + 1) + "？",
             "该槽位已有存档（" + SaveManager.meta(confirmSave).cityName + "），覆盖后原存档会丢失。",
             "覆盖保存",
+            onOk = {
+                SaveManager.save(confirmSave)
+                AppState.activeSlot = confirmSave
+                Prefs.lastSlot = confirmSave
+                AppState.saveTick++
+                MapRef.view?.setToast("已覆盖保存到槽位 " + (confirmSave + 1))
+                confirmSave = -1
+            },
             onCancel = { confirmSave = -1 }
-        ) {
-            SaveManager.save(confirmSave)
-            AppState.activeSlot = confirmSave
-            Prefs.lastSlot = confirmSave
-            AppState.saveTick++
-            MapRef.view?.setToast("已覆盖保存到槽位 " + (confirmSave + 1))
-            confirmSave = -1
-        }
+        )
     }
     // 载入确认
     if (confirmLoad >= 0) {
@@ -2647,21 +2649,22 @@ private fun SlotPickerPanel() {
             "载入槽位 " + (confirmLoad + 1) + "？",
             "当前未保存的进度会丢失。载入后将进入该槽位的城市。",
             "载入",
+            onOk = {
+                val s = confirmLoad
+                confirmLoad = -1
+                if (SaveManager.load(s)) {
+                    AppState.activeSlot = s
+                    Prefs.lastSlot = s
+                    AppState.overlay = ""
+                    AppState.mode = "view"
+                    AppState.slotPickerOpen = false
+                    MapRef.view?.resetCamera()
+                    MapRef.view?.clearSelection()
+                    MapRef.view?.setToast("已载入槽位 " + (s + 1))
+                }
+            },
             onCancel = { confirmLoad = -1 }
-        ) {
-            val s = confirmLoad
-            confirmLoad = -1
-            if (SaveManager.load(s)) {
-                AppState.activeSlot = s
-                Prefs.lastSlot = s
-                AppState.overlay = ""
-                AppState.mode = "view"
-                AppState.slotPickerOpen = false
-                MapRef.view?.resetCamera()
-                MapRef.view?.clearSelection()
-                MapRef.view?.setToast("已载入槽位 " + (s + 1))
-            }
-        }
+        )
     }
     // 删除确认
     if (confirmDelete >= 0) {
@@ -2669,13 +2672,14 @@ private fun SlotPickerPanel() {
             "删除槽位 " + (confirmDelete + 1) + "？",
             "该存档将被永久删除，无法恢复。",
             "删除",
+            onOk = {
+                SaveManager.delete(confirmDelete)
+                AppState.saveTick++
+                MapRef.view?.setToast("已删除槽位 " + (confirmDelete + 1))
+                confirmDelete = -1
+            },
             onCancel = { confirmDelete = -1 }
-        ) {
-            SaveManager.delete(confirmDelete)
-            AppState.saveTick++
-            MapRef.view?.setToast("已删除槽位 " + (confirmDelete + 1))
-            confirmDelete = -1
-        }
+        )
     }
 }
 
@@ -2827,12 +2831,13 @@ fun ImportSlotPicker() {
             "覆盖槽位 " + (confirmSlot + 1) + "？",
             "该槽位已有存档（" + SaveManager.meta(confirmSlot).cityName + "），覆盖后原存档会丢失。",
             "覆盖",
+            onOk = {
+                val s = confirmSlot
+                confirmSlot = -1
+                applyImport(s)
+            },
             onCancel = { confirmSlot = -1 }
-        ) {
-            val s = confirmSlot
-            confirmSlot = -1
-            applyImport(s)
-        }
+        )
     }
 }
 
