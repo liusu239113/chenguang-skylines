@@ -53,6 +53,7 @@ import com.dshx.game.she.SpeedBoost
 import com.dshx.game.she.ui.UIHelper
 import com.dshx.game.she.ui.toColor
 import com.dshx.game.she.ui.theme.LocalGameFont
+import com.dshx.game.she.PendingImport
 import com.dshx.game.she.Prefs
 import com.dshx.game.she.world.Citizens
 import com.dshx.game.she.world.CitySystems
