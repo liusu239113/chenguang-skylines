@@ -20,7 +20,7 @@ class EmergencyCar(
 )
 
 /**
- * 污水 / 垃圾车 / 消防救护车 / 治安片区管束中心 / 殡葬 / 分层污染
+ * 污水 / 垃圾车 / 消防救护车 / 片区巡防 / 安息园 / 分层污染
  */
 object CitySystems {
 
@@ -123,7 +123,7 @@ object CitySystems {
         val dumpN = World.allBuildings().count { it.b.service == "landfill" || it.b.service == "incinerator" || it.b.service == "waste_plant" }
         if (dumpN > 0 && trash > 20) dispatch("garbage", min(3, dumpN * 2))
 
-        // 死亡 / 殡葬
+        // 死亡 / 安息园
         val deaths = max(0, (s.population * 0.004 * (1.3 - s.health / 140.0)).toInt())
         s.deathsPending += deaths
         val cremate = World.allBuildings().count { it.b.service == "crematorium" } * 12
@@ -132,7 +132,7 @@ object CitySystems {
         s.cemeteryUsed = min(cemeteryCap, s.cemeteryUsed + max(0, bury - cremate) - cremate)
         if (s.deathsPending > 20) {
             s.health = max(20.0, s.health - 1.5)
-            if (s.day % 7 == 0) GameData.pushNews("遗体堆积", "殡葬能力不足，健康下降。", "民生")
+            if (s.day % 7 == 0) GameData.pushNews("安息位不足", "安息园容量不足，健康下降。", "经营")
         }
         val hearseCap = World.allBuildings().count { it.b.service == "cemetery" } * 1 +
             World.allBuildings().count { it.b.service == "crematorium" } * 2
@@ -427,7 +427,7 @@ object CitySystems {
     fun label(kind: String): String = when (kind) {
         "fire" -> "消防车"
         "ambulance" -> "救护车"
-        "police" -> "警车"
+        "police" -> "物业巡防车"
         "garbage" -> "垃圾车"
         "hearse" -> "灵车"
         else -> "公务车"
@@ -436,7 +436,7 @@ object CitySystems {
     fun job(kind: String): String = when (kind) {
         "fire" -> "消防队员"
         "ambulance" -> "急救司机"
-        "police" -> "巡警"
+        "police" -> "巡防员"
         "garbage" -> "清运司机"
         "hearse" -> "殡仪司机"
         else -> "园区司机"

@@ -520,7 +520,7 @@ object GameData {
         val policy: Double, val commute: Double, val jobs: Double, val target: Double
     )
 
-    /** 幸福度分解（对照拆解文档：健康/教育/通勤/就业/治安/方案） */
+    /** 幸福度分解（对照拆解文档：健康/教育/通勤/就业/巡防/方案） */
     fun happinessBreakdown(): HappyBreakdown {
         val s = current ?: return HappyBreakdown(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         val st = World.stats()
@@ -660,7 +660,7 @@ object GameData {
                 b.abandoned = true
                 b.residents = 0
                 b.workers = 0
-                pushNews("建筑废弃", "一处" + (Config.GROWN[b.zone]?.name ?: "建筑") + "因长期断电/缺水被弃置。", "城建")
+                pushNews("建筑废弃", "一处" + (Config.GROWN[b.zone]?.name ?: "建筑") + "因长期断电/缺水被弃置。", "营建")
             }
             if (b.abandoned) {
                 if (powered || watered || s.happiness > 35 || b.ageDays < 45) {
@@ -836,7 +836,7 @@ object GameData {
         post("spend", "service", "城区养护", s.lastGrownUpkeep)
         if (s.funds < 0) {
             s.bankruptDays += 1
-            if (s.bankruptDays == 1) pushNews("账面告急", "金库见底，公共服务将收缩。尽快扩收益来源或贷款。", "账面")
+            if (s.bankruptDays == 1) pushNews("账面告急", "金库见底，片区服务将收缩。尽快扩收益来源或贷款。", "账面")
         } else {
             s.bankruptDays = 0
         }
@@ -1023,7 +1023,7 @@ object GameData {
             monthFlash = true
             val net30 = if (net >= 0) "+" else ""
             pushNews(
-                monthLabel() + " 城建月报",
+                monthLabel() + " 营建月报",
                 String.format(
                     "人口 %d · 幸福度 %d · 本日收支 %s%.1f万 · 建筑 %d 栋",
                     s.population.toInt(), floor(s.happiness).toInt(), net30, net,
@@ -1193,7 +1193,7 @@ object GameData {
                     val dead = Transit.onStopRemoved(x, y)
                     if (dead != null) pushNews("公交停运", dead + " 因站点不足 2 个已自动停运。", "交通")
                 }
-                pushNews("拆除设施", "退还部分造价。", "城建")
+                pushNews("拆除设施", "退还部分造价。", "营建")
             }
             "grown" -> {
                 s.funds += 1
@@ -1237,7 +1237,7 @@ object GameData {
         pushNews(
             cfg.name + " 建成",
             String.format("在 (%d,%d) 建成 %s，耗资 %d万。", anchor.first, anchor.second, cfg.name, pay),
-            "城建"
+            "营建"
         )
         return true to (cfg.name + "已建成，扣 " + pay + " 万")
     }

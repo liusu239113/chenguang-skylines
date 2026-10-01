@@ -109,7 +109,7 @@ object AdOffers {
                 MapRef.view?.setToast(if (n > 0) "升级提速：$n 栋建筑升了一级" else "全城建筑已是最高级")
             }
             "relief" -> {
-                // 纾困清运：清空垃圾 + 修复废弃楼，一次解决两个民生痛点
+                // 纾困清运：清空垃圾 + 修复废弃楼，一次解决两个经营痛点
                 var trash = 0
                 var fixed = 0
                 for (e in World.allBuildings()) {

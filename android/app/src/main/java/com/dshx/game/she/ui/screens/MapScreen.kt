@@ -607,7 +607,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                         if (unlocked("clinic")) coverInfo(sel.first, sel.second, Config.ServiceCat.HEALTH, "医疗")
                         if (unlocked("school")) coverInfo(sel.first, sel.second, Config.ServiceCat.EDUCATION, "教育")
                         if (unlocked("fire_station") || unlocked("police")) {
-                            coverInfo(sel.first, sel.second, Config.ServiceCat.SAFETY, "治安消防")
+                            coverInfo(sel.first, sel.second, Config.ServiceCat.SAFETY, "巡防消防")
                         }
                         if (tb.zone == "office") {
                             val eduOk = (GameData.current?.education ?: 0.0) >= 28.0 || Civic.schoolRate >= 0.48
@@ -657,7 +657,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 )
                             }
                             if (cfg.garbageCap > 0) UIHelper.InfoRow("收运能力", cfg.garbageCap.toString() + " 栋")
-                            if (cfg.deathCap > 0) UIHelper.InfoRow("殡葬容量", cfg.deathCap.toString())
+                            if (cfg.deathCap > 0) UIHelper.InfoRow("安息容量", cfg.deathCap.toString())
                             if (cfg.pollutionRadius > 0) {
                                 UIHelper.InfoRow("污染扩散", cfg.pollution.toString() + " · 半径 " + cfg.pollutionRadius + " 格（距离衰减）")
                             }
@@ -1039,9 +1039,9 @@ private fun DrawerContent(mapView: MapRenderView) {
                     "垃圾" to Config.ServiceCat.GARBAGE,
                     "医疗" to Config.ServiceCat.HEALTH,
                     "教育" to Config.ServiceCat.EDUCATION,
-                    "消防" to Config.ServiceCat.SAFETY,
+                    "消防巡防" to Config.ServiceCat.SAFETY,
                     "交通" to Config.ServiceCat.TRANSIT,
-                    "殡葬" to Config.ServiceCat.DEATH,
+                    "安息园" to Config.ServiceCat.DEATH,
                     "地标" to Config.ServiceCat.LANDMARK
                 )
                 for ((title, cat) in groups) {
@@ -1543,9 +1543,9 @@ private fun overlayLabel(cat: String): String = when (cat) {
     Config.ServiceCat.GARBAGE -> "垃圾"
     Config.ServiceCat.HEALTH -> "医疗"
     Config.ServiceCat.EDUCATION -> "教育"
-    Config.ServiceCat.SAFETY -> "治安消防"
+    Config.ServiceCat.SAFETY -> "巡防消防"
     Config.ServiceCat.TRANSIT -> "公交轨道"
-    Config.ServiceCat.DEATH -> "殡葬"
+    Config.ServiceCat.DEATH -> "安息园"
     Config.ServiceCat.AMENITY -> "公园广场"
     Config.ServiceCat.LANDMARK -> "地标"
     "traffic" -> "拥堵"
@@ -1619,10 +1619,10 @@ private fun HappyPanel() {
             Text("污染 ${bd.pollution.toInt()}：工厂、供电站、垃圾堆会拉低。绿化、种树、把住工分开能缓解。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("覆盖 ${bd.coveragePenalty.toInt()}：住宅要在电/水/垃圾圈里，圈外会扣分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("收费率 ${bd.taxPenalty.toInt()}：收费率高于 10% 会扣分。点【策】可调。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("事件 ${if (bd.event >= 0) "+" else ""}${bd.event.toInt()}：客户反馈和城建事件。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("方案 ${if (bd.policy >= 0) "+" else ""}${bd.policy.toInt()}：民生改善、绿化行动等会加分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("事件 ${if (bd.event >= 0) "+" else ""}${bd.event.toInt()}：客户反馈和营建事件。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("方案 ${if (bd.policy >= 0) "+" else ""}${bd.policy.toInt()}：福利改善、绿化行动等会加分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("通勤 ${if (bd.commute >= 0) "+" else ""}${bd.commute.toInt()}：路堵会扣，公交/地铁能加。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("就业/健康/教育 ${if (bd.jobs >= 0) "+" else ""}${bd.jobs.toInt()}：商工办岗位、医院学校、治安都算在这里。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("就业/健康/教育 ${if (bd.jobs >= 0) "+" else ""}${bd.jobs.toInt()}：商工办岗位、医院学校、巡防都算在这里。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2061,8 +2061,8 @@ private fun DataPanel() {
                 CovBar("垃圾", cov.garbage)
                 CovBar("医疗", cov.health)
                 CovBar("教育", cov.education)
-                CovBar("治安", cov.safety)
-                CovBar("殡葬", cov.death)
+                CovBar("巡防", cov.safety)
+                CovBar("安息", cov.death)
                 Text(
                     "覆盖按设施半径对齐，不是线缆。点下方按钮可单独看每一类圈到了哪一坨建筑。",
                     fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
@@ -2078,13 +2078,13 @@ private fun DataPanel() {
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "治安 ${s.crime.toInt()} · 垃圾积压 ${s.garbageBacklog} · 污水覆盖 ${(s.sewerCoverage * 100).toInt()}% · 待安葬 ${s.deathsPending}",
+                "巡防热度 ${s.crime.toInt()} · 垃圾积压 ${s.garbageBacklog} · 污水覆盖 ${(s.sewerCoverage * 100).toInt()}% · 待安息 ${s.deathsPending}",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text("服务开支", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
             TaxSlider("医疗开支", s.budgetHealth, 50, 150) { s.budgetHealth = it; AppState.bumpLive() }
             TaxSlider("教育开支", s.budgetEdu, 50, 150) { s.budgetEdu = it; AppState.bumpLive() }
-            TaxSlider("治安开支", s.budgetSafety, 50, 150) { s.budgetSafety = it; AppState.bumpLive() }
+            TaxSlider("巡防开支", s.budgetSafety, 50, 150) { s.budgetSafety = it; AppState.bumpLive() }
             TaxSlider("公交开支", s.budgetTransit, 50, 150) { s.budgetTransit = it; AppState.bumpLive() }
 
             // 幸福度根因

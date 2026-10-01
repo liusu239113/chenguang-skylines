@@ -72,7 +72,7 @@ class Building {
     var abandoned: Boolean = false
     var ageDays: Int = 0
     var garbage: Int = 0              // 建筑垃圾堆积
-    var crime: Int = 0                // 建筑治安热度
+    var crime: Int = 0                // 建筑巡防热度
     // service
     var service: String? = null
     var ax: Int = 0
@@ -983,7 +983,7 @@ class World {
                     if (b != null && (b.isService || !b.abandoned)) return false to "该位置被占用"
                 }
             }
-            // 只有要派车出入的设施才必须临路（垃圾车/灵车/消防/警车/救护），
+            // 只有要派车出入的设施才必须临路（垃圾车/灵车/消防/巡防车/救护），
             // 供电站、水塔、抽水站、排污厂这类靠管网输送的不再强制临路
             if (s.needsRoad && s.category != Config.ServiceCat.AMENITY) {
                 var adjacent = false
@@ -1317,7 +1317,7 @@ class World {
             // 电力/供水：接入「道路预埋管线 + 地下线缆/管线」即通，不再看厂站半径
             if (category == Config.ServiceCat.POWER) return Networks.isPowered(x, y)
             if (category == Config.ServiceCat.WATER) return Networks.isWatered(x, y)
-            // 垃圾/殡葬：有产能即全城可服务（靠车辆沿路收运），不再看半径
+            // 垃圾/安息园：有产能即全城可服务（靠车辆沿路收运），不再看半径
             if (category == Config.ServiceCat.GARBAGE) {
                 return Networks.garbageCapacity() > 0 && Networks.isRoadLinked(x, y)
             }
@@ -1336,7 +1336,7 @@ class World {
         }
 
         fun coveringFacility(x: Int, y: Int, category: String): BuildingEntry? {
-            // 电网/水网/垃圾/殡葬：接入即算覆盖，返回最近的相关设施
+            // 电网/水网/垃圾/安息园：接入即算覆盖，返回最近的相关设施
             if (category == Config.ServiceCat.POWER && !Networks.isPowered(x, y)) return null
             if (category == Config.ServiceCat.WATER && !Networks.isWatered(x, y)) return null
             if (category == Config.ServiceCat.GARBAGE && Networks.garbageCapacity() <= 0) return null

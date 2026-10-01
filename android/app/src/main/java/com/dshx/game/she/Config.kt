@@ -5,8 +5,8 @@ import kotlin.math.min
 
 // ============================================================================
 // 游戏配置 (Game Config) — 与 scripts/Config.lua 1:1 对应
-// 《都市天际线：晨光》— 手机简化版城市建造
-// 核心循环（对标都市天际线）：修路 → 划分区 → 时间实时流动 → 分区自动长楼
+// 《都市营建模拟》— 手机版地产经营模拟
+// 核心循环：修路 → 划分区 → 时间实时流动 → 分区自动长楼
 // ============================================================================
 
 /** 颜色：与 Lua 端 {r,g,b,a}（0..255）保持一致 */
@@ -199,9 +199,9 @@ object Config {
         const val GARBAGE = "garbage"     // 垃圾处理
         const val HEALTH = "health"       // 医疗
         const val EDUCATION = "education" // 教育
-        const val SAFETY = "safety"       // 消防/安全
+        const val SAFETY = "safety"       // 消防/巡防
         const val TRANSIT = "transit"     // 公交
-        const val DEATH = "death"         // 殡葬
+        const val DEATH = "death"         // 安息园
         const val LANDMARK = "landmark"   // 独特建筑
     }
 
@@ -222,7 +222,7 @@ object Config {
         val powerCap: Int = 0,            // 发电容量（建筑数）
         val waterCap: Int = 0,            // 供水容量
         val garbageCap: Int = 0,          // 垃圾处理容量（按建筑收运量计）
-        val deathCap: Int = 0,            // 殡葬容量
+        val deathCap: Int = 0,            // 安息容量
         val pollutionRadius: Int = 0,     // 污染扩散半径（靠距离衰减，不再压格子）
         val nearWater: Boolean = false,   // 必须建在水域旁（抽水/排污）
         val needsRoad: Boolean = true     // 是否需要临路（只有要派车出入的设施才需要）
@@ -271,8 +271,8 @@ object Config {
         // ---- 安全 ----
         ServiceDef("fire_station", "消防站", 600, 24, 7, 0, false, 1, 1,
             "片区配套消防站，开发方出资建设，无覆盖则建筑会烧毁。", ServiceCat.SAFETY, 50),
-        ServiceDef("police", "片区安保站", 700, 28, 8, 3, false, 1, 1,
-            "片区配套安保站，开发方出资建设，提升安全感与地价。", ServiceCat.SAFETY, 80),
+        ServiceDef("police", "物业巡防站", 700, 28, 8, 3, false, 1, 1,
+            "片区物业巡防站，开发方出资建设，提升安全感与地价。", ServiceCat.SAFETY, 80),
         // ---- 公交 ----
         ServiceDef("bus_stop", "公交站", 220, 10, 6, 4, false, 1, 1,
             "缓解拥堵，缩短通勤。", ServiceCat.TRANSIT, 150),
@@ -284,15 +284,15 @@ object Config {
             "滨水货运码头，工业出口加成。", ServiceCat.TRANSIT, 1500),
         ServiceDef("airport", "机场", 16000, 180, 12, 10, true, 3, 3,
             "航空枢纽，旅游收入与幸福度。", ServiceCat.TRANSIT, 4000),
-        // ---- 排污 / 殡葬 / 片区管束中心 ----
+        // ---- 排污 / 安息园 / 闲置资产库房 ----
         ServiceDef("sewage", "污水处理厂", 2400, 58, 8, 0, false, 2, 2,
             "须建在水边，与污管线共用管网，处理全城污水。", ServiceCat.WATER, 60, 2, 0, 0, 0, 0, 6, true, needsRoad = false),
         ServiceDef("cemetery", "墓地", 400, 4, 6, -1, false, 2, 2,
             "安葬 80。阴气按距离衰减，可放城郊。", ServiceCat.DEATH, 80, 0, 0, 0, 0, 80, 3),
         ServiceDef("crematorium", "火葬场", 900, 12, 8, 0, false, 1, 1,
             "火化 200，无堆积。烟尘按距离衰减。", ServiceCat.DEATH, 300, 0, 0, 0, 0, 200, 4),
-        ServiceDef("prison", "片区管束中心", 3600, 48, 8, 0, false, 2, 2,
-            "片区管束中心，收容违规人员。容量满则释放。", ServiceCat.SAFETY, 400),
+        ServiceDef("prison", "闲置资产库房", 3600, 48, 8, 0, false, 2, 2,
+            "统一存放片区闲置资产与废弃物料，容量满则溢出。", ServiceCat.SAFETY, 400),
         // ---- 独特建筑 ----
         ServiceDef("stock_exchange", "证券交易所", 8800, 64, 10, 8, true, 3, 3,
             "全城商业项目收益 +12%，地价上升。", ServiceCat.LANDMARK, 1000),
@@ -535,7 +535,7 @@ object Config {
             PolicyEffect(happy = 8, cost = 200, pollutionMul = 0.60), 30, 40),
         PolicyDef("bizboost", "营商激励", "45 日：商/工收入 +25%，商业需求 +20%",
             PolicyEffect(incomeMul = 1.25, demandC = 1.20, demandI = 1.10), 45, 70),
-        PolicyDef("welfare", "民生改善", "30 日：幸福度 +15。一次性支出 400 万",
+        PolicyDef("welfare", "福利改善", "30 日：幸福度 +15。一次性支出 400 万",
             PolicyEffect(happy = 15, cost = 400), 30, 50),
         PolicyDef("smoke_alarm", "烟雾检测", "60 日：火灾风险 -70%。一次性支出 180 万",
             PolicyEffect(cost = 180, fireMul = 0.30), 60, 50),
