@@ -48,13 +48,13 @@ object AdOffers {
                 s.funds += 120
                 GameData.book("income", "other", "每周礼包", 120.0)
                 weeklyClaimed = true
-                MapRef.view?.setToast("每周营造礼包 +120 万")
+                MapRef.view?.setToast("每周项目礼包 +120 万")
             }
             "shortfall" -> {
                 val add = maxOf(120, s.lastShortfall)
                 s.funds += add
-                GameData.book("income", "other", "应急拨款", add.toDouble())
-                MapRef.view?.setToast("应急拨款 +${add}万，可继续${s.lastShortAction}")
+                GameData.book("income", "other", "应急注资", add.toDouble())
+                MapRef.view?.setToast("应急注资 +${add}万，可继续${s.lastShortAction}")
             }
             "bailout" -> {
                 s.funds += 260
@@ -64,7 +64,7 @@ object AdOffers {
             }
             "doubletax" -> {
                 s.doubleTaxDays = 12
-                MapRef.view?.setToast("经营收入加倍 12 天")
+                MapRef.view?.setToast("项目收益加倍 12 天")
             }
             "happy" -> {
                 s.happiness = (s.happiness + 8).coerceAtMost(92.0)
@@ -72,8 +72,8 @@ object AdOffers {
             }
             "grant" -> {
                 s.funds += 90
-                GameData.book("income", "other", "营造拨款", 90.0)
-                MapRef.view?.setToast("营造拨款 +90 万")
+                GameData.book("income", "other", "项目注资", 90.0)
+                MapRef.view?.setToast("项目注资 +90 万")
             }
             // ---- 便利型：即时可用的小工具，转化更好 ----
             "speed" -> {
@@ -113,7 +113,7 @@ object AdOffers {
             }
             "taxfree" -> {
                 s.doubleTaxDays = 12
-                MapRef.view?.setToast("经营收入加倍 12 天")
+                MapRef.view?.setToast("项目收益加倍 12 天")
             }
         }
         AppState.adOfferOpen = false

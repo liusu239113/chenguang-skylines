@@ -75,7 +75,7 @@ fun CivicPanel() {
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "营造档案", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    "项目档案", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
                 )
@@ -96,11 +96,11 @@ fun CivicPanel() {
             )
             Text(cur.perk, fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
             Text(
-                "本作是完全架空的都市经营游戏，所有设定均为虚构，与现实无关。人口、幸福、测评、反馈都会推进档案。",
+                "本作是完全架空的都市经营游戏，所有设定均为虚构，与现实无关。人口、幸福、评级、反馈都会推进档案。",
                 fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "升学率 ${(Civic.schoolRate * 100).toInt()}% · 来信 ${Civic.complaintsHandled} · 测评通过 ${Civic.examPassed} · 资历 ${s.merit.toInt()}",
+                "升学率 ${(Civic.schoolRate * 100).toInt()}% · 反馈 ${Civic.complaintsHandled} · 评级通过 ${Civic.examPassed} · 资历 ${s.merit.toInt()}",
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -145,7 +145,7 @@ fun CivicPanel() {
                     Text(
                         "人口 ${s.population.toInt()}/${r.popReq}" + (if (popOk) " ✓" else "") +
                             " · 满意 ${s.happiness.toInt()}/${r.happyReq}" + (if (hapOk) " ✓" else "") +
-                            " · 测评 ${Civic.examPassed}/$examNeed" + (if (examOk) " ✓" else ""),
+                            " · 评级 ${Civic.examPassed}/$examNeed" + (if (examOk) " ✓" else ""),
                         fontSize = 10.sp,
                         color = if (done) C.accentGreen.toColor() else C.textMid.toColor(),
                         fontFamily = LocalGameFont.current
@@ -158,13 +158,13 @@ fun CivicPanel() {
                 val examNeedLeft = ((next.level - 1) - Civic.examPassed).coerceAtLeast(0)
                 val ready = popNeed == 0 && hapNeed == 0 && examNeedLeft == 0
                 Text(
-                    if (ready) "下一职「${next.name}」已达标，点晋升立刻到账 ${next.grant} 万并解锁新建设施。"
-                    else "下一职「${next.name}」还差：人口 $popNeed · 满意 $hapNeed · 测评 $examNeedLeft 次。",
+                    if (ready) "下一职「${next.name}」已达标，点升职立刻到账 ${next.grant} 万并解锁新建设施。"
+                    else "下一职「${next.name}」还差：人口 $popNeed · 满意 $hapNeed · 评级 $examNeedLeft 次。",
                     fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                 )
                 if (next.unlockIds.isNotEmpty()) {
                     Text(
-                        "晋升解锁：" + next.unlockIds.mapNotNull { World.serviceConfig(it)?.name }.joinToString("、"),
+                        "升职解锁：" + next.unlockIds.mapNotNull { World.serviceConfig(it)?.name }.joinToString("、"),
                         fontSize = 10.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current
                     )
                 }
@@ -183,20 +183,20 @@ fun CivicPanel() {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "晋升为「${next.name}」 · 到账 ${next.grant} 万",
+                            "升职为「${next.name}」 · 到账 ${next.grant} 万",
                             fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White,
                             fontFamily = LocalGameFont.current
                         )
                     }
                 }
             } else {
-                Text("已是最高营造等级。", fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
+                Text("已是最高项目等级。", fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
             }
             if (Civic.examActive) {
                 val q = Civic.examSession.getOrNull(Civic.examIndex)
                 if (q != null) {
                     Text(
-                        "营造测评 ${Civic.examIndex + 1}/${Civic.examSession.size}  得分 ${Civic.examScore}",
+                        "项目评级 ${Civic.examIndex + 1}/${Civic.examSession.size}  得分 ${Civic.examScore}",
                         fontSize = 12.sp, fontWeight = FontWeight.Bold,
                         color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                     )
@@ -233,8 +233,8 @@ fun CivicPanel() {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        if (can) "开始营造测评（5 题）"
-                        else if (Civic.examPassed >= (next?.level ?: 1) - 1 && next != null) "测评已过，达标即可晋升"
+                        if (can) "开始项目评级（5 题）"
+                        else if (Civic.examPassed >= (next?.level ?: 1) - 1 && next != null) "评级已过，达标即可升职"
                         else if (Civic.examCooldown > 0) "冷却 ${Civic.examCooldown} 天后再考"
                         else "人口/满意还不够，暂不可考",
                         fontSize = 13.sp, fontWeight = FontWeight.Bold,
@@ -274,7 +274,7 @@ fun ComplaintPanel() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
-                Text("居民反馈", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                Text("客户反馈", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 Text(
                     "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
@@ -327,7 +327,7 @@ fun AchievementPanel() {
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
-                Text("营造成就 ${s.achievements.size}/${Config.ACHIEVEMENTS.size}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                Text("项目成就 ${s.achievements.size}/${Config.ACHIEVEMENTS.size}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 Text(
                     "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
@@ -392,9 +392,9 @@ fun AdOfferDialog() {
     val act = LocalContext.current as? Activity
     val kind = AppState.adOfferKind
     val (title, body) = when (kind) {
-        "daily" -> "每周营造礼包" to "每周一次。看广告金库到账 120 万。"
-        "shortfall" -> "资金不够" to (s.lastShortAction + "还差钱。看广告可拿到应急拨款。")
-        "bailout" -> "账面告急" to "金库见底。看广告可获得纾困拨款 260 万。"
+        "daily" -> "每周项目礼包" to "每周一次。看广告金库到账 120 万。"
+        "shortfall" -> "资金不够" to (s.lastShortAction + "还差钱。看广告可拿到应急注资。")
+        "bailout" -> "账面告急" to "金库见底。看广告可获得纾困注资 260 万。"
         else -> return
     }
     Box(
@@ -680,9 +680,11 @@ fun SharePanel() {
                         },
                     contentAlignment = Alignment.Center
                 ) { Text("复制分享码", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
-                if (s \!= null) {
+                val cur = GameData.current
+                if (cur != null) {
                     Text(
-                        "含：${s.cityName} · 人口 ${s.population.toInt()} · 幸福 ${kotlin.math.floor(s.happiness).toInt()}",
+                        "含：" + cur.cityName + " · 人口 " + cur.population.toInt() +
+                            " · 幸福 " + kotlin.math.floor(cur.happiness).toInt(),
                         fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
                     )
                 }
@@ -730,12 +732,12 @@ fun SharePanel() {
                             msg = "请先粘贴分享码"
                             return@clickable
                         }
-                        if (\!com.dshx.game.she.ShareCode.looksLikeCode(text)) {
+                        if (!com.dshx.game.she.ShareCode.looksLikeCode(text)) {
                             msg = "分享码格式不对（应以 CS1. 开头）"
                             return@clickable
                         }
                         val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
-                            .firstOrNull { \!com.dshx.game.she.SaveManager.hasSlot(it) }
+                            .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) }
                         val target = free ?: AppState.activeSlot
                         if (com.dshx.game.she.ShareCode.import(text, target)) {
                             if (com.dshx.game.she.SaveManager.load(target)) {
@@ -809,13 +811,17 @@ fun BenefitPanel() {
             )
 
             Text("经营奖励", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.accentGold.toColor(), fontFamily = LocalGameFont.current)
-            BenefitBtn("每周礼包 +120 万", if (AdOffers.weeklyClaimed) "本周已领" else "每周一次", act, "daily", \!AdOffers.weeklyClaimed)
-            BenefitBtn("经营收入加倍 12 天", "短期进项翻倍", act, "doubletax", true)
+            BenefitBtn("每周礼包 +120 万", (if (AdOffers.weeklyClaimed) "本周已领" else "每周一次"), act, "daily", !AdOffers.weeklyClaimed)
+            BenefitBtn("项目收益加倍 12 天", "短期进项翻倍", act, "doubletax", true)
             BenefitBtn("民心安抚 +8", "幸福度立刻回升", act, "happy", true)
-            BenefitBtn("营造拨款 +90 万", "应急用", act, "grant", true)
+            BenefitBtn("项目注资 +90 万", "应急用", act, "grant", true)
 
             Text("便利工具", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
-            BenefitBtn("3x 加速 30 分钟", if (SpeedBoost.isActive()) "生效中 · 剩余 ${SpeedBoost.remainingSec() / 60} 分" else "省时间", act, "speed", true)
+            BenefitBtn(
+                "3x 加速 30 分钟",
+                (if (SpeedBoost.isActive()) "生效中 · 剩余 " + (SpeedBoost.remainingSec() / 60) + " 分" else "省时间"),
+                act, "speed", true
+            )
             BenefitBtn("全城垃圾清运", "立刻清空积压", act, "cleartrash", true)
             BenefitBtn("修复废弃建筑", "恢复入住", act, "repair", true)
             BenefitBtn("解锁圈外扩一圈", "立刻扩地", act, "unlock", true)

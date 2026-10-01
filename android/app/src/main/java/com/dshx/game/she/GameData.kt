@@ -68,7 +68,7 @@ class CityState {
     val policyCooldowns: MutableMap<String, Int> = mutableMapOf()
     val news: MutableList<NewsItem> = mutableListOf()
     var lastLevel: Int = 0
-    // 经营收入（RCI 三收费率，%）
+    // 项目收益（RCI 三收费率，%）
     var taxRes: Int = Config.TAX.default
     var taxCom: Int = Config.TAX.default
     var taxInd: Int = Config.TAX.default
@@ -93,7 +93,7 @@ class CityState {
     // 城市名
     var cityName: String = Config.World.city
     var mayorName: String = "未署名"
-    // 居民慢变量（对照拆解文档：教育/健康/就业驱动长线循环）
+    // 客户慢变量（对照拆解文档：教育/健康/就业驱动长线循环）
     var education: Double = 18.0
     var health: Double = 62.0
     var jobs: Int = 0
@@ -265,7 +265,7 @@ object GameData {
     fun difficultyDef(): Config.DifficultyDef =
         Config.DIFFICULTIES.firstOrNull { it.key == difficultyKey } ?: Config.DIFFICULTIES[1]
 
-    /** 人口 <180 前期不变；中期缓加重；后期再加重。前期不让维护把税吃光。 */
+    /** 人口 <180 前期不变；中期缓加重；后期再加重。前期不让维护把收益吃光。 */
     fun cityScale(): Double {
         val pop = current?.population ?: 0.0
         val mid = Config.ECONOMY.midPop.toDouble()
@@ -280,7 +280,7 @@ object GameData {
     /**
      * 造价系数：固定值，不随人口/年份往上涨。
      * 之前这里跟着城市规模最高翻到 2.5 倍，玩家看着价目表"水涨船高"，
-     * 大学能标到一亿多，怎么收税都追不上。现在全周期一个价，
+     * 大学能标到一亿多，怎么收租都追不上。现在全周期一个价，
      * 用 1.3 倍托底（比开局的裸价贵一点，不至于后期显得白菜价）。
      */
     fun buildCostMul(): Double = 1.30
@@ -361,7 +361,7 @@ object GameData {
         s.loanDaily = 0.0
         World.current?._pop = 0
         if (sandbox) {
-            // 沙盒 GM：资金拉满、人口锁 5000、幸福度锁高、营造等级拉满（全设施解锁）
+            // 沙盒 GM：资金拉满、人口锁 5000、幸福度锁高、项目等级拉满（全设施解锁）
             s.funds = Config.SANDBOX.FUNDS
             s.population = Config.SANDBOX.pop.toDouble()
             World.current?._pop = Config.SANDBOX.pop
@@ -454,13 +454,13 @@ object GameData {
         s.rankLevel = next.level
         if (!sandbox && next.grant > 0) {
             s.funds += next.grant
-            post("income", "other", next.name + "晋升", next.grant.toDouble())
+            post("income", "other", next.name + "升职", next.grant.toDouble())
         }
         val unlockTxt = if (next.unlockIds.isEmpty()) "" else {
             " 新建设施：" + next.unlockIds.mapNotNull { World.serviceConfig(it)?.name }.joinToString("、") + "。"
         }
-        val grantTxt = if (next.grant > 0) " 营造基金到账 " + next.grant + " 万。" else ""
-        pushNews("营造等级提升", s.mayorName + " 升为「" + next.name + "」。" + next.perk + "。" + grantTxt + unlockTxt, "营造")
+        val grantTxt = if (next.grant > 0) " 项目基金到账 " + next.grant + " 万。" else ""
+        pushNews("项目等级提升", s.mayorName + " 升为「" + next.name + "」。" + next.perk + "。" + grantTxt + unlockTxt, "项目")
         pendingRankUp = true
     }
 
@@ -560,7 +560,7 @@ object GameData {
         val sewerPen = -(1.0 - s.sewerCoverage) * 8.0
         val rankHappy = if (s.rankLevel >= 6) 4.0 else 0.0
         val specHappy = Networks.specTotals().second
-        // 噪音：垃圾场/工厂/电厂贴在住宅区旁会明显拉低幸福度
+        // 噪音：垃圾场/工厂/供电站贴在住宅区旁会明显拉低幸福度
         val noisePen = -CitySystems.noiseAvg * 0.18
         val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06 + crimePen + sewerPen + rankHappy + specHappy + noisePen
         val target = max(
@@ -587,7 +587,7 @@ object GameData {
             weather = kotlin.random.Random.nextInt(3)
         }
         var cov = World.coverage()
-        // 电力/供水供需：只有真正接进管网的厂站才算产能（没拉线接进来的电厂不发电）
+        // 电力/供水供需：只有真正接进管网的厂站才算产能（没拉线接进来的供电站不发电）
         var powerCap = Networks.connectedCapacity(true)
         var waterCap = Networks.connectedCapacity(false)
         var eduScore = 0.0
@@ -820,8 +820,8 @@ object GameData {
         s.lastNet = net + specIncome
         s.funds += net + specIncome
         if (net + specIncome >= 0) s.totalIncome += net + specIncome else s.totalSpent += -(net + specIncome)
-        post("income", "tax", "居民税", taxPart)
-        post("income", "biz", "工商经营收入", bizPart)
+        post("income", "tax", "物业费", taxPart)
+        post("income", "biz", "工商项目收益", bizPart)
         post("income", "trade", "贸易观光", tradePart)
         post("income", "biz", "产业专精", specIncome)
         post("spend", "road", "道路维护", s.lastRoadUpkeep)
@@ -829,7 +829,7 @@ object GameData {
         post("spend", "service", "城区养护", s.lastGrownUpkeep)
         if (s.funds < 0) {
             s.bankruptDays += 1
-            if (s.bankruptDays == 1) pushNews("账面告急", "金库见底，公共服务将收缩。尽快扩税基或贷款。", "账面")
+            if (s.bankruptDays == 1) pushNews("账面告急", "金库见底，公共服务将收缩。尽快扩收益来源或贷款。", "账面")
         } else {
             s.bankruptDays = 0
         }
@@ -947,7 +947,7 @@ object GameData {
                 val ev = candidates[kotlin.random.Random.nextInt(candidates.size)]
                 if (s.activeEvents.none { it.id == ev.id }) {
                     s.activeEvents.add(ActiveEvent(ev.id, ev.name, ev.duration, ev.happy, ev.incomeMul))
-                    pushNews("居民反馈：" + ev.name, ev.desc, "来信")
+                    pushNews("客户反馈：" + ev.name, ev.desc, "反馈")
                     val wait = (10 + kotlin.random.Random.nextInt(8)) / difficultyDef().eventMul
                     eventCooldown = max(3, wait.toInt())
                 }
@@ -992,11 +992,11 @@ object GameData {
             s.lastLevel = level.level
             pendingLevelUp = true
             s.funds += level.reward
-            post("income", "other", "晋级拨款", level.reward.toDouble())
+            post("income", "other", "晋级注资", level.reward.toDouble())
             pushNews(
                 "城市晋级 " + level.name + "！",
                 String.format(
-                    "人口达到 %d，晨光市升级为%s，获得 %d万 拨款。",
+                    "人口达到 %d，星野新城升级为%s，获得 %d万 注资。",
                     s.population.toInt(), level.name, level.reward
                 ),
                 "头条"
@@ -1250,7 +1250,7 @@ object GameData {
         }
         pushNews(
             "新政发布：" + p.name,
-            p.desc + " 生效 " + p.days + " 天。今日起经营收入/需求/污染按方案结算。",
+            p.desc + " 生效 " + p.days + " 天。今日起项目收益/需求/污染按方案结算。",
             "方案"
         )
         return true to ("已启用：" + p.name + " · 生效 " + p.days + " 天")
@@ -1268,12 +1268,12 @@ object GameData {
         }
         val s = current ?: return false to null
         val cost = 2
-        if (!sandbox && s.funds < cost) return false to "资金不足（水管 2 万/格）"
+        if (!sandbox && s.funds < cost) return false to "资金不足（管线 2 万/格）"
         noteTile(x, y)
         Networks.setPipe(x, y, true, fromX, fromY)
         if (!sandbox) {
             s.funds -= cost
-            post("spend", "build", "水管", cost.toDouble())
+            post("spend", "build", "管线", cost.toDouble())
         }
         Networks.recount()
         return true to null
@@ -1290,12 +1290,12 @@ object GameData {
         }
         val s = current ?: return false to null
         val cost = 2
-        if (!sandbox && s.funds < cost) return false to "资金不足（电缆 2 万/格）"
+        if (!sandbox && s.funds < cost) return false to "资金不足（线缆 2 万/格）"
         noteTile(x, y)
         Networks.setCable(x, y, true, fromX, fromY)
         if (!sandbox) {
             s.funds -= cost
-            post("spend", "build", "电缆", cost.toDouble())
+            post("spend", "build", "线缆", cost.toDouble())
         }
         Networks.recount()
         return true to null
@@ -1328,11 +1328,11 @@ object GameData {
         if (!World.isUnlocked(x, y)) return false to World.lockedHint()
         if (t.sewer) return true to null
         val s = current ?: return false to null
-        if (!sandbox && s.funds < 2) return false to "资金不足（污水管 2 万/格）"
+        if (!sandbox && s.funds < 2) return false to "资金不足（污管线 2 万/格）"
         Networks.setSewer(x, y, true)
         if (!sandbox) {
             s.funds -= 2
-            post("spend", "build", "污水管", 2.0)
+            post("spend", "build", "污管线", 2.0)
         }
         Networks.recount()
         return true to null

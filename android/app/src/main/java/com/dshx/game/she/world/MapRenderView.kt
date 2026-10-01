@@ -463,8 +463,8 @@ class MapRenderView @JvmOverloads constructor(
             "zone" -> "划区"
             "bulldoze" -> "推平"
             "service" -> "建造"
-            "pipe" -> "铺水管"
-            "cable" -> "铺电缆"
+            "pipe" -> "铺管线"
+            "cable" -> "铺线缆"
             "tree" -> "种树"
             "spec" -> "产业专精"
             "raise" -> "垫高"
@@ -954,7 +954,7 @@ class MapRenderView @JvmOverloads constructor(
     }
 
     /**
-     * 地下管网图层滤镜：压暗地表，把水管/电缆/污水/地铁画成发光线，
+     * 地下管网图层滤镜：压暗地表，把管线/线缆/污水/地铁画成发光线，
      * 让玩家一眼看清线路怎么走的（正在铺的那一种最亮，其余变暗作参考）。
      */
     private fun drawUndergroundLayer(canvas: Canvas, w: World, x0: Int, x1: Int, y0: Int, y1: Int) {
@@ -1633,7 +1633,7 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // 居民通勤只体现在车辆上，不画路上行人圆点。
+        // 客户通勤只体现在车辆上，不画路上行人圆点。
 
         // ---- 4) 建筑（格内斜二测三面体块，从后往前画） ----
         for (ty in y0..y1) {
@@ -1827,7 +1827,7 @@ class MapRenderView @JvmOverloads constructor(
                 val (ccx, ccy) = World.coverCenter(e)
                 val cx = worldToScreenX(ccx)
                 val cy = worldToScreenY(ccy)
-                // 电厂/水厂只产能，靠路网输送，不再画地面覆盖圈
+                // 供电站/水厂只产能，靠路网输送，不再画地面覆盖圈
                 val networkBased = cfg.category == Config.ServiceCat.POWER ||
                     cfg.category == Config.ServiceCat.WATER
                 val r = cell * (World.coverRadius(cfg) + 0.5f)

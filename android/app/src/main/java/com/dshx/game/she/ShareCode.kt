@@ -8,7 +8,7 @@ import org.json.JSONObject
 
 /**
  * 分享码：把当前城市压成一串可复制的文本，别人粘贴即可进入同一座城市
- * （地形、建筑、道路、车马线路、财政状态全部还原）。
+ * （地形、建筑、道路、车马线路、资金状态全部还原）。
  *
  * 实现要点：直接复用 [SaveManager.buildJson] 的完整存档 JSON，
  * 保证分享码与存档字段永远一致，不会漏字段。
@@ -38,7 +38,7 @@ object ShareCode {
     /** 把分享码写入指定槽位（写完后用 SaveManager.load(slot) 载入即可） */
     fun import(code: String, slot: Int): Boolean {
         val text = code.trim()
-        if (\!looksLikeCode(text)) return false
+        if (!looksLikeCode(text)) return false
         val json = try {
             val bytes = Base64.decode(
                 text.removePrefix(PREFIX),

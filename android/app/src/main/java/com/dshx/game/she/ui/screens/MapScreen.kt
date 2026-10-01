@@ -170,7 +170,7 @@ object MapScreen {
         if (GameData.pendingRankUp) {
             GameData.pendingRankUp = false
             Sfx.play("sfx_levelup")
-            view?.setToast("营造等级升为「" + GameData.rankDef().name + "」")
+            view?.setToast("项目等级升为「" + GameData.rankDef().name + "」")
         } else if (GameData.pendingLevelUp) {
             GameData.pendingLevelUp = false
             Sfx.play("sfx_levelup")
@@ -221,7 +221,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        (s?.cityName ?: "晨光市") + " · " + (s?.mayorName ?: "未署名") + " · " + GameData.rankDef().name,
+                        (s?.cityName ?: "星野新城") + " · " + (s?.mayorName ?: "未署名") + " · " + GameData.rankDef().name,
                         fontSize = 13.sp, fontWeight = FontWeight.Bold,
                         color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                         modifier = Modifier
@@ -568,7 +568,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     if (facNoise > 0) {
                         UIHelper.InfoRow(
                             "设施噪音",
-                            facNoise.toString() + "（垃圾场/工厂/电厂按距离衰减）",
+                            facNoise.toString() + "（垃圾场/工厂/供电站按距离衰减）",
                             if (facNoise >= 25) C.accentRed.toColor() else C.textMid.toColor()
                         )
                     }
@@ -611,7 +611,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                             val eduOk = (GameData.current?.education ?: 0.0) >= 28.0 || Civic.schoolRate >= 0.48
                             UIHelper.InfoRow(
                                 "办公入职",
-                                if (eduOk) "有中学以上学历的居民才能进写字楼" else "学历不够，白领进不来，先建小学/中学",
+                                if (eduOk) "有中学以上学历的客户才能进写字楼" else "学历不够，白领进不来，先建小学/中学",
                                 if (eduOk) C.accentGreen.toColor() else C.accentRed.toColor()
                             )
                         }
@@ -651,7 +651,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 UIHelper.InfoRow(
                                     "接入状态",
                                     if (wired) "已接入管网（产能已并网）"
-                                    else "未接线：用【规划 → " + (if (cfg.powerCap > 0) "电缆" else "水管") + "】铺一格挨着它才算接通"
+                                    else "未接线：用【规划 → " + (if (cfg.powerCap > 0) "线缆" else "管线") + "】铺一格挨着它才算接通"
                                 )
                             }
                             if (cfg.garbageCap > 0) UIHelper.InfoRow("收运能力", cfg.garbageCap.toString() + " 栋")
@@ -1198,8 +1198,8 @@ private fun PlanDrawer(mapView: MapRenderView) {
                 "tree" -> "点空地点树"
                 "raise" -> "点空地抬升地形"
                 "lower" -> "点空地降低地形"
-                "pipe" -> "沿一条线拖动铺水管，首尾相接才算连通"
-                "cable" -> "沿一条线拖动铺电缆，首尾相接才算连通"
+                "pipe" -> "沿一条线拖动铺管线，首尾相接才算连通"
+                "cable" -> "沿一条线拖动铺线缆，首尾相接才算连通"
                 else -> "可以在地图上操作了"
             }
         )
@@ -1217,14 +1217,14 @@ private fun PlanDrawer(mapView: MapRenderView) {
             color = C.textDark.toColor(), fontFamily = LocalGameFont.current
         )
         Text(
-            "电水靠「道路预埋管线 + 地下电缆/水管」送到建筑；电厂水厂只产能，可放远郊。地铁隧/铁轨在【道路】里，要先建地铁站/火车站。",
+            "电水靠「道路预埋管线 + 地下线缆/管线」送到建筑；供电站水厂只产能，可放远郊。地铁隧/铁轨在【道路】里，要先建地铁站/火车站。",
             fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            UIHelper.PickChip("水管", "2万/格", AppState.mode == "pipe", width = 86.dp) {
+            UIHelper.PickChip("管线", "2万/格", AppState.mode == "pipe", width = 86.dp) {
                 pickAndClose("pipe")
             }
-            UIHelper.PickChip("电缆", "2万/格", AppState.mode == "cable", width = 86.dp) {
+            UIHelper.PickChip("线缆", "2万/格", AppState.mode == "cable", width = 86.dp) {
                 pickAndClose("cable")
             }
             UIHelper.PickChip("种树", "1万/格", AppState.mode == "tree", width = 86.dp) {
@@ -1378,7 +1378,7 @@ private fun PolicyPanel() {
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
             )
             Text(
-                "启用后立刻改经营收入/需求/污染/拥堵，并持续到倒计时结束。",
+                "启用后立刻改项目收益/需求/污染/拥堵，并持续到倒计时结束。",
                 fontSize = 10.sp, color = C.textMid.toColor(),
                 fontFamily = LocalGameFont.current,
                 modifier = Modifier.fillMaxWidth()
@@ -1493,14 +1493,14 @@ private fun HelpPanel() {
                 )
             }
             HelpRow("手", "手掌在确认条上方，点它退出建造并拖地图。划区/设施都要点底部「确认」才扣费。")
-            HelpRow("职", "点顶栏等级打开营造档案。达标后点「晋升」立刻升一级：到账营造基金，并解锁新建设施（广场/地铁/机场等）。")
+            HelpRow("职", "点顶栏等级打开项目档案。达标后点「升职」立刻升一级：到账项目基金，并解锁新建设施（广场/地铁/机场等）。")
             HelpRow("路", "开局十字是【两车道】，和建造菜单里同一种。泥土路无标线；两车道一条中虚线；四车道中央双黄、两侧白虚线，车分内外道并排。外环高速全天有过路车；接进城后才会进游客。")
             HelpRow("铁", "先在【服务】建火车站，再在【道路】里选铁轨去地图上画。地铁同理，先建地铁站。机场建好会有飞机。")
             HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。设施会清掉底下分区，不会被后长出来的楼盖掉。小学点在占地内任意一格即可。【办公】要中学以上学历才进得去，收益比商业高。【推平】拆楼会连底下分区一起清掉。")
-            HelpRow("电", "电厂只负责产能，可放远郊。电力靠「道路预埋电缆 + 地下电缆」送到建筑：临路的楼自动通电，偏远地块要在【规划】里拖电缆，首尾相接才算连通。")
-            HelpRow("水", "水塔/抽水站/污水处理厂必须建在水边（取水/排水），只负责产能，靠「道路预埋水管 + 地下水管」送到建筑；污水和供水共用一条管道网。")
-            HelpRow("规", "【规划】里选水管/电缆/公交/种树/抬升，以及产业专精。管线要沿着一条线拖，首尾对齐才连得上，两根并排的竖管不会互通。专精刷在已划的分区上，格子立刻变色。全城规章在左上【策】。")
-            HelpRow("污", "垃圾场、焚烧厂、电厂、火葬场、工厂会给周边住宅带来噪音和臭气，按距离衰减。贴太近居民会来信投诉并拉低幸福度，放远郊或隔开就好。")
+            HelpRow("电", "供电站只负责产能，可放远郊。电力靠「道路预埋线缆 + 地下线缆」送到建筑：临路的楼自动通电，偏远地块要在【规划】里拖线缆，首尾相接才算连通。")
+            HelpRow("水", "水塔/抽水站/污水处理厂必须建在水边（取水/排水），只负责产能，靠「道路预埋管线 + 地下管线」送到建筑；污水和供水共用一条管道网。")
+            HelpRow("规", "【规划】里选管线/线缆/公交/种树/抬升，以及产业专精。管线要沿着一条线拖，首尾对齐才连得上，两根并排的竖管不会互通。专精刷在已划的分区上，格子立刻变色。全城规章在左上【策】。")
+            HelpRow("污", "垃圾场、焚烧厂、供电站、火葬场、工厂会给周边住宅带来噪音和臭气，按距离衰减。贴太近客户会反馈反馈并拉低幸福度，放远郊或隔开就好。")
             HelpRow("策", "【数/?/策/银/账】在状态栏左下。【银】贷款；【账】看每天每月收支。人口过 180 后维护和造价逐步加重。暂停用顶栏 ‖；1x 比以前慢一半；2x/3x 都要看广告。右上 ≡ 在顶栏下方，点开建筑详情时会先藏起来。")
             HelpRow("存", "每月结算和切出游戏都会自动写入当前槽位。主菜单「继续游戏」读最近一档。右上【≡】也可手动保存。")
             Box(
@@ -1550,8 +1550,8 @@ private fun overlayLabel(cat: String): String = when (cat) {
     "metro" -> "地铁"
     "rail" -> "铁轨"
     "spec" -> "产业专精"
-    "pipe" -> "水管"
-    "cable" -> "电缆"
+    "pipe" -> "管线"
+    "cable" -> "线缆"
     "sewer" -> "污水"
     "underground" -> "地下总览"
     else -> cat
@@ -1562,11 +1562,11 @@ private fun overlayHint(cat: String): String = when (cat) {
     "landvalue" -> "绿高地价 · 红受污染拉低"
     "rail" -> "只显示铁轨网络"
     "spec" -> "已刷专精的分区会叠色"
-    "pipe" -> "蓝=水管 · 淡蓝=道路自带预埋管 · 走线要首尾相接"
-    "cable" -> "黄=电缆 · 淡黄=道路自带预埋缆 · 走线要首尾相接"
-    "sewer" -> "绿=污水管 · 排污厂要接进同一张水网"
+    "pipe" -> "蓝=管线 · 淡蓝=道路自带预埋管 · 走线要首尾相接"
+    "cable" -> "黄=线缆 · 淡黄=道路自带预埋缆 · 走线要首尾相接"
+    "sewer" -> "绿=污管线 · 排污厂要接进同一张水网"
     "metro" -> "紫=地铁隧道 · 只显示地下，地表看不见"
-    "underground" -> "蓝水管 · 黄电缆 · 绿污水 · 紫地铁（地表压暗）"
+    "underground" -> "蓝管线 · 黄线缆 · 绿污水 · 紫地铁（地表压暗）"
     else -> "绿=已覆盖 · 红=未覆盖 · 圈=该座设施半径，圈内哪坨归哪座一看就明"
 }
 
@@ -1613,10 +1613,10 @@ private fun HappyPanel() {
             )
             Text("基础分 ${bd.base.toInt()}：城市底子，没有设施时也有这么多。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("公园/广场/学校/诊所等服务 ${if (bd.service >= 0) "+" else ""}${bd.service.toInt()}：多建公园、广场、学校、诊所会涨。公园会吸收污染、抬地价。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("污染 ${bd.pollution.toInt()}：工厂、电厂、垃圾堆会拉低。绿化、种树、把住工分开能缓解。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("污染 ${bd.pollution.toInt()}：工厂、供电站、垃圾堆会拉低。绿化、种树、把住工分开能缓解。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("覆盖 ${bd.coveragePenalty.toInt()}：住宅要在电/水/垃圾圈里，圈外会扣分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("收费率 ${bd.taxPenalty.toInt()}：收费率高于 10% 会扣分。点【策】可调。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("事件 ${if (bd.event >= 0) "+" else ""}${bd.event.toInt()}：居民反馈和城建事件。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("事件 ${if (bd.event >= 0) "+" else ""}${bd.event.toInt()}：客户反馈和城建事件。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("方案 ${if (bd.policy >= 0) "+" else ""}${bd.policy.toInt()}：民生改善、绿化行动等会加分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("通勤 ${if (bd.commute >= 0) "+" else ""}${bd.commute.toInt()}：路堵会扣，公交/地铁能加。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("就业/健康/教育 ${if (bd.jobs >= 0) "+" else ""}${bd.jobs.toInt()}：商工办岗位、医院学校、治安都算在这里。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
@@ -1735,7 +1735,7 @@ private fun BankPanel() {
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "营造银行", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    "项目银行", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                 )
@@ -1907,8 +1907,8 @@ private fun LedgerPanel() {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("收入 +" + floor(inTotal).toInt() + "万", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
-                    LedgerRow("居民税", s.dayIncomeTax, true)
-                    LedgerRow("工商税", s.dayIncomeBiz, true)
+                    LedgerRow("物业费", s.dayIncomeTax, true)
+                    LedgerRow("商户租金", s.dayIncomeBiz, true)
                     LedgerRow("贸易观光", s.dayIncomeTrade, true)
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1926,8 +1926,8 @@ private fun LedgerPanel() {
                 )
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        LedgerRow("居民税", month.tax, true)
-                        LedgerRow("工商税", month.biz, true)
+                        LedgerRow("物业费", month.tax, true)
+                        LedgerRow("商户租金", month.biz, true)
                         LedgerRow("贸易观光", month.trade, true)
                         LedgerRow("贷款入账", month.loanIn, true)
                         LedgerRow("其他收入", month.otherIn, true)
@@ -2061,7 +2061,7 @@ private fun DataPanel() {
                 CovBar("治安", cov.safety)
                 CovBar("殡葬", cov.death)
                 Text(
-                    "覆盖按设施半径对齐，不是电缆。点下方按钮可单独看每一类圈到了哪一坨建筑。",
+                    "覆盖按设施半径对齐，不是线缆。点下方按钮可单独看每一类圈到了哪一坨建筑。",
                     fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
                 )
             }
@@ -2071,7 +2071,7 @@ private fun DataPanel() {
                 fontSize = 11.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "升学率 ${(Civic.schoolRate * 100).toInt()}% · 营造测评通过 ${Civic.examPassed} · 来信 ${Civic.complaintsHandled}",
+                "升学率 ${(Civic.schoolRate * 100).toInt()}% · 项目评级通过 ${Civic.examPassed} · 反馈 ${Civic.complaintsHandled}",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -2093,7 +2093,7 @@ private fun DataPanel() {
                 fontFamily = LocalGameFont.current
             )
             Text(
-                "基础 ${bd.base.toInt()} · 服务 ${bd.service.toInt()} · 污染 ${bd.pollution.toInt()} · 覆盖 ${bd.coveragePenalty.toInt()} · 税 ${bd.taxPenalty.toInt()} · 事件 ${bd.event.toInt()} · 方案 ${bd.policy.toInt()} · 通勤 ${bd.commute.toInt()} · 就业 ${bd.jobs.toInt()}",
+                "基础 ${bd.base.toInt()} · 服务 ${bd.service.toInt()} · 污染 ${bd.pollution.toInt()} · 覆盖 ${bd.coveragePenalty.toInt()} · 费 ${bd.taxPenalty.toInt()} · 事件 ${bd.event.toInt()} · 方案 ${bd.policy.toInt()} · 通勤 ${bd.commute.toInt()} · 就业 ${bd.jobs.toInt()}",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -2107,7 +2107,7 @@ private fun DataPanel() {
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "今日 税 ${UIHelper.fmtFunds(s.dayIncomeTax)} · 产业 ${UIHelper.fmtFunds(s.dayIncomeBiz)} · 贸易 ${UIHelper.fmtFunds(s.dayIncomeTrade)} · 维护 -${UIHelper.fmtFunds(s.lastUpkeep)} · 净 ${UIHelper.fmtFunds(s.lastNet)}",
+                "今日 费 ${UIHelper.fmtFunds(s.dayIncomeTax)} · 产业 ${UIHelper.fmtFunds(s.dayIncomeBiz)} · 贸易 ${UIHelper.fmtFunds(s.dayIncomeTrade)} · 维护 -${UIHelper.fmtFunds(s.lastUpkeep)} · 净 ${UIHelper.fmtFunds(s.lastNet)}",
                 fontSize = 10.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -2119,7 +2119,7 @@ private fun DataPanel() {
             s.quest?.let { q ->
                 val v = GameData.questValue(q.type)
                 Text(
-                    "营造任务：" + q.name + " " + v.toInt() + "/" + q.target.toInt() +
+                    "项目任务：" + q.name + " " + v.toInt() + "/" + q.target.toInt() +
                         "（奖励 " + q.reward + " 万）" + if (q.done) " ✓" else "",
                     fontSize = 12.sp, fontWeight = FontWeight.Bold,
                     color = C.accentGold.toColor(), fontFamily = LocalGameFont.current
@@ -2195,7 +2195,7 @@ private fun DataPanel() {
                 }
             }
 
-            // 地下管网图层：压暗地表，专门看水管/电缆/污水/地铁怎么走的
+            // 地下管网图层：压暗地表，专门看管线/线缆/污水/地铁怎么走的
             Text(
                 "地下管网图层", fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 color = C.textMid.toColor(), fontFamily = LocalGameFont.current
@@ -2391,7 +2391,7 @@ private fun PausePanel() {
                 AppState.menuOpen = false
                 AppState.bankOpen = true
             }
-            PauseBtn("看广告领奖励（礼包+120万/加倍税/满意+8/拨款+90万）", C.accentGold.toColor(), Color.White) {
+            PauseBtn("看广告领奖励（礼包+120万/收益加倍/满意+8/注资+90万）", C.accentGold.toColor(), Color.White) {
                 Sfx.play("sfx_click")
                 AppState.menuOpen = false
                 AppState.settingsOpen = true
@@ -2401,12 +2401,12 @@ private fun PausePanel() {
                 AppState.menuOpen = false
                 AppState.settingsOpen = true
             }
-            PauseBtn("营造档案 / 测评", C.chipBg.toColor(), C.textDark.toColor()) {
+            PauseBtn("项目档案 / 评级", C.chipBg.toColor(), C.textDark.toColor()) {
                 Sfx.play("sfx_click")
                 AppState.menuOpen = false
                 AppState.civicOpen = true
             }
-            PauseBtn("营造成就", C.chipBg.toColor(), C.textDark.toColor()) {
+            PauseBtn("项目成就", C.chipBg.toColor(), C.textDark.toColor()) {
                 Sfx.play("sfx_click")
                 AppState.menuOpen = false
                 AppState.achievementOpen = true

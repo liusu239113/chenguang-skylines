@@ -20,7 +20,7 @@ class EmergencyCar(
 )
 
 /**
- * 污水 / 垃圾车 / 消防救护车 / 治安管教所 / 殡葬 / 分层污染
+ * 污水 / 垃圾车 / 消防救护车 / 治安片区管束中心 / 殡葬 / 分层污染
  */
 object CitySystems {
 
@@ -28,8 +28,8 @@ object CitySystems {
     var selected: EmergencyCar? = null
     var groundPolAvg: Double = 0.0
     var waterPolAvg: Double = 0.0
-    var noiseAvg: Double = 0.0        // 住宅平均噪音（垃圾场/工厂/电厂附近升高）
-    var noisyHomes: Int = 0           // 噪音超标的住宅数（用于投诉）
+    var noiseAvg: Double = 0.0        // 住宅平均噪音（垃圾场/工厂/供电站附近升高）
+    var noisyHomes: Int = 0           // 噪音超标的住宅数（用于反馈）
     var fires: Int = 0
 
     fun reset() {
@@ -56,7 +56,7 @@ object CitySystems {
         // 先按距离衰减扩散污染，再统计平均值
         diffusePollution(w)
 
-        // 污水覆盖：污水管 + 处理厂
+        // 污水覆盖：污管线 + 处理厂
         var sewerHits = 0
         var sewerNeed = 0
         var gSum = 0
@@ -68,7 +68,7 @@ object CitySystems {
             // 多格成长楼只在锚点结算一次
             if (b != null && !b.isService && (b.w <= 1 && b.h <= 1 || (b.ax == x && b.ay == y))) {
                 sewerNeed++
-                // 污水与供水共用管道管网：接入水管网 + 有污水厂即可处理
+                // 污水与供水共用管道管网：接入管线网 + 有污水厂即可处理
                 val onSewerNet = Networks.isWatered(x, y) && sewageN > 0
                 if (onSewerNet) {
                     sewerHits++
@@ -102,7 +102,7 @@ object CitySystems {
         s.pollution = ((st.pollution + groundPolAvg * 0.4 + waterPolAvg * 0.3) *
             GameData.policyMul("pollutionMul")).toInt()
 
-        // 噪音：垃圾场/焚烧厂/电厂/火葬场/工厂 对附近住宅的影响，按距离衰减
+        // 噪音：垃圾场/焚烧厂/供电站/火葬场/工厂 对附近住宅的影响，按距离衰减
         var noiseSum = 0
         var noiseN = 0
         var noisy = 0

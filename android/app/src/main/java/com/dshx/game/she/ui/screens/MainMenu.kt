@@ -223,7 +223,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                 isError = nameError != null,
                 supportingText = nameError?.let { { Text(it, fontSize = 10.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current) } },
                 placeholder = {
-                    Text("星野市", fontFamily = LocalGameFont.current, fontSize = 14.sp)
+                    Text("星野新城", fontFamily = LocalGameFont.current, fontSize = 14.sp)
                 },
                 singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(
@@ -531,7 +531,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                             mapView.setToast(ne ?: me ?: "名称含不适宜的词")
                             return@clickable
                         }
-                        val cityName = if (name.isBlank()) "星野市" else name.trim()
+                        val cityName = if (name.isBlank()) "星野新城" else name.trim()
                         val mayorName = if (mayor.isBlank()) "未署名" else mayor.trim()
                         val seed = if (seedText.isBlank()) Random.nextInt(1, 100000) else seedText.toIntOrNull() ?: Random.nextInt(1, 100000)
                         startGame(mapView, cityName, mayorName, seed, difficulty, slot, sandbox)

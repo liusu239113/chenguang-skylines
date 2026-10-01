@@ -23,12 +23,12 @@ class Tile {
     var elevated: Boolean = false     // 立交桥：本格是抬高的桥面
     var underRoad: String? = null     // 立交桥下穿的地面道路（四面互通，底盘照常通行）
     var building: Building? = null
-    var pipe: Boolean = false         // 地下水管
-    var cable: Boolean = false        // 地下电缆
+    var pipe: Boolean = false         // 地下管线
+    var cable: Boolean = false        // 地下线缆
     // 管线开口方向位掩码：N=1 E=2 S=4 W=8；0=未指定（单点/旧档，按四向全开处理）
     var pipeMask: Int = 0
     var cableMask: Int = 0
-    var sewer: Boolean = false        // 污水管
+    var sewer: Boolean = false        // 污管线
     var metro: Boolean = false        // 地铁隧道
     var rail: Boolean = false         // 地面铁轨
     var district: Int = 0             // 旧档兼容，不再玩
@@ -864,8 +864,8 @@ class World {
         }
 
         /**
-         * 设施噪音：垃圾场/焚烧厂/电厂/工厂等对周边住宅的噪音影响，按距离衰减。
-         * 返回 0..100 的噪音强度，供幸福度与投诉使用。
+         * 设施噪音：垃圾场/焚烧厂/供电站/工厂等对周边住宅的噪音影响，按距离衰减。
+         * 返回 0..100 的噪音强度，供幸福度与反馈使用。
          */
         fun facilityNoiseAt(x: Int, y: Int): Int {
             var level = 0.0
@@ -984,7 +984,7 @@ class World {
                 }
             }
             // 只有要派车出入的设施才必须临路（垃圾车/灵车/消防/警车/救护），
-            // 电厂、水塔、抽水站、排污厂这类靠管网输送的不再强制临路
+            // 供电站、水塔、抽水站、排污厂这类靠管网输送的不再强制临路
             if (s.needsRoad && s.category != Config.ServiceCat.AMENITY) {
                 var adjacent = false
                 outer@ for (yy in ay - 1..ay + s.sizeH) {
@@ -1314,7 +1314,7 @@ class World {
         }
 
         fun isCoveredBy(x: Int, y: Int, category: String): Boolean {
-            // 电力/供水：接入「道路预埋管线 + 地下电缆/水管」即通，不再看厂站半径
+            // 电力/供水：接入「道路预埋管线 + 地下线缆/管线」即通，不再看厂站半径
             if (category == Config.ServiceCat.POWER) return Networks.isPowered(x, y)
             if (category == Config.ServiceCat.WATER) return Networks.isWatered(x, y)
             // 垃圾/殡葬：有产能即全城可服务（靠车辆沿路收运），不再看半径
