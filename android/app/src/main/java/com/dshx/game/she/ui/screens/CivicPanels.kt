@@ -633,20 +633,15 @@ fun SharePanel() {
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
-            .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) } ?: AppState.activeSlot
-        if (com.dshx.game.she.CityFile.importFromUri(ctx, uri, free) &&
-            com.dshx.game.she.SaveManager.load(free)
-        ) {
-            AppState.activeSlot = free
-            com.dshx.game.she.Prefs.lastSlot = free
-            AppState.shareOpen = false
-            AppState.menuOpen = false
-            MapRef.view?.resetCamera()
-            MapRef.view?.clearSelection()
-            MapRef.view?.setToast("已载入好友的城市（槽位 " + (free + 1) + "）")
-        } else {
+        // 先解析，再让玩家选槽位（避免覆盖当前存档）
+        val j = com.dshx.game.she.CityFile.parseFromUri(ctx, uri)
+        if (j == null) {
             msg = "存档已损坏或不是本作的存档"
+        } else {
+            com.dshx.game.she.PendingImport.save = j
+            com.dshx.game.she.PendingImport.source = "本地存档文件"
+            AppState.shareOpen = false
+            AppState.importSlotOpen = true
         }
     }
     // 相册选图
@@ -660,19 +655,10 @@ fun SharePanel() {
         } else {
             val done = com.dshx.game.she.ShareCode.feed(txt)
             if (done) {
-                val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
-                    .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) }
-                val target = free ?: AppState.activeSlot
-                if (com.dshx.game.she.ShareCode.finishInto(target) &&
-                    com.dshx.game.she.SaveManager.load(target)
-                ) {
-                    AppState.activeSlot = target
-                    com.dshx.game.she.Prefs.lastSlot = target
+                // 收齐后弹选槽，不自动覆盖
+                if (com.dshx.game.she.ShareCode.stagePending("相册二维码")) {
                     AppState.shareOpen = false
-                    AppState.menuOpen = false
-                    MapRef.view?.resetCamera()
-                    MapRef.view?.clearSelection()
-                    MapRef.view?.setToast("已从相册导入对方城市")
+                    AppState.importSlotOpen = true
                 } else {
                     msg = "导入失败"
                 }
@@ -1019,19 +1005,9 @@ fun SharePanel() {
                 val done = com.dshx.game.she.ShareCode.feed(text)
                 if (done) {
                     scanning = false
-                    val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
-                        .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) }
-                    val target = free ?: AppState.activeSlot
-                    if (com.dshx.game.she.ShareCode.finishInto(target) &&
-                        com.dshx.game.she.SaveManager.load(target)
-                    ) {
-                        AppState.activeSlot = target
-                        com.dshx.game.she.Prefs.lastSlot = target
+                    if (com.dshx.game.she.ShareCode.stagePending("扫码")) {
                         AppState.shareOpen = false
-                        AppState.menuOpen = false
-                        MapRef.view?.resetCamera()
-                        MapRef.view?.clearSelection()
-                        MapRef.view?.setToast("扫码成功，已载入对方城市（槽位 " + (target + 1) + "）")
+                        AppState.importSlotOpen = true
                     } else {
                         msg = "扫码内容不是有效的城市码"
                     }

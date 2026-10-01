@@ -97,18 +97,14 @@ class MainActivity : ComponentActivity() {
     private fun handleCityMapIntent(intent: android.content.Intent?) {
         if (!CityFile.isCityMapIntent(intent)) return
         val uri = intent?.data ?: return
-        val free = (0 until SaveManager.SLOT_COUNT).firstOrNull { !SaveManager.hasSlot(it) } ?: 0
-        if (CityFile.importFromUri(this, uri, free) && SaveManager.load(free)) {
-            AppState.activeSlot = free
-            Prefs.lastSlot = free
-            AppState.overlay = ""
-            AppState.mode = "view"
-            AppState.screen = "map"
-            MapRef.view?.resetCamera()
-            MapRef.view?.clearSelection()
-            MapRef.view?.setToast("已载入好友的城市（槽位 " + (free + 1) + "）")
-        } else {
+        // 先解析，再让玩家选槽位（避免覆盖已有存档）
+        val j = CityFile.parseFromUri(this, uri)
+        if (j == null) {
             MapRef.view?.setToast("城市存档已损坏或格式不符")
+        } else {
+            PendingImport.save = j
+            PendingImport.source = "好友发来的存档"
+            AppState.importSlotOpen = true
         }
     }
 }
@@ -212,5 +208,9 @@ fun AppRoot() {
             }
         }
         AdLoadingOverlay(AppState.adLoading)
+        // 导入城市时选槽位（跨页面通用）
+        if (AppState.importSlotOpen) {
+            com.dshx.game.she.ui.screens.ImportSlotPicker()
+        }
     }
 }

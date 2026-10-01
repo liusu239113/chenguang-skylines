@@ -374,7 +374,7 @@ fun MapScreenContent(mapView: MapRenderView) {
         val overlayOpen = AppState.policyOpen || AppState.helpOpen || AppState.dataOpen || AppState.menuOpen ||
             AppState.settingsOpen || AppState.civicOpen || AppState.complaintOpen || AppState.achievementOpen ||
             AppState.adOfferOpen || AppState.happyOpen || AppState.demandOpen || AppState.bankOpen || AppState.ledgerOpen ||
-            AppState.benefitOpen || AppState.shareOpen
+            AppState.benefitOpen || AppState.shareOpen || AppState.slotPickerOpen
         if (!overlayOpen) {
             Column(
                 modifier = Modifier
@@ -957,6 +957,7 @@ fun MapScreenContent(mapView: MapRenderView) {
         if (AppState.settingsOpen) SettingsPanel()
         if (AppState.shareOpen) SharePanel()
         if (AppState.benefitOpen) BenefitPanel()
+        if (AppState.slotPickerOpen) SlotPickerPanel()
         if (AppState.complaintOpen && Civic.pending != null) ComplaintPanel()
         if (AppState.adOfferOpen) AdOfferDialog()
         if (AppState.bankOpen) BankPanel()
@@ -2411,6 +2412,11 @@ private fun PausePanel() {
                 AppState.menuOpen = false
                 AppState.achievementOpen = true
             }
+            PauseBtn("存档槽位（保存 / 载入 / 新建）", C.chipBg.toColor(), C.textDark.toColor()) {
+                Sfx.play("sfx_click")
+                AppState.menuOpen = false
+                AppState.slotPickerOpen = true
+            }
             PauseBtn("保存到槽位 " + (AppState.activeSlot + 1), C.chipBg.toColor(), C.textDark.toColor()) {
                 Sfx.play("sfx_save")
                 SaveManager.save(AppState.activeSlot)
@@ -2465,3 +2471,398 @@ private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier =
             onClick = onClick
         )
     )
+
+/**
+ * 游戏内存档槽位面板：6 个槽位，每个可保存 / 载入 / 删除。
+ * 覆盖前会二次确认，避免手滑覆盖存档。
+ */
+@Composable
+private fun SlotPickerPanel() {
+    val C = Config.COLORS
+    val live = AppState.liveTick
+    var confirmSave by remember { mutableStateOf(-1) }
+    var confirmLoad by remember { mutableStateOf(-1) }
+    var confirmDelete by remember { mutableStateOf(-1) }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor())
+            .clickable { AppState.slotPickerOpen = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 560.dp)
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(16.dp)
+                .clickable(enabled = false) {}
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "存档槽位", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+                )
+                Text(
+                    "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                        .clickable { AppState.slotPickerOpen = false }.padding(4.dp)
+                )
+            }
+            Text(
+                "当前在槽位 " + (AppState.activeSlot + 1) + "。可存到任意槽位，或载入其他槽位的城市。",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            for (slot in 0 until SaveManager.SLOT_COUNT) {
+                val meta = SaveManager.meta(slot)
+                val isCur = slot == AppState.activeSlot
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (isCur) C.accentSoftBg.toColor() else C.chipBg.toColor(),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .border(
+                            1.dp,
+                            if (isCur) C.accentRed.toColor() else C.border2.toColor(),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "槽位 " + (slot + 1) + if (isCur) "（当前）" else "",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = if (isCur) C.accentRed.toColor() else C.textDark.toColor(),
+                        fontFamily = LocalGameFont.current
+                    )
+                    if (meta.exists) {
+                        Text(
+                            meta.cityName + " · " + meta.levelName + " · 人口 " + meta.population,
+                            fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
+                        )
+                        Text(
+                            meta.dateLabel + " · 资金 " + floor(meta.funds).toInt() + "万",
+                            fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+                        )
+                    } else {
+                        Text(
+                            "空槽位", fontSize = 11.sp,
+                            color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // 保存
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(C.accentGreen.toColor(), RoundedCornerShape(14.dp))
+                                .clickable {
+                                    Sfx.play("sfx_click")
+                                    if (meta.exists && !isCur) {
+                                        confirmSave = slot
+                                    } else {
+                                        SaveManager.save(slot)
+                                        AppState.activeSlot = slot
+                                        Prefs.lastSlot = slot
+                                        AppState.saveTick++
+                                        MapRef.view?.setToast("已保存到槽位 " + (slot + 1))
+                                    }
+                                }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text("保存", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+                        // 载入
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(
+                                    if (meta.exists) C.accentBlue.toColor() else C.border2.toColor(),
+                                    RoundedCornerShape(14.dp)
+                                )
+                                .clickable(enabled = meta.exists && !isCur) {
+                                    Sfx.play("sfx_click")
+                                    confirmLoad = slot
+                                }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text("载入", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+                        // 删除
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(
+                                    if (meta.exists) C.accentRed.toColor() else C.border2.toColor(),
+                                    RoundedCornerShape(14.dp)
+                                )
+                                .clickable(enabled = meta.exists) {
+                                    Sfx.play("sfx_click")
+                                    confirmDelete = slot
+                                }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text("删除", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+                    }
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .background(C.chipBg.toColor(), RoundedCornerShape(19.dp))
+                    .clickable { AppState.slotPickerOpen = false },
+                contentAlignment = Alignment.Center
+            ) { Text("关闭", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
+            if (live < 0) Text("")
+        }
+    }
+
+    // 覆盖确认
+    if (confirmSave >= 0) {
+        ConfirmDialog(
+            "覆盖槽位 " + (confirmSave + 1) + "？",
+            "该槽位已有存档（" + SaveManager.meta(confirmSave).cityName + "），覆盖后原存档会丢失。",
+            "覆盖保存",
+            onCancel = { confirmSave = -1 }
+        ) {
+            SaveManager.save(confirmSave)
+            AppState.activeSlot = confirmSave
+            Prefs.lastSlot = confirmSave
+            AppState.saveTick++
+            MapRef.view?.setToast("已覆盖保存到槽位 " + (confirmSave + 1))
+            confirmSave = -1
+        }
+    }
+    // 载入确认
+    if (confirmLoad >= 0) {
+        ConfirmDialog(
+            "载入槽位 " + (confirmLoad + 1) + "？",
+            "当前未保存的进度会丢失。载入后将进入该槽位的城市。",
+            "载入",
+            onCancel = { confirmLoad = -1 }
+        ) {
+            val s = confirmLoad
+            confirmLoad = -1
+            if (SaveManager.load(s)) {
+                AppState.activeSlot = s
+                Prefs.lastSlot = s
+                AppState.overlay = ""
+                AppState.mode = "view"
+                AppState.slotPickerOpen = false
+                MapRef.view?.resetCamera()
+                MapRef.view?.clearSelection()
+                MapRef.view?.setToast("已载入槽位 " + (s + 1))
+            }
+        }
+    }
+    // 删除确认
+    if (confirmDelete >= 0) {
+        ConfirmDialog(
+            "删除槽位 " + (confirmDelete + 1) + "？",
+            "该存档将被永久删除，无法恢复。",
+            "删除",
+            onCancel = { confirmDelete = -1 }
+        ) {
+            SaveManager.delete(confirmDelete)
+            AppState.saveTick++
+            MapRef.view?.setToast("已删除槽位 " + (confirmDelete + 1))
+            confirmDelete = -1
+        }
+    }
+}
+
+/** 通用二次确认弹窗 */
+@Composable
+private fun ConfirmDialog(
+    title: String, body: String, okText: String,
+    onOk: () -> Unit, onCancel: () -> Unit
+) {
+    val C = Config.COLORS
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0x99000000)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.82f)
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                title, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                body, fontSize = 11.sp, color = C.textMid.toColor(),
+                fontFamily = LocalGameFont.current, textAlign = TextAlign.Center
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .background(C.chipBg.toColor(), RoundedCornerShape(19.dp))
+                        .clickable { onCancel() },
+                    contentAlignment = Alignment.Center
+                ) { Text("取消", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .background(C.accentRed.toColor(), RoundedCornerShape(19.dp))
+                        .clickable { onOk() },
+                    contentAlignment = Alignment.Center
+                ) { Text(okText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+            }
+        }
+    }
+}
+
+/**
+ * 导入城市时选槽位：让玩家自己决定存到哪个槽，
+ * 避免满槽时自动覆盖当前存档。
+ */
+@Composable
+fun ImportSlotPicker() {
+    val C = Config.COLORS
+    val live = AppState.liveTick
+    var confirmSlot by remember { mutableStateOf(-1) }
+    val pending = PendingImport.save ?: return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(C.veil.toColor()),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 560.dp)
+                .background(C.panelWhite.toColor(), RoundedCornerShape(18.dp))
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "选择存到哪个槽位", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
+                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+            )
+            Text(
+                "来自：" + PendingImport.source + "。选一个槽位放入，已有存档的槽位需要二次确认。",
+                fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
+            )
+            for (slot in 0 until SaveManager.SLOT_COUNT) {
+                val meta = SaveManager.meta(slot)
+                val isCur = slot == AppState.activeSlot
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (isCur) C.accentSoftBg.toColor() else C.chipBg.toColor(),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .border(
+                            1.dp,
+                            if (isCur) C.accentRed.toColor() else C.border2.toColor(),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable {
+                            Sfx.play("sfx_click")
+                            if (meta.exists) confirmSlot = slot else {
+                                applyImport(slot)
+                            }
+                        }
+                        .padding(10.dp)
+                ) {
+                    Column {
+                        Text(
+                            "槽位 " + (slot + 1) + if (isCur) "（当前）" else "",
+                            fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            color = if (isCur) C.accentRed.toColor() else C.textDark.toColor(),
+                            fontFamily = LocalGameFont.current
+                        )
+                        Text(
+                            if (meta.exists) meta.cityName + " · 人口 " + meta.population + "（会被覆盖）"
+                            else "空槽位（推荐）",
+                            fontSize = 10.sp,
+                            color = if (meta.exists) C.accentRed.toColor() else C.accentGreen.toColor(),
+                            fontFamily = LocalGameFont.current
+                        )
+                    }
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .background(C.chipBg.toColor(), RoundedCornerShape(19.dp))
+                    .clickable {
+                        PendingImport.clear()
+                        AppState.importSlotOpen = false
+                    },
+                contentAlignment = Alignment.Center
+            ) { Text("取消导入", fontSize = 13.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current) }
+            if (live < 0) Text("")
+        }
+    }
+    if (confirmSlot >= 0) {
+        ConfirmDialog(
+            "覆盖槽位 " + (confirmSlot + 1) + "？",
+            "该槽位已有存档（" + SaveManager.meta(confirmSlot).cityName + "），覆盖后原存档会丢失。",
+            "覆盖",
+            onCancel = { confirmSlot = -1 }
+        ) {
+            val s = confirmSlot
+            confirmSlot = -1
+            applyImport(s)
+        }
+    }
+}
+
+/** 把待导入数据写进指定槽位并载入 */
+private fun applyImport(slot: Int) {
+    val j = PendingImport.save
+    if (j == null) {
+        AppState.importSlotOpen = false
+        return
+    }
+    PendingImport.clear()
+    AppState.importSlotOpen = false
+    val ok = try {
+        SaveManager.writeRaw(slot, j)
+        SaveManager.load(slot)
+    } catch (t: Throwable) {
+        false
+    }
+    if (ok) {
+        AppState.activeSlot = slot
+        Prefs.lastSlot = slot
+        AppState.overlay = ""
+        AppState.mode = "view"
+        AppState.shareOpen = false
+        AppState.menuOpen = false
+        AppState.screen = "map"
+        MapRef.view?.resetCamera()
+        MapRef.view?.clearSelection()
+        MapRef.view?.setToast("已导入到槽位 " + (slot + 1))
+    } else {
+        MapRef.view?.setToast("导入失败：存档无法载入")
+    }
+}

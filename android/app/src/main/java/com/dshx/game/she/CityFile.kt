@@ -75,12 +75,47 @@ object CityFile {
 
     /** 从外部 URI 读入存档并写入槽位 */
     fun importFromUri(context: Context, uri: Uri, slot: Int): Boolean {
+        val j = parseFromUri(context, uri) ?: return false
+        return try {
+            SaveManager.writeRaw(slot, j)
+            true
+        } catch (t: Throwable) {
+            false
+        }
+    }
+
+    /** 从外部 URI 只解析，不落盘（交给玩家选槽位后再写） */
+    fun parseFromUri(context: Context, uri: Uri): org.json.JSONObject? {
         val bytes = try {
             context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
         } catch (t: Throwable) {
             null
-        } ?: return false
-        return importBytes(bytes, slot)
+        } ?: return null
+        return parseBytes(bytes)
+    }
+
+    /** 解析字节为存档 JSON（含 CRC 校验），失败返回 null */
+    fun parseBytes(bytes: ByteArray): org.json.JSONObject? {
+        return try {
+            if (bytes.size < 13) return null
+            val magic = String(bytes, 0, 4, Charsets.US_ASCII)
+            if (magic != MAGIC) return null
+            var p = 4
+            val ver = bytes[p++].toInt() and 0xFF
+            if (ver != VERSION) return null
+            val len = readInt(bytes, p); p += 4
+            val crcWant = readInt(bytes, p); p += 4
+            if (len <= 0 || p + len > bytes.size) return null
+            val payload = bytes.copyOfRange(p, p + len)
+            val crc = CRC32()
+            crc.update(payload)
+            if (crc.value.toInt() != crcWant) return null
+            val out = ByteArrayOutputStream()
+            InflaterInputStream(payload.inputStream()).use { it.copyTo(out) }
+            CityCodec.decodeToSave(out.toByteArray())
+        } catch (t: Throwable) {
+            null
+        }
     }
 
     /** 从字节解析并写入槽位 */

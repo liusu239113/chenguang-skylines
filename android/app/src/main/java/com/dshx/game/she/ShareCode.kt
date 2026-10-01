@@ -136,6 +136,36 @@ object ShareCode {
         return importPacked(sb.toString(), slot)
     }
 
+    /**
+     * 收齐后只解析成待导入状态，不落盘。
+     * 由调用方弹「选槽位」弹窗，玩家选好后再写入，避免覆盖已有存档。
+     */
+    fun stagePending(source: String): Boolean {
+        if (expectTotal < 1 || chunks.size < expectTotal) return false
+        val sb = StringBuilder()
+        for (i in 1..expectTotal) {
+            sb.append(chunks[i] ?: return false)
+        }
+        resetCollect()
+        val j = unpackToSave(sb.toString()) ?: return false
+        PendingImport.save = j
+        PendingImport.source = source
+        return true
+    }
+
+    /** Base64 → 解压 → 存档 JSON（不落盘） */
+    private fun unpackToSave(packed: String): org.json.JSONObject? {
+        val bytes = try {
+            val b = Base64.decode(packed, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+            val out = ByteArrayOutputStream()
+            InflaterInputStream(b.inputStream()).use { it.copyTo(out) }
+            out.toByteArray()
+        } catch (t: Throwable) {
+            return null
+        }
+        return CityCodec.decodeToSave(bytes)
+    }
+
     /** 直接把一整段（未分片或已拼好）导入 */
     fun import(text: String, slot: Int): Boolean {
         val t = text.trim()
@@ -170,4 +200,22 @@ object ShareCode {
 
     /** 估算当前城市需要几张二维码 */
     fun chunkCount(): Int = exportChunks()?.size ?: 0
+}
+
+/**
+ * 待导入暂存：解析好但还没选槽位的城市数据。
+ * 玩家在弹窗里选好槽位后再落盘，避免满槽时误覆盖当前存档。
+ */
+object PendingImport {
+    /** 已解析的存档 JSON */
+    var save: org.json.JSONObject? = null
+    /** 来源描述（显示在选槽弹窗上） */
+    var source: String = ""
+
+    fun clear() {
+        save = null
+        source = ""
+    }
+
+    fun has(): Boolean = save != null
 }
