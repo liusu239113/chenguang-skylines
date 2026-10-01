@@ -95,7 +95,7 @@ object AdOffers {
                 MapRef.view?.setToast(if (n > 0) "即刻入住：新增 $n 位住户" else "当前没有空置住宅")
             }
             "upgrade" -> {
-                // 升级提速：全城满级以下的建筑立刻升一级，城市肉眼可见地长高
+                // 升级提速：全城满级以下的建筑立刻升一级，新区肉眼可见地长高
                 var n = 0
                 for (e in World.allBuildings()) {
                     val b = e.b
@@ -141,7 +141,7 @@ object AdOffers {
                 }
             }
             "fastpolicy" -> {
-                // 方案速批：清空所有方案冷却，想连开就开
+                // 策略速批：清空所有策略冷却，想连开就开
                 var n = 0
                 for ((id, cd) in s.policyCooldowns.toMap()) {
                     if (cd > 0) {
@@ -149,7 +149,7 @@ object AdOffers {
                         n++
                     }
                 }
-                MapRef.view?.setToast(if (n > 0) "方案速批：$n 项方案可立即启用" else "当前没有冷却中的方案")
+                MapRef.view?.setToast(if (n > 0) "策略速批：$n 项策略可立即启用" else "当前没有冷却中的策略")
             }
             // ---- 限时增益（真实时间计时，退出游戏也保留）----
             "buff_happy" -> {

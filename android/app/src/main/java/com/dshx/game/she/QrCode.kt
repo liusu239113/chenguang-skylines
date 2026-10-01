@@ -16,7 +16,7 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 
 /**
  * 二维码：把分享码画成图，玩家用另一台设备扫，或存成图发论坛。
- * 用 ZXing 编码，纠错级别 L（能装最多数据），整座城市也塞得下。
+ * 用 ZXing 编码，纠错级别 L（能装最多数据），整座新区也塞得下。
  */
 object QrCode {
 

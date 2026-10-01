@@ -79,8 +79,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: "都市营建模拟 · build ${{ github.run_number }}"
-          body: "正式签名 APK（com.dshx.game.she · 1.3.4），可直接安装。旧包名需先卸载。"
+          name: "地产大亨：从荒土到繁华之城 · build ${{ github.run_number }}"
+          body: "正式签名 APK（com.dshx.game.she · 1.3.5），可直接安装。旧包名需先卸载。\n\n1.3.5 题材换皮：改名「地产大亨：从荒土到繁华之城」，玩法由城市治理改为地产开发（划区→征地、政策/方案→开发策略、城市→新区），去治理化文案全面替换。"
           files: android/app/build/outputs/apk/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

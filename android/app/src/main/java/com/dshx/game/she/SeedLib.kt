@@ -28,10 +28,10 @@ object SeedLib {
         SeedEntry(100001, "苍原", "平原", "一马平川，几乎没有山丘，适合大范围铺路盖楼。"),
         SeedEntry(100002, "水泽", "多水", "河网密布、湖泊众多，水运与港口的天然舞台。"),
         SeedEntry(100003, "层峦", "丘陵", "丘陵连绵，可用平地有限，考验填挖与立体规划。"),
-        SeedEntry(100004, "碧湾", "多水", "临海港湾地形，水岸线长，适合做滨海都市。"),
+        SeedEntry(100004, "碧湾", "多水", "临海港湾地形，水岸线长，适合做滨海新区。"),
         SeedEntry(100005, "旷野", "平原", "开阔平原，无山无水，纯粹的白纸起步。"),
         SeedEntry(100006, "群岛", "群岛", "多块小陆地被水隔开，必须靠桥梁连成一体。"),
-        SeedEntry(100007, "青谷", "均衡", "缓坡与河谷交错，地形温和，适合中等规模城市。"),
+        SeedEntry(100007, "青谷", "均衡", "缓坡与河谷交错，地形温和，适合中等规模新区。"),
         SeedEntry(100008, "磐石", "丘陵", "山体厚重，平地集中在谷地，适合紧凑布局。"),
         SeedEntry(100009, "长川", "多水", "一条大江贯穿全图，两岸发展，桥位是战略资源。")
     )
@@ -48,13 +48,13 @@ object SeedLib {
     fun randomSeed(): Int = kotlin.random.Random.nextInt(200000, 999999)
 
     /**
-     * 导出分享文本：种子 + 当前城市信息，方便贴到论坛。
-     * 例：【都市营建模拟】种子 100002 · 水泽（多水）｜人口 3200 · 幸福 78
+     * 导出分享文本：种子 + 当前新区信息，方便贴到论坛。
+     * 例：【地产大亨】种子 100002 · 水泽（多水）｜人口 3200 · 满意 78
      */
     fun shareText(seed: Int, cityName: String, pop: Int, happy: Int): String {
         val e = find(seed)
         val head = if (e != null) "种子 $seed · ${e.name}（${e.tag}）" else "种子 $seed"
-        return "【${Config.TITLE}】$head ｜ $cityName · 人口 $pop · 幸福 $happy"
+        return "【${Config.TITLE}】$head ｜ $cityName · 人口 $pop · 满意 $happy"
     }
 
     /**

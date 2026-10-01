@@ -6,11 +6,11 @@ import java.util.zip.DeflaterOutputStream
 import java.util.zip.InflaterInputStream
 
 /**
- * 城市分享：种子码 / 单张二维码 / 多张二维码分片。
+ * 新区分享：种子码 / 单张二维码 / 多张二维码分片。
  *
  * 数据流：CityCodec 二进制 → deflate 压缩 → Base64。
  * 二进制编码让每格只占 4~6 字节，比 JSON 省 5 倍，一张二维码能装更多。
- * 城市太大时自动切成多片，UI 轮播显示，扫码端逐张收集后拼回。
+ * 新区太大时自动切成多片，UI 轮播显示，扫码端逐张收集后拼回。
  *
  * 分片格式：CS1.<序号>.<总数>.<数据>
  */
@@ -21,7 +21,7 @@ object ShareCode {
     /**
      * 单张二维码最多承载的字符数。
      * QR 版本 40 + 纠错 L 上限 2953 字节，Base64 膨胀 4/3 → 约 3900 字符。
-     * 留出余量取 2600，保证绝大多数城市一张码就够。
+     * 留出余量取 2600，保证绝大多数新区一张码就够。
      */
     const val CHUNK_CHARS = 2600
 
@@ -44,7 +44,7 @@ object ShareCode {
     // 导出
     // ------------------------------------------------------------------
 
-    /** 完整城市数据（二进制→压缩→Base64），失败返回 null */
+    /** 完整项目数据（二进制→压缩→Base64），失败返回 null */
     private fun packedData(): String? {
         val raw = CityCodec.encode() ?: return null
         val bos = ByteArrayOutputStream()
@@ -56,7 +56,7 @@ object ShareCode {
     }
 
     /**
-     * 导出为分片列表。城市越大片数越多。
+     * 导出为分片列表。新区越大片数越多。
      * 每片都是独立二维码，扫齐所有片才能还原。
      */
     fun exportChunks(): List<String>? {
@@ -198,12 +198,12 @@ object ShareCode {
         }
     }
 
-    /** 估算当前城市需要几张二维码 */
+    /** 估算当前新区需要几张二维码 */
     fun chunkCount(): Int = exportChunks()?.size ?: 0
 }
 
 /**
- * 待导入暂存：解析好但还没选槽位的城市数据。
+ * 待导入暂存：解析好但还没选槽位的项目数据。
  * 玩家在弹窗里选好槽位后再落盘，避免满槽时误覆盖当前存档。
  */
 object PendingImport {

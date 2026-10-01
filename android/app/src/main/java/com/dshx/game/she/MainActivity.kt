@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
         if (GameData.current == null) {
             GameData.init(20260408)
         }
-        // 好友发来的城市存档：在微信/QQ 里点文件选本作打开
+        // 好友发来的新区存档：在微信/QQ 里点文件选本作打开
         handleCityMapIntent(intent)
         setContent {
             AppTheme {
@@ -92,7 +92,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 好友在微信/QQ 里点 .citymap 文件、选「用本作打开」时走这里。
-     * 把存档读进一个空槽位并直接进入城市。
+     * 把存档读进一个空槽位并直接进入新区。
      */
     private fun handleCityMapIntent(intent: android.content.Intent?) {
         if (!CityFile.isCityMapIntent(intent)) return
@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
         // 先解析，再让玩家选槽位（避免覆盖已有存档）
         val j = CityFile.parseFromUri(this, uri)
         if (j == null) {
-            MapRef.view?.setToast("城市存档已损坏或格式不符")
+            MapRef.view?.setToast("新区存档已损坏或格式不符")
         } else {
             PendingImport.save = j
             PendingImport.source = "好友发来的存档"
@@ -208,7 +208,7 @@ fun AppRoot() {
             }
         }
         AdLoadingOverlay(AppState.adLoading)
-        // 导入城市时选槽位（跨页面通用）
+        // 导入新区时选槽位（跨页面通用）
         if (AppState.importSlotOpen) {
             com.dshx.game.she.ui.screens.ImportSlotPicker()
         }

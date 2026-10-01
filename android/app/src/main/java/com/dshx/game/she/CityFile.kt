@@ -11,10 +11,10 @@ import java.util.zip.DeflaterOutputStream
 import java.util.zip.InflaterInputStream
 
 /**
- * 城市存档文件（.citymap）：发微信/QQ 给好友，对方点开即可载入。
+ * 新区存档文件（.citymap）：发微信/QQ 给好友，对方点开即可载入。
  *
  * 文件结构：
- *   魔数 "CMAP" + 版本 + CRC32 + 压缩后的城市数据
+ *   魔数 "CMAP" + 版本 + CRC32 + 压缩后的项目数据
  * 自带 CRC 校验，传输损坏时打开就报错，不需要额外校验手段。
  *
  * 接收：manifest 里注册了 .citymap 的 VIEW intent-filter，
@@ -46,7 +46,7 @@ object CityFile {
         val dir = File(context.filesDir, "share")
         if (!dir.exists()) dir.mkdirs()
         val safe = cityName.replace(Regex("[^\\w\\u4e00-\\u9fa5]"), "_").take(20)
-        val f = File(dir, "城市_${safe}_${System.currentTimeMillis()}.$EXT")
+        val f = File(dir, "新区_${safe}_${System.currentTimeMillis()}.$EXT")
         return try {
             f.writeBytes(out.toByteArray())
             f
@@ -64,10 +64,10 @@ object CityFile {
             val it = Intent(Intent.ACTION_SEND).apply {
                 type = "application/octet-stream"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "城市存档")
+                putExtra(Intent.EXTRA_SUBJECT, "新区存档")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            Intent.createChooser(it, "把城市发给好友")
+            Intent.createChooser(it, "把新区发给好友")
         } catch (t: Throwable) {
             null
         }
@@ -145,7 +145,7 @@ object CityFile {
         }
     }
 
-    /** 判断某个 intent 是否是「打开城市存档」 */
+    /** 判断某个 intent 是否是「打开新区存档」 */
     fun isCityMapIntent(intent: Intent?): Boolean {
         if (intent == null) return false
         val action = intent.action ?: return false

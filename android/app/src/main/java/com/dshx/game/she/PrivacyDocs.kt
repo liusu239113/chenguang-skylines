@@ -34,8 +34,8 @@ object PrivacyDocs {
     val SELF_ITEMS: List<PrivacyItem> = listOf(
         PrivacyItem(
             "相机权限",
-            "仅在您主动使用「扫码导入城市」功能时调用相机，用于识别二维码；不拍照、不录像、不上传任何图像",
-            "扫码导入城市分享码"
+            "仅在您主动使用「扫码导入新区」功能时调用相机，用于识别二维码；不拍照、不录像、不上传任何图像",
+            "扫码导入新区分享码"
         ),
         PrivacyItem("位置信息", "精确位置信息（可选）", "广告定向投放"),
         PrivacyItem(

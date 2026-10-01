@@ -176,7 +176,7 @@ object MapScreen {
         } else if (GameData.pendingLevelUp) {
             GameData.pendingLevelUp = false
             Sfx.play("sfx_levelup")
-            view?.setToast("城市晋级 " + World.cityLevel().name + "！")
+            view?.setToast("项目晋级 " + World.cityLevel().name + "！")
         } else if (GameData.monthFlash) {
             GameData.monthFlash = false
             Sfx.play("sfx_month")
@@ -341,7 +341,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                                     if (sp.second == 0) {
                                         AppState.paused = true
                                         GameData.setSpeed(0)
-                                        MapRef.view?.setToast("已暂停时间，仍可划区修路")
+                                        MapRef.view?.setToast("已暂停时间，仍可征地修路")
                                         AppState.bumpLive()
                                     } else if (locked) {
                                         if (act != null) {
@@ -828,7 +828,7 @@ fun MapScreenContent(mapView: MapRenderView) {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "待确认划区 $n 格 · $zname",
+                        "待确认征地 $n 格 · $zname",
                         fontSize = 12.sp, fontWeight = FontWeight.Bold,
                         color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                     )
@@ -863,7 +863,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                             }
                             .padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
-                        Text("确认划区", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
+                        Text("确认征地", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current)
                     }
                 }
             }
@@ -1364,7 +1364,7 @@ private fun PolicyPanel() {
             val live = AppState.liveTick
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "开发方案", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    "开发策略", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                 )
@@ -1400,7 +1400,7 @@ private fun PolicyPanel() {
                                 MapRef.view?.setToast(msg ?: "无法启用")
                             } else {
                                 Sfx.play("sfx_policy")
-                                MapRef.view?.setToast(msg ?: "方案已生效")
+                                MapRef.view?.setToast(msg ?: "策略已生效")
                             }
                             AppState.bumpLive()
                         }
@@ -1433,7 +1433,7 @@ private fun PolicyPanel() {
             }
             // ---- 收费率（RCI 三档） ----
             Text(
-                "收费率（% 越高收入越多，幸福度与需求越低）",
+                "收费率（% 越高收入越多，满意度与需求越低）",
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             TaxSlider("住宅", s.taxRes) { s.taxRes = it; AppState.bumpLive() }
@@ -1485,7 +1485,7 @@ private fun HelpPanel() {
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "新手指引 · 都市营建模拟，经营一座架空都市", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    "新手指引 · 地产大亨，从荒土到繁华之城", fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                 )
@@ -1495,15 +1495,15 @@ private fun HelpPanel() {
                     modifier = Modifier.align(Alignment.CenterEnd).clickable { AppState.helpOpen = false }.padding(4.dp)
                 )
             }
-            HelpRow("手", "手掌在确认条上方，点它退出建造并拖地图。划区/设施都要点底部「确认」才扣费。")
+            HelpRow("手", "手掌在确认条上方，点它退出建造并拖地图。征地/设施都要点底部「确认」才扣费。")
             HelpRow("职", "点顶栏等级打开项目档案。达标后点「升职」立刻升一级：到账项目基金，并解锁新建设施（广场/地铁/机场等）。")
             HelpRow("路", "开局十字是【两车道】，和建造菜单里同一种。泥土路无标线；两车道一条中虚线；四车道中央双黄、两侧白虚线，车分内外道并排。外环高速全天有过路车；接进城后才会进游客。")
             HelpRow("铁", "先在【服务】建火车站，再在【道路】里选铁轨去地图上画。地铁同理，先建地铁站。机场建好会有飞机。")
-            HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认划区」才扣费。设施会清掉底下分区，不会被后长出来的楼盖掉。小学点在占地内任意一格即可。【办公】要中学以上学历才进得去，收益比商业高。【推平】拆楼会连底下分区一起清掉。")
+            HelpRow("区", "【住宅/商业/工业/办公】在路旁点格子进草稿，点「确认征地」才扣费。设施会清掉底下分区，不会被后长出来的楼盖掉。小学点在占地内任意一格即可。【办公】要中学以上学历才进得去，收益比商业高。【推平】拆楼会连底下分区一起清掉。")
             HelpRow("电", "供电站只负责产能，可放远郊。电力靠「道路预埋线缆 + 地下线缆」送到建筑：临路的楼自动通电，偏远地块要在【规划】里拖线缆，首尾相接才算连通。")
             HelpRow("水", "水塔/抽水站/污水处理厂必须建在水边（取水/排水），只负责产能，靠「道路预埋管线 + 地下管线」送到建筑；污水和供水共用一条管道网。")
             HelpRow("规", "【规划】里选管线/线缆/公交/种树/抬升，以及产业专精。管线要沿着一条线拖，首尾对齐才连得上，两根并排的竖管不会互通。专精刷在已划的分区上，格子立刻变色。全城规章在左上【策】。")
-            HelpRow("污", "垃圾场、焚烧厂、供电站、火葬场、工厂会给周边住宅带来噪音和臭气，按距离衰减。贴太近客户会反馈反馈并拉低幸福度，放远郊或隔开就好。")
+            HelpRow("污", "垃圾场、焚烧厂、供电站、火葬场、工厂会给周边住宅带来噪音和臭气，按距离衰减。贴太近客户会反馈反馈并拉低满意度，放远郊或隔开就好。")
             HelpRow("策", "【数/?/策/银/账】在状态栏左下。【银】贷款；【账】看每天每月收支。人口过 180 后维护和造价逐步加重。暂停用顶栏 ‖；1x 比以前慢一半；2x/3x 都要看广告。右上 ≡ 在顶栏下方，点开建筑详情时会先藏起来。")
             HelpRow("存", "每月结算和切出游戏都会自动写入当前槽位。主菜单「继续游戏」读最近一档。右上【≡】也可手动保存。")
             Box(
@@ -1598,7 +1598,7 @@ private fun HappyPanel() {
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "幸福度从哪来", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    "满意度从哪来", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                 )
@@ -1614,13 +1614,13 @@ private fun HappyPanel() {
                 color = if (s.happiness >= 55) C.accentGreen.toColor() else C.accentRed.toColor(),
                 fontFamily = LocalGameFont.current
             )
-            Text("基础分 ${bd.base.toInt()}：城市底子，没有设施时也有这么多。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("基础分 ${bd.base.toInt()}：项目底子，没有设施时也有这么多。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("公园/广场/学校/诊所等服务 ${if (bd.service >= 0) "+" else ""}${bd.service.toInt()}：多建公园、广场、学校、诊所会涨。公园会吸收污染、抬地价。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("污染 ${bd.pollution.toInt()}：工厂、供电站、垃圾堆会拉低。绿化、种树、把住工分开能缓解。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("覆盖 ${bd.coveragePenalty.toInt()}：住宅要在电/水/垃圾圈里，圈外会扣分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("收费率 ${bd.taxPenalty.toInt()}：收费率高于 10% 会扣分。点【策】可调。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("事件 ${if (bd.event >= 0) "+" else ""}${bd.event.toInt()}：客户反馈和营建事件。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("方案 ${if (bd.policy >= 0) "+" else ""}${bd.policy.toInt()}：福利改善、绿化行动等会加分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("策略 ${if (bd.policy >= 0) "+" else ""}${bd.policy.toInt()}：福利改善、绿化行动等会加分。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("通勤 ${if (bd.commute >= 0) "+" else ""}${bd.commute.toInt()}：路堵会扣，公交/地铁能加。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("就业/健康/教育 ${if (bd.jobs >= 0) "+" else ""}${bd.jobs.toInt()}：商工办岗位、医院学校、巡防都算在这里。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Box(
@@ -1686,7 +1686,7 @@ private fun DemandPanel() {
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text("住 ${(d.r * 100).toInt()}% · ${tip(d.r)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
-            Text("人口 $pop / 住宅容量 ${st.resCap}。岗位多、幸福度高时住房需求涨；房子盖太多会回落。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("人口 $pop / 住宅容量 ${st.resCap}。岗位多、满意度高时住房需求涨；房子盖太多会回落。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("商 ${(d.c * 100).toInt()}% · ${tip(d.c)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current)
             Text("人口多了才要店。现有商业容量 ${st.comCap}。", fontSize = 11.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("工 ${(d.i * 100).toInt()}% · ${tip(d.i)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.accentGold.toColor(), fontFamily = LocalGameFont.current)
@@ -1939,7 +1939,7 @@ private fun LedgerPanel() {
                         LedgerRow("道路维护", month.road, false)
                         LedgerRow("设施运营", month.service, false)
                         LedgerRow("建造", month.build, false)
-                        LedgerRow("划区", month.zone, false)
+                        LedgerRow("征地", month.zone, false)
                         LedgerRow("还贷", month.loanOut, false)
                         LedgerRow("其他支出", month.otherOut, false)
                     }
@@ -2034,7 +2034,7 @@ private fun DataPanel() {
             val live = AppState.liveTick
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "城市数据", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    "项目数据", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                 )
@@ -2087,16 +2087,16 @@ private fun DataPanel() {
             TaxSlider("巡防开支", s.budgetSafety, 50, 150) { s.budgetSafety = it; AppState.bumpLive() }
             TaxSlider("公交开支", s.budgetTransit, 50, 150) { s.budgetTransit = it; AppState.bumpLive() }
 
-            // 幸福度根因
+            // 满意度根因
             val bd = GameData.happinessBreakdown()
             Text(
-                "幸福度 ${floor(s.happiness).toInt()}（目标 ${bd.target.toInt()}）",
+                "满意度 ${floor(s.happiness).toInt()}（目标 ${bd.target.toInt()}）",
                 fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 color = if (s.happiness >= 55) C.accentGreen.toColor() else C.accentRed.toColor(),
                 fontFamily = LocalGameFont.current
             )
             Text(
-                "基础 ${bd.base.toInt()} · 服务 ${bd.service.toInt()} · 污染 ${bd.pollution.toInt()} · 覆盖 ${bd.coveragePenalty.toInt()} · 费 ${bd.taxPenalty.toInt()} · 事件 ${bd.event.toInt()} · 方案 ${bd.policy.toInt()} · 通勤 ${bd.commute.toInt()} · 就业 ${bd.jobs.toInt()}",
+                "基础 ${bd.base.toInt()} · 服务 ${bd.service.toInt()} · 污染 ${bd.pollution.toInt()} · 覆盖 ${bd.coveragePenalty.toInt()} · 费 ${bd.taxPenalty.toInt()} · 事件 ${bd.event.toInt()} · 策略 ${bd.policy.toInt()} · 通勤 ${bd.commute.toInt()} · 就业 ${bd.jobs.toInt()}",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -2516,7 +2516,7 @@ private fun SlotPickerPanel() {
                 )
             }
             Text(
-                "当前在槽位 " + (AppState.activeSlot + 1) + "。可存到任意槽位，或载入其他槽位的城市。",
+                "当前在槽位 " + (AppState.activeSlot + 1) + "。可存到任意槽位，或载入其他槽位的新区。",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             for (slot in 0 until SaveManager.SLOT_COUNT) {
@@ -2648,7 +2648,7 @@ private fun SlotPickerPanel() {
     if (confirmLoad >= 0) {
         ConfirmDialog(
             "载入槽位 " + (confirmLoad + 1) + "？",
-            "当前未保存的进度会丢失。载入后将进入该槽位的城市。",
+            "当前未保存的进度会丢失。载入后将进入该槽位的新区。",
             "载入",
             onOk = {
                 val s = confirmLoad
@@ -2740,7 +2740,7 @@ private fun ConfirmDialog(
 }
 
 /**
- * 导入城市时选槽位：让玩家自己决定存到哪个槽，
+ * 导入新区时选槽位：让玩家自己决定存到哪个槽，
  * 避免满槽时自动覆盖当前存档。
  */
 @Composable

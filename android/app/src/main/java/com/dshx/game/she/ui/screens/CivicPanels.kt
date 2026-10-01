@@ -98,7 +98,7 @@ fun CivicPanel() {
             )
             Text(cur.perk, fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
             Text(
-                "本作是完全架空的都市经营游戏，所有设定均为虚构，与现实无关。人口、幸福、评级、反馈都会推进档案。",
+                "本作是完全架空的地产经营游戏，所有设定均为虚构，与现实无关。人口、满意、评级、反馈都会推进档案。",
                 fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -532,10 +532,10 @@ fun SettingsPanel() {
                 if (SpeedBoost.isActive()) "加速剩余 ${SpeedBoost.remainingSec() / 60} 分 ${SpeedBoost.remainingSec() % 60} 秒" else "2x、3x 都要看广告解锁 20 分钟",
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
-            // 分享码：把自己的城市导出，或导入别人的城市
-            Text("城市分享码", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            // 分享码：把自己的新区导出，或导入别人的新区
+            Text("新区分享码", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text(
-                "生成一串分享码发给别人，对方导入后就能进入和你一模一样的城市（地形、建筑、道路全部还原）。",
+                "生成一串分享码发给别人，对方导入后就能进入和你一模一样的新区（地形、建筑、道路全部还原）。",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Box(
@@ -549,7 +549,7 @@ fun SettingsPanel() {
                         AppState.shareOpen = true
                     },
                 contentAlignment = Alignment.Center
-            ) { Text("分享 / 导入城市", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+            ) { Text("分享 / 导入新区", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
 
             Text(
                 "广告奖励已移到左侧【福】按钮，那里领更快。银行低息贷在【银】。",
@@ -598,8 +598,8 @@ fun SettingsPanel() {
 }
 
 /**
- * 分享 / 导入城市。
- * 导出：把当前城市压成分享码，复制发给别人。
+ * 分享 / 导入新区。
+ * 导出：把当前新区压成分享码，复制发给别人。
  * 导入：粘贴别人的分享码，写进空闲槽位后载入。
  */
 @Composable
@@ -609,7 +609,7 @@ fun SharePanel() {
     val s = GameData.current
     var importText by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf<String?>(null) }
-    // 分片二维码：城市大就切成多张，轮播显示
+    // 分片二维码：新区大就切成多张，轮播显示
     val chunks = remember { com.dshx.game.she.ShareCode.exportChunks() }
     var qrIndex by remember { mutableStateOf(0) }
     val totalChunks = chunks?.size ?: 0
@@ -628,7 +628,7 @@ fun SharePanel() {
     val qrBitmap = qrBitmaps?.getOrNull(qrIndex.coerceIn(0, (qrBitmaps.size - 1).coerceAtLeast(0)))
     val code = chunks?.firstOrNull()
     var scanning by remember { mutableStateOf(false) }
-    // 选城市存档文件（SAF 系统文件选择器，不需要存储权限）
+    // 选新区存档文件（SAF 系统文件选择器，不需要存储权限）
     val pickFile = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -651,7 +651,7 @@ fun SharePanel() {
         if (uri == null) return@rememberLauncherForActivityResult
         val txt = com.dshx.game.she.QrCode.decodeFromUri(ctx, uri)
         if (txt == null) {
-            msg = "这张图里没识别到城市码"
+            msg = "这张图里没识别到新区码"
         } else {
             val done = com.dshx.game.she.ShareCode.feed(txt)
             if (done) {
@@ -688,7 +688,7 @@ fun SharePanel() {
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "分享 / 导入城市", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    "分享 / 导入新区", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                     color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                     modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
                 )
@@ -701,9 +701,9 @@ fun SharePanel() {
             }
 
             // ---- 导出 ----
-            Text("① 导出我的城市", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("① 导出我的新区", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             if (code == null) {
-                Text("当前没有可导出的城市", fontSize = 11.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
+                Text("当前没有可导出的新区", fontSize = 11.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current)
             } else {
                 // 主推：短种子码（纯数字，和开局地图种子同源）
                 val seed = com.dshx.game.she.ShareCode.seedCode()
@@ -752,13 +752,13 @@ fun SharePanel() {
                     contentAlignment = Alignment.Center
                 ) { Text("复制地图种子", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
 
-                // 文件分享（推荐）：任意大小城市都完整复刻，一步发送
+                // 文件分享（推荐）：任意大小新区都完整复刻，一步发送
                 Text(
                     "发给好友（推荐）", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                     color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
                 )
                 Text(
-                    "点下面按钮，选微信/QQ 直接把城市存档发给好友。对方点开文件选「用本作打开」就能进入你的城市，多大都完整还原。",
+                    "点下面按钮，选微信/QQ 直接把新区存档发给好友。对方点开文件选「用本作打开」就能进入你的新区，多大都完整还原。",
                     fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
                 )
                 Box(
@@ -770,7 +770,7 @@ fun SharePanel() {
                             Sfx.play("sfx_click")
                             val cur = GameData.current
                             val f = com.dshx.game.she.CityFile.exportToFile(
-                                ctx, cur?.cityName ?: "城市"
+                                ctx, cur?.cityName ?: "新区"
                             )
                             if (f == null) {
                                 msg = "导出失败"
@@ -789,11 +789,11 @@ fun SharePanel() {
                             }
                         },
                     contentAlignment = Alignment.Center
-                ) { Text("发送城市给好友", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+                ) { Text("发送新区给好友", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
 
-                // 二维码：小城市可直接扫码（备用通道）
+                // 二维码：小新区可直接扫码（备用通道）
                 Text(
-                    "或扫码分享（小城市）", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    "或扫码分享（小新区）", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                     color = C.textMid.toColor(), fontFamily = LocalGameFont.current
                 )
                 val qr = qrBitmap
@@ -807,7 +807,7 @@ fun SharePanel() {
                     ) {
                         androidx.compose.foundation.Image(
                             bitmap = qr.asImageBitmap(),
-                            contentDescription = "城市二维码",
+                            contentDescription = "新区二维码",
                             modifier = Modifier.size(190.dp)
                         )
                     }
@@ -842,7 +842,7 @@ fun SharePanel() {
                     }
                 } else {
                     Text(
-                        "当前没有可分享的城市。",
+                        "当前没有可分享的新区。",
                         fontSize = 10.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current
                     )
                 }
@@ -850,16 +850,16 @@ fun SharePanel() {
                 if (cur != null) {
                     Text(
                         "含：" + cur.cityName + " · 人口 " + cur.population.toInt() +
-                            " · 幸福 " + kotlin.math.floor(cur.happiness).toInt(),
+                            " · 满意 " + kotlin.math.floor(cur.happiness).toInt(),
                         fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
                     )
                 }
             }
 
             // ---- 导入 ----
-            Text("② 导入别人的城市", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("② 导入别人的新区", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text(
-                "填别人的地图种子（数字）即可生成同样的地形；粘贴完整城市码则连建筑一起还原。",
+                "填别人的地图种子（数字）即可生成同样的地形；粘贴完整新区码则连建筑一起还原。",
                 fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Box(
@@ -872,7 +872,7 @@ fun SharePanel() {
                 androidx.compose.material3.TextField(
                     value = importText,
                     onValueChange = { importText = it },
-                    placeholder = { Text("填地图种子数字，或粘贴 CS1. 开头的城市码", fontSize = 11.sp, fontFamily = LocalGameFont.current) },
+                    placeholder = { Text("填地图种子数字，或粘贴 CS1. 开头的新区码", fontSize = 11.sp, fontFamily = LocalGameFont.current) },
                     textStyle = androidx.compose.ui.text.TextStyle(
                         fontSize = 10.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                     ),
@@ -895,7 +895,7 @@ fun SharePanel() {
                         Sfx.play("sfx_click")
                         val text = importText.trim()
                         if (text.isEmpty()) {
-                            msg = "请先填种子或粘贴城市码"
+                            msg = "请先填种子或粘贴新区码"
                             return@clickable
                         }
                         val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
@@ -903,7 +903,7 @@ fun SharePanel() {
                         val target = free ?: AppState.activeSlot
 
                         if (com.dshx.game.she.ShareCode.looksLikeCode(text)) {
-                            // 完整城市码：连建筑一起还原
+                            // 完整新区码：连建筑一起还原
                             if (com.dshx.game.she.ShareCode.import(text, target)) {
                                 if (com.dshx.game.she.SaveManager.load(target)) {
                                     AppState.activeSlot = target
@@ -912,18 +912,18 @@ fun SharePanel() {
                                     AppState.menuOpen = false
                                     MapRef.view?.resetCamera()
                                     MapRef.view?.clearSelection()
-                                    MapRef.view?.setToast("已载入分享的城市（槽位 " + (target + 1) + "）")
+                                    MapRef.view?.setToast("已载入分享的新区（槽位 " + (target + 1) + "）")
                                 } else {
                                     msg = "导入失败：存档无法载入"
                                 }
                             } else {
-                                msg = "导入失败：城市码已损坏"
+                                msg = "导入失败：新区码已损坏"
                             }
                         } else {
-                            // 短种子：用这个数字新开一座同地形的城市
+                            // 短种子：用这个数字新开一座同地形的新区
                             val seed = com.dshx.game.she.ShareCode.parseSeedCode(text)
                             if (seed == null) {
-                                msg = "请填 1~9 位数字的种子，或 CS1. 开头的城市码"
+                                msg = "请填 1~9 位数字的种子，或 CS1. 开头的新区码"
                                 return@clickable
                             }
                             val e = com.dshx.game.she.SeedLib.find(seed)
@@ -959,7 +959,7 @@ fun SharePanel() {
                         pickFile.launch(arrayOf("*/*"))
                     },
                 contentAlignment = Alignment.Center
-            ) { Text("选好友发来的城市存档（.citymap）", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+            ) { Text("选好友发来的新区存档（.citymap）", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1009,7 +1009,7 @@ fun SharePanel() {
                         AppState.shareOpen = false
                         AppState.importSlotOpen = true
                     } else {
-                        msg = "扫码内容不是有效的城市码"
+                        msg = "扫码内容不是有效的新区码"
                     }
                 } else {
                     val (got, all) = com.dshx.game.she.ShareCode.progress()
@@ -1100,7 +1100,7 @@ fun BenefitPanel() {
             BenefitBtn("升级提速", "全城建筑立刻升一级", act, "upgrade", true)
             BenefitBtn("纾困清运", "清空垃圾并修复废弃建筑", act, "relief", true)
             BenefitBtn("免息周转", "立刻结清全部贷款", act, "nointerest", true)
-            BenefitBtn("方案速批", "清空方案冷却，想开就开", act, "fastpolicy", true)
+            BenefitBtn("策略速批", "清空策略冷却，想开就开", act, "fastpolicy", true)
 
             Box(
                 modifier = Modifier

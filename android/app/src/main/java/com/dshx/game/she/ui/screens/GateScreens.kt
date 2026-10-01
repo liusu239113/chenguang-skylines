@@ -87,7 +87,7 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    "欢迎使用「都市营建模拟」。本作是完全架空的都市经营游戏，所有城市、人物、机构、事件均为虚构，与现实无关。进入前请阅读并同意《隐私政策》。不同意请退出，我们不会开始收集。",
+                    "欢迎使用「地产大亨：从荒土到繁华之城」。本作是完全架空的经营游戏，所有新区、人物、机构、事件均为虚构，与现实无关。进入前请阅读并同意《隐私政策》。不同意请退出，我们不会开始收集。",
                     fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                 )
                 Text(
@@ -277,7 +277,7 @@ fun TapLoginGate(onReady: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("登录后进入城市", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
+            Text("登录后进入新区", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
             Text("使用 TapTap 账号登录，并完成防沉迷认证。", fontSize = 12.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current, textAlign = TextAlign.Center)
             Text(
                 "告知：本页使用 TapTap 登录 SDK（易玩（上海）网络科技有限公司），" +

@@ -209,13 +209,13 @@ private fun NewGameScreen(mapView: MapRenderView) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                "新建城市", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                "新建项目", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
 
-            // 城市命名
+            // 新区命名
             Text(
-                "给城市起个名字", fontSize = 12.sp, color = C.textMid.toColor(),
+                "给新区起个名字", fontSize = 12.sp, color = C.textMid.toColor(),
                 fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth()
             )
             TextField(
@@ -307,7 +307,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                 }
             }
 
-            // 直接导入别人的城市：扫码或从相册选二维码图
+            // 直接导入别人的新区：扫码或从相册选二维码图
             var scanOpen by remember { mutableStateOf(false) }
             var importMsg by remember { mutableStateOf<String?>(null) }
             val pickQr = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -317,7 +317,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                 val ctx2 = ctx
                 val txt = com.dshx.game.she.QrCode.decodeFromUri(ctx2, uri)
                 if (txt == null) {
-                    importMsg = "这张图里没识别到城市码"
+                    importMsg = "这张图里没识别到新区码"
                 } else if (com.dshx.game.she.ShareCode.feed(txt)) {
                     val free = (0 until com.dshx.game.she.SaveManager.SLOT_COUNT)
                         .firstOrNull { !com.dshx.game.she.SaveManager.hasSlot(it) } ?: 0
@@ -354,7 +354,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                             scanOpen = true
                         },
                     contentAlignment = Alignment.Center
-                ) { Text("扫码导入城市", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
+                ) { Text("扫码导入新区", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = LocalGameFont.current) }
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -390,7 +390,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                                 mapView.clearSelection()
                                 AppState.screen = "map"
                             } else {
-                                scanHint = "扫码内容不是有效的城市码"
+                                scanHint = "扫码内容不是有效的新区码"
                             }
                         } else {
                             val (got, all) = com.dshx.game.she.ShareCode.progress()
@@ -591,7 +591,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
             //                         fontFamily = LocalGameFont.current
             //                     )
             //                     Text(
-            //                         "测试用：资金拉满、人口锁 5000、幸福度不掉、建造不扣钱",
+            //                         "测试用：资金拉满、人口锁 5000、满意度不掉、建造不扣钱",
             //                         fontSize = 9.sp, color = C.textMid.toColor(),
             //                         fontFamily = LocalGameFont.current
             //                     )

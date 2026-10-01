@@ -27,7 +27,7 @@ object AppState {
 
     /** 数据面板 */
     var dataOpen by mutableStateOf(false)
-    /** 幸福度来源抽屉 */
+    /** 满意度来源抽屉 */
     var happyOpen by mutableStateOf(false)
     /** RCI 需求详情抽屉 */
     var demandOpen by mutableStateOf(false)
@@ -43,7 +43,7 @@ object AppState {
     var newDifficulty by mutableStateOf("normal")
     /** 当前游戏所在槽位 */
     var activeSlot by mutableStateOf(0)
-    /** 时间暂停（‖）：只冻模拟，仍可划区修路 */
+    /** 时间暂停（‖）：只冻模拟，仍可征地修路 */
     var paused by mutableStateOf(false)
     /** 右上角菜单（≡）：存档/设置，不挡规划时的暂停 */
     var menuOpen by mutableStateOf(false)

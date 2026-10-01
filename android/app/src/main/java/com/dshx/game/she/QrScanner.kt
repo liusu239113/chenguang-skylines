@@ -86,7 +86,7 @@ fun QrScanScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "扫码导入城市", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                "扫码导入新区", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                 color = Color.White, fontFamily = LocalGameFont.current
             )
             Text(

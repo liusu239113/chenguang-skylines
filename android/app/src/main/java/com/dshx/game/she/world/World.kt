@@ -865,7 +865,7 @@ class World {
 
         /**
          * 设施噪音：垃圾场/焚烧厂/供电站/工厂等对周边住宅的噪音影响，按距离衰减。
-         * 返回 0..100 的噪音强度，供幸福度与反馈使用。
+         * 返回 0..100 的噪音强度，供满意度与反馈使用。
          */
         fun facilityNoiseAt(x: Int, y: Int): Int {
             var level = 0.0
@@ -907,7 +907,7 @@ class World {
         fun canZone(x: Int, y: Int): Pair<Boolean, String?> {
             val t = tile(x, y) ?: return false to "越界"
             if (!isUnlocked(x, y)) return false to lockedHint()
-            if (t.terrain == "water") return false to "水域无法划区"
+            if (t.terrain == "water") return false to "水域无法征地"
             if (t.road != null) return false to null
             if (t.building != null) return false to null
             return true to null

@@ -33,7 +33,7 @@ import com.dshx.game.she.world.World
 import kotlin.math.floor
 
 // ============================================================================
-// NewspaperScreen — 城市简报，与 scripts/Screens/NewspaperScreen.lua 1:1 对应
+// NewspaperScreen — 新区简报，与 scripts/Screens/NewspaperScreen.lua 1:1 对应
 // ============================================================================
 
 @Composable
@@ -107,7 +107,7 @@ fun NewspaperContent() {
                         color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                     )
                     Text(
-                        "幸福度 " + floor(s.happiness).toInt(), fontSize = 12.sp,
+                        "满意度 " + floor(s.happiness).toInt(), fontSize = 12.sp,
                         color = if (s.happiness >= 60) C.accentGreen.toColor() else C.accentRed.toColor(),
                         fontFamily = LocalGameFont.current
                     )
@@ -132,7 +132,7 @@ fun NewspaperContent() {
             val news = GameData.recentNews(20)
             if (news.isEmpty()) {
                 NewsCard(
-                    NewsItem(GameData.monthLabel(), "暂无报道", "城市还在建设中。", "头条")
+                    NewsItem(GameData.monthLabel(), "暂无报道", "新区还在建设中。", "头条")
                 )
             } else {
                 for (i in news.indices.reversed()) {

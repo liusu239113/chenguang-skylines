@@ -460,7 +460,7 @@ class MapRenderView @JvmOverloads constructor(
         val t = tool ?: return ""
         return when (t.kind) {
             "road" -> "修路"
-            "zone" -> "划区"
+            "zone" -> "征地"
             "bulldoze" -> "推平"
             "service" -> "建造"
             "pipe" -> "铺管线"
@@ -1876,7 +1876,7 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // ---- 5.5) 划区/设施草稿预览（确认前不扣费） ----
+        // ---- 5.5) 征地/设施草稿预览（确认前不扣费） ----
         val sid = GameData.serviceDraftId
         if (sid != null && GameData.serviceDraftX > 0) {
             val sc = World.serviceConfig(sid)

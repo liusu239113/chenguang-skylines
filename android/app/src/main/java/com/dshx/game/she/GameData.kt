@@ -13,9 +13,9 @@ import kotlin.math.max
 import kotlin.math.min
 
 // ============================================================================
-// GameData — 实时城市模拟，与 scripts/GameData.lua 1:1 对应
+// GameData — 实时新区模拟，与 scripts/GameData.lua 1:1 对应
 //   时间持续流动：tick(dt) 由主循环每帧调用，内部按速度倍率推进
-//   每游戏日小额收支；每 30 日自动翻月 → 结算新闻 / 方案倒计时 / 晋级检查
+//   每游戏日小额收支；每 30 日自动翻月 → 结算新闻 / 策略倒计时 / 晋级检查
 // ============================================================================
 
 data class PolicyActive(val id: String, var daysLeft: Int)
@@ -90,7 +90,7 @@ class CityState {
     val activeEvents: MutableList<ActiveEvent> = mutableListOf()
     // 当前开发任务
     var quest: Quest? = null
-    // 城市名
+    // 项目名
     var cityName: String = Config.World.city
     var mayorName: String = "未署名"
     // 客户慢变量（对照拆解文档：教育/健康/就业驱动长线循环）
@@ -244,7 +244,7 @@ object GameData {
         return "已撤销 " + st.keys.size + " 格" + (if (st.label.isNotEmpty()) "（" + st.label + "）" else "")
     }
 
-    /** 划区草稿：点格子只预览，点确认才扣费落图 */
+    /** 征地草稿：点格子只预览，点确认才扣费落图 */
     val zoneDraft: LinkedHashSet<Int> = LinkedHashSet()
     var zoneDraftKey: String = "residential"
 
@@ -279,7 +279,7 @@ object GameData {
 
     /**
      * 造价系数：固定值，不随人口/年份往上涨。
-     * 之前这里跟着城市规模最高翻到 2.5 倍，玩家看着价目表"水涨船高"，
+     * 之前这里跟着新区规模最高翻到 2.5 倍，玩家看着价目表"水涨船高"，
      * 大学能标到一亿多，怎么收租都追不上。现在全周期一个价，
      * 用 1.3 倍托底（比开局的裸价贵一点，不至于后期显得白菜价）。
      */
@@ -361,7 +361,7 @@ object GameData {
         s.loanDaily = 0.0
         World.current?._pop = 0
         if (sandbox) {
-            // 沙盒 GM：资金拉满、人口锁 5000、幸福度锁高、项目等级拉满（全设施解锁）
+            // 沙盒 GM：资金拉满、人口锁 5000、满意度锁高、项目等级拉满（全设施解锁）
             s.funds = Config.SANDBOX.FUNDS
             s.population = Config.SANDBOX.pop.toDouble()
             World.current?._pop = Config.SANDBOX.pop
@@ -386,9 +386,9 @@ object GameData {
         clearZoneDraft()
         clearServiceDraft()
         pushNews(
-            "城市奠基",
+            "项目奠基",
             s.cityName + "迎来新任" + Config.World.playerRole +
-                "。开局资金 4000 万，先在已解锁区域修路划区，人口增加后向外扩展。",
+                "。开局资金 4000 万，先在已解锁区域修路征地，人口增加后向外扩展。",
             "头条"
         )
         ensureQuest()
@@ -465,7 +465,7 @@ object GameData {
     }
 
     // -----------------------------------------------------------------------
-    // 方案效果聚合（生效期内每天都吃到，而不是启用瞬间冲一次）
+    // 策略效果聚合（生效期内每天都吃到，而不是启用瞬间冲一次）
     // -----------------------------------------------------------------------
     fun policyMul(key: String): Double {
         val s = current ?: return 1.0
@@ -503,8 +503,8 @@ object GameData {
     }
 
     fun policyStatusLine(): String {
-        val s = current ?: return "暂无生效方案"
-        if (s.activePolicies.isEmpty()) return "暂无生效方案"
+        val s = current ?: return "暂无生效策略"
+        if (s.activePolicies.isEmpty()) return "暂无生效策略"
         return s.activePolicies.joinToString(" · ") { ap ->
             val p = Config.POLICIES.firstOrNull { it.id == ap.id }
             (p?.name ?: ap.id) + " 剩" + ap.daysLeft + "天"
@@ -520,7 +520,7 @@ object GameData {
         val policy: Double, val commute: Double, val jobs: Double, val target: Double
     )
 
-    /** 幸福度分解（对照拆解文档：健康/教育/通勤/就业/巡防/方案） */
+    /** 满意度分解（对照拆解文档：健康/教育/通勤/就业/巡防/策略） */
     fun happinessBreakdown(): HappyBreakdown {
         val s = current ?: return HappyBreakdown(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         val st = World.stats()
@@ -560,7 +560,7 @@ object GameData {
         val sewerPen = -(1.0 - s.sewerCoverage) * 8.0
         val rankHappy = if (s.rankLevel >= 6) 4.0 else 0.0
         val specHappy = Networks.specTotals().second
-        // 噪音：垃圾场/工厂/供电站贴在住宅区旁会明显拉低幸福度
+        // 噪音：垃圾场/工厂/供电站贴在住宅区旁会明显拉低满意度
         val noisePen = -CitySystems.noiseAvg * 0.18
         val jobs = (jobRate - 0.85) * 16.0 + (s.education - 40) * 0.08 + (s.health - 55) * 0.06 + crimePen + sewerPen + rankHappy + specHappy + noisePen
         val target = max(
@@ -672,7 +672,7 @@ object GameData {
             }
             when (b.zone) {
                 "residential" -> {
-                    // 通电通水即可迁入；幸福度只影响速度，不再卡死在 28
+                    // 通电通水即可迁入；满意度只影响速度，不再卡死在 28
                     if (powered && watered && b.residents < lv.cap) {
                         val pace = if (s.happiness >= 45) 1 else 2
                         if (b.ageDays % pace == 0) b.residents = min(lv.cap, b.residents + 1)
@@ -867,13 +867,13 @@ object GameData {
         World.refreshHighwayLink()
         refreshRank()
 
-        // 幸福度向目标靠拢（没人时回到中性，不为空城硬扣）
+        // 满意度向目标靠拢（没人时回到中性，不为空城硬扣）
         val target = if (s.population < 1) 52.0 else computeHappinessTarget(st)
         val happyStep = (target - s.happiness) * 0.12
         // 增益：满意度不再下降（只允许往上走）
         s.happiness += if (Buffs.isActive(Buffs.NO_HAPPY_DROP) && happyStep < 0) 0.0 else happyStep
         if (sandbox) {
-            // 沙盒：幸福度不掉、资金不变、等级保持满级（全设施解锁）
+            // 沙盒：满意度不掉、资金不变、等级保持满级（全设施解锁）
             s.happiness = Config.SANDBOX.happy
             s.funds = Config.SANDBOX.FUNDS
             val top = Config.RANKS.maxByOrNull { it.level }
@@ -985,7 +985,7 @@ object GameData {
             pushNews("任务完成：" + q.name, "达成目标，奖励 " + q.reward + " 万。", "任务")
         }
 
-        // 方案倒计时
+        // 策略倒计时
         for (i in s.activePolicies.indices.reversed()) {
             s.activePolicies[i].daysLeft -= 1
             if (s.activePolicies[i].daysLeft <= 0) s.activePolicies.removeAt(i)
@@ -1003,7 +1003,7 @@ object GameData {
             s.funds += level.reward
             post("income", "other", "晋级注资", level.reward.toDouble())
             pushNews(
-                "城市晋级 " + level.name + "！",
+                "项目晋级 " + level.name + "！",
                 String.format(
                     "人口达到 %d，星野新城升级为%s，获得 %d万 注资。",
                     s.population.toInt(), level.name, level.reward
@@ -1025,7 +1025,7 @@ object GameData {
             pushNews(
                 monthLabel() + " 营建月报",
                 String.format(
-                    "人口 %d · 幸福度 %d · 本日收支 %s%.1f万 · 建筑 %d 栋",
+                    "人口 %d · 满意度 %d · 本日收支 %s%.1f万 · 建筑 %d 栋",
                     s.population.toInt(), floor(s.happiness).toInt(), net30, net,
                     st.resCount + st.comCount + st.indCount + st.offCount + st.serviceCount
                 ),
@@ -1154,11 +1154,11 @@ object GameData {
         val n = zoneDraft.size
         val cost = n * unit
         if (!sandbox && s.funds < cost) {
-            AdOffers.offerShortfall(cost, "划区")
+            AdOffers.offerShortfall(cost, "征地")
             return false to ("资金不足（需 ¥" + cost + "万，" + n + " 格）")
         }
         var painted = 0
-        beginStroke("划区")
+        beginStroke("征地")
         val it = zoneDraft.iterator()
         while (it.hasNext()) {
             val k = it.next()
@@ -1169,11 +1169,11 @@ object GameData {
         val pay = painted * unit
         if (!sandbox && pay > 0) {
             s.funds -= pay
-            post("spend", "zone", "划区", pay.toDouble())
+            post("spend", "zone", "征地", pay.toDouble())
         }
         endStroke()
         zoneDraft.clear()
-        return true to ("已确认划区 " + painted + " 格，扣 " + pay + " 万")
+        return true to ("已确认征地 " + painted + " 格，扣 " + pay + " 万")
     }
 
     fun bulldoze(x: Int, y: Int): Boolean {
@@ -1248,7 +1248,7 @@ object GameData {
         if ((s.policyCooldowns[pid] ?: 0) > 0) {
             return false to ("冷却中，还需 " + (s.policyCooldowns[pid] ?: 0) + " 天")
         }
-        val p = Config.POLICIES.firstOrNull { it.id == pid } ?: return false to "未知方案"
+        val p = Config.POLICIES.firstOrNull { it.id == pid } ?: return false to "未知策略"
         if (p.effect.cost > 0 && !sandbox && s.funds < p.effect.cost) return false to "资金不足"
         s.activePolicies.add(PolicyActive(pid, p.days))
         s.policyCooldowns[pid] = p.days + p.cooldown
@@ -1259,8 +1259,8 @@ object GameData {
         }
         pushNews(
             "新政发布：" + p.name,
-            p.desc + " 生效 " + p.days + " 天。今日起项目收益/需求/污染按方案结算。",
-            "方案"
+            p.desc + " 生效 " + p.days + " 天。今日起项目收益/需求/污染按策略结算。",
+            "策略"
         )
         return true to ("已启用：" + p.name + " · 生效 " + p.days + " 天")
     }

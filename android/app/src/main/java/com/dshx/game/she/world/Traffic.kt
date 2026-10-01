@@ -67,7 +67,7 @@ class PlaneCraft(
     var ax: Int,
     var ay: Int,
     var flight: String,
-    var ambient: Boolean = false,     // 过境航班：没有机场也会在城市上空盘旋
+    var ambient: Boolean = false,     // 过境航班：没有机场也会在新区上空盘旋
     var soundPlayed: Boolean = false,
     var life: Float = 0f,             // 过境航班盘旋计时，到点飞走
     var angle: Float = 0f             // 机头朝向（度）
@@ -163,7 +163,7 @@ object Traffic {
     }
 
     // ------------------------------------------------------------------
-    // 过境交通：没有港口/机场也会有货轮路过海面、客机从城市上空飞过。
+    // 过境交通：没有港口/机场也会有货轮路过海面、客机从新区上空飞过。
     // 有港口机场时还能顺带赚一点转口贸易和旅客消费。
     // ------------------------------------------------------------------
     private var ambientShipT = 18f
@@ -219,7 +219,7 @@ object Traffic {
                 }
             }
         }
-        // ---- 过境航班：在城市上空盘旋（不是一条直线飞过去） ----
+        // ---- 过境航班：在新区上空盘旋（不是一条直线飞过去） ----
         ambientPlaneT -= dt
         if (ambientPlaneT <= 0f) {
             ambientPlaneT = 80f + Random.nextFloat() * 100f
