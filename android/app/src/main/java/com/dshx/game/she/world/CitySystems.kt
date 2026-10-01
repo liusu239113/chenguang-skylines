@@ -20,7 +20,7 @@ class EmergencyCar(
 )
 
 /**
- * 污水 / 垃圾车 / 消防救护车 / 犯罪监狱 / 殡葬 / 分层污染
+ * 污水 / 垃圾车 / 消防救护车 / 治安管教所 / 殡葬 / 分层污染
  */
 object CitySystems {
 
@@ -152,7 +152,7 @@ object CitySystems {
         s.crime = if (crimeN == 0) 8.0 else crimeSum.toDouble() / crimeN
         s.prisonUsed = 0
 
-        // 健康：污水 / 水污染 / 医疗预算
+        // 健康：污水 / 水污染 / 医疗开支
         val waterHit = waterPolAvg / 12.0
         val healthBudget = s.budgetHealth / 100.0
         s.health = min(
@@ -439,6 +439,6 @@ object CitySystems {
         "police" -> "巡警"
         "garbage" -> "清运司机"
         "hearse" -> "殡仪司机"
-        else -> "市政司机"
+        else -> "园区司机"
     }
 }

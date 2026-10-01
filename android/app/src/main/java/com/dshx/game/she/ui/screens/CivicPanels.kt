@@ -90,13 +90,13 @@ fun CivicPanel() {
                 fontSize = 13.sp, color = C.accentBlue.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
-                "当前职级：" + cur.name + "  Lv." + cur.level,
+                "当前等级：" + cur.name + "  Lv." + cur.level,
                 fontSize = 13.sp, fontWeight = FontWeight.Bold,
                 color = C.textDark.toColor(), fontFamily = LocalGameFont.current
             )
             Text(cur.perk, fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
             Text(
-                "这是虚构的城市建设资历，不是现实官职。人口、满意、测评、来信都会推进档案。",
+                "本作是完全架空的都市经营游戏，所有设定均为虚构，与现实无关。人口、幸福、测评、反馈都会推进档案。",
                 fontSize = 10.sp, color = C.textFaint.toColor(), fontFamily = LocalGameFont.current
             )
             Text(
@@ -190,7 +190,7 @@ fun CivicPanel() {
                     }
                 }
             } else {
-                Text("已是最高营造职级。", fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
+                Text("已是最高营造等级。", fontSize = 11.sp, color = C.accentGreen.toColor(), fontFamily = LocalGameFont.current)
             }
             if (Civic.examActive) {
                 val q = Civic.examSession.getOrNull(Civic.examIndex)
@@ -274,7 +274,7 @@ fun ComplaintPanel() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
-                Text("市民来信", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                Text("居民反馈", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 Text(
                     "×", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     color = C.textMid.toColor(), fontFamily = LocalGameFont.current,
@@ -394,7 +394,7 @@ fun AdOfferDialog() {
     val (title, body) = when (kind) {
         "daily" -> "每周营造礼包" to "每周一次。看广告金库到账 120 万。"
         "shortfall" -> "资金不够" to (s.lastShortAction + "还差钱。看广告可拿到应急拨款。")
-        "bailout" -> "财政告急" to "金库见底。看广告可获得纾困拨款 260 万。"
+        "bailout" -> "账面告急" to "金库见底。看广告可获得纾困拨款 260 万。"
         else -> return
     }
     Box(
@@ -531,9 +531,9 @@ fun SettingsPanel() {
                 fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
             )
             Text("看广告能拿到这些（看完才到账，不是空点）：", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.textDark.toColor(), fontFamily = LocalGameFont.current)
-            Text("①每周礼包 +120 万  ②税收加倍 12 天  ③民心安抚 满意+8  ④营造拨款 +90 万。缺钱修路时还会弹应急拨款。银行低息贷也在左上【银】。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
+            Text("①每周礼包 +120 万  ②经营收入加倍 12 天  ③民心安抚 满意+8  ④营造拨款 +90 万。缺钱修路时还会弹应急拨款。银行低息贷也在左上【银】。", fontSize = 11.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current)
             AdBtn("每周礼包 +120万", !AdOffers.weeklyClaimed, act, "daily")
-            AdBtn("税收加倍 12 天", true, act, "doubletax")
+            AdBtn("经营收入加倍 12 天", true, act, "doubletax")
             AdBtn("民心安抚 满意+8", true, act, "happy")
             AdBtn("营造拨款 +90万", true, act, "grant")
             Box(

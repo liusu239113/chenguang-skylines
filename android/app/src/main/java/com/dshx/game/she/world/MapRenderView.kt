@@ -1633,7 +1633,7 @@ class MapRenderView @JvmOverloads constructor(
             }
         }
 
-        // 市民通勤只体现在车辆上，不画路上行人圆点。
+        // 居民通勤只体现在车辆上，不画路上行人圆点。
 
         // ---- 4) 建筑（格内斜二测三面体块，从后往前画） ----
         for (ty in y0..y1) {

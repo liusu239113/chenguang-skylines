@@ -184,6 +184,9 @@ private fun NewGameScreen(mapView: MapRenderView) {
     val C = Config.COLORS
     var name by remember { mutableStateOf("") }
     var mayor by remember { mutableStateOf("") }
+    // 合规：玩家输入实时校验（TapTap 1.1 要求有屏蔽词）
+    val nameError = com.dshx.game.she.TextFilter.validate(name)
+    val mayorError = com.dshx.game.she.TextFilter.validate(mayor)
     var seedText by remember { mutableStateOf("") }
     var difficulty by remember { mutableStateOf("normal") }
     var slot by remember { mutableStateOf((0..2).firstOrNull { !SaveManager.hasSlot(it) } ?: 0) }
@@ -217,8 +220,10 @@ private fun NewGameScreen(mapView: MapRenderView) {
             TextField(
                 value = name,
                 onValueChange = { if (it.length <= 8) name = it },
+                isError = nameError != null,
+                supportingText = nameError?.let { { Text(it, fontSize = 10.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current) } },
                 placeholder = {
-                    Text("晨光市", fontFamily = LocalGameFont.current, fontSize = 14.sp)
+                    Text("星野市", fontFamily = LocalGameFont.current, fontSize = 14.sp)
                 },
                 singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(
@@ -235,12 +240,14 @@ private fun NewGameScreen(mapView: MapRenderView) {
             )
 
             Text(
-                "营造主管姓名", fontSize = 12.sp, color = C.textMid.toColor(),
+                "开发商姓名", fontSize = 12.sp, color = C.textMid.toColor(),
                 fontFamily = LocalGameFont.current, modifier = Modifier.fillMaxWidth()
             )
             TextField(
                 value = mayor,
                 onValueChange = { if (it.length <= 8) mayor = it },
+                isError = mayorError != null,
+                supportingText = mayorError?.let { { Text(it, fontSize = 10.sp, color = C.accentRed.toColor(), fontFamily = LocalGameFont.current) } },
                 placeholder = {
                     Text("未署名", fontFamily = LocalGameFont.current, fontSize = 14.sp)
                 },
@@ -411,7 +418,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
             //                         fontFamily = LocalGameFont.current
             //                     )
             //                     Text(
-            //                         "测试用：资金拉满、人口锁 5000、满意度不掉、建造不扣钱",
+            //                         "测试用：资金拉满、人口锁 5000、幸福度不掉、建造不扣钱",
             //                         fontSize = 9.sp, color = C.textMid.toColor(),
             //                         fontFamily = LocalGameFont.current
             //                     )
@@ -440,7 +447,14 @@ private fun NewGameScreen(mapView: MapRenderView) {
                     .background(C.accentGreen.toColor(), RoundedCornerShape(24.dp))
                     .clickable {
                         Sfx.play("sfx_click")
-                        val cityName = if (name.isBlank()) "晨光市" else name.trim()
+                        // 合规：含屏蔽词的名称不允许开始
+                        val ne = com.dshx.game.she.TextFilter.validate(name)
+                        val me = com.dshx.game.she.TextFilter.validate(mayor)
+                        if (ne != null || me != null) {
+                            mapView.setToast(ne ?: me ?: "名称含不适宜的词")
+                            return@clickable
+                        }
+                        val cityName = if (name.isBlank()) "星野市" else name.trim()
                         val mayorName = if (mayor.isBlank()) "未署名" else mayor.trim()
                         val seed = if (seedText.isBlank()) Random.nextInt(1, 100000) else seedText.toIntOrNull() ?: Random.nextInt(1, 100000)
                         startGame(mapView, cityName, mayorName, seed, difficulty, slot, sandbox)

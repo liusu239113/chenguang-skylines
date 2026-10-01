@@ -56,13 +56,13 @@ object AdOffers {
             }
             "bailout" -> {
                 s.funds += 260
-                GameData.book("income", "other", "财政纾困", 260.0)
+                GameData.book("income", "other", "账面纾困", 260.0)
                 s.bankruptDays = 0
-                MapRef.view?.setToast("财政纾困 +260 万")
+                MapRef.view?.setToast("账面纾困 +260 万")
             }
             "doubletax" -> {
                 s.doubleTaxDays = 12
-                MapRef.view?.setToast("税收加倍 12 天")
+                MapRef.view?.setToast("经营收入加倍 12 天")
             }
             "happy" -> {
                 s.happiness = (s.happiness + 8).coerceAtMost(92.0)

@@ -72,7 +72,7 @@ class Building {
     var abandoned: Boolean = false
     var ageDays: Int = 0
     var garbage: Int = 0              // 建筑垃圾堆积
-    var crime: Int = 0                // 建筑犯罪热度
+    var crime: Int = 0                // 建筑治安热度
     // service
     var service: String? = null
     var ax: Int = 0
@@ -865,7 +865,7 @@ class World {
 
         /**
          * 设施噪音：垃圾场/焚烧厂/电厂/工厂等对周边住宅的噪音影响，按距离衰减。
-         * 返回 0..100 的噪音强度，供满意度与投诉使用。
+         * 返回 0..100 的噪音强度，供幸福度与投诉使用。
          */
         fun facilityNoiseAt(x: Int, y: Int): Int {
             var level = 0.0
@@ -966,7 +966,7 @@ class World {
             val s = serviceConfig(id) ?: return false to "未知设施"
             if (!Config.rankUnlocksService(id, GameData.current?.rankLevel ?: 1)) {
                 val need = Config.RANKS.firstOrNull { it.unlockIds.contains(id) }
-                return false to ("需「" + (need?.name ?: "更高职级") + "」才能建")
+                return false to ("需「" + (need?.name ?: "更高等级") + "」才能建")
             }
             val anchor = findServiceAnchor(id, x, y)
             val ax = anchor?.first ?: x

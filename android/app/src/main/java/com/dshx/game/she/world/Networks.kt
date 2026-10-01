@@ -6,7 +6,7 @@ import org.json.JSONObject
 import kotlin.math.max
 
 /**
- * 地下管网。旧档可能仍带水管/电缆/区划字段，读档保留但不玩区划政策。
+ * 地下管网。旧档可能仍带水管/电缆/区划字段，读档保留但不玩区划方案。
  */
 class District(
     val id: Int,

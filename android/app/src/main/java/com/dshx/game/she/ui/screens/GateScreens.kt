@@ -87,7 +87,7 @@ fun PrivacyGate(onAccepted: () -> Unit, onExit: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    "欢迎使用「模拟市长：城市经营」。进入前请阅读并同意《隐私政策》。不同意请退出，我们不会开始收集。",
+                    "欢迎使用「模拟城建：都市营造」。本作是完全架空的都市经营游戏，所有城市、人物、机构、事件均为虚构，与现实无关。进入前请阅读并同意《隐私政策》。不同意请退出，我们不会开始收集。",
                     fontSize = 12.sp, color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                 )
                 Text(

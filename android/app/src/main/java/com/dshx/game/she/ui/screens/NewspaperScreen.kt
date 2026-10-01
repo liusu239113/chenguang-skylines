@@ -99,7 +99,7 @@ fun NewspaperContent() {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        "财政 ¥" + floor(s.funds).toInt() + "万", fontSize = 12.sp,
+                        "账面 ¥" + floor(s.funds).toInt() + "万", fontSize = 12.sp,
                         color = C.accentGold.toColor(), fontFamily = LocalGameFont.current
                     )
                     Text(
@@ -107,13 +107,13 @@ fun NewspaperContent() {
                         color = C.textDark.toColor(), fontFamily = LocalGameFont.current
                     )
                     Text(
-                        "满意度 " + floor(s.happiness).toInt(), fontSize = 12.sp,
+                        "幸福度 " + floor(s.happiness).toInt(), fontSize = 12.sp,
                         color = if (s.happiness >= 60) C.accentGreen.toColor() else C.accentRed.toColor(),
                         fontFamily = LocalGameFont.current
                     )
                 }
                 Text(
-                    "职级 " + GameData.rankDef().name + " · " + GameData.rankDef().perk,
+                    "等级 " + GameData.rankDef().name + " · " + GameData.rankDef().perk,
                     fontSize = 11.sp, color = C.accentBlue.toColor(),
                     fontFamily = LocalGameFont.current,
                     modifier = Modifier.padding(top = 6.dp)

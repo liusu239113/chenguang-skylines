@@ -27,7 +27,7 @@ object AppState {
 
     /** 数据面板 */
     var dataOpen by mutableStateOf(false)
-    /** 满意度来源抽屉 */
+    /** 幸福度来源抽屉 */
     var happyOpen by mutableStateOf(false)
     /** RCI 需求详情抽屉 */
     var demandOpen by mutableStateOf(false)

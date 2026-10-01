@@ -45,13 +45,13 @@ object Config {
     // -----------------------------------------------------------------------
     // 世界信息（纯虚构）
     // -----------------------------------------------------------------------
-    const val TITLE = "模拟市长：城市经营"
-    const val SUBTITLE = "模拟市长 · 晨光市城建日报"
+    const val TITLE = "模拟城建：都市营造"
+    const val SUBTITLE = "模拟城建 · 星野市开发日志"
 
     object World {
-        const val country = "星辰联邦"
-        const val city = "晨光市"
-        const val playerRole = "营造主管"
+        const val country = "架空世界 · 星野"
+        const val city = "星野市"
+        const val playerRole = "开发总监"
     }
 
     // -----------------------------------------------------------------------
@@ -193,7 +193,7 @@ object Config {
     // -----------------------------------------------------------------------
     // 设施类别（决定覆盖热力图与负面效果分组）
     object ServiceCat {
-        const val AMENITY = "amenity"     // 公园/广场（满意度/地价）
+        const val AMENITY = "amenity"     // 公园/广场（幸福度/地价）
         const val POWER = "power"         // 电力
         const val WATER = "water"         // 供水
         const val GARBAGE = "garbage"     // 垃圾处理
@@ -231,9 +231,9 @@ object Config {
     val SERVICES: List<ServiceDef> = listOf(
         // ---- 生活品质 ----
         ServiceDef("park", "公园", 260, 10, 4, 5, true, 1, 1,
-            "绿地吸收污染，抬升周边地价与满意度。", ServiceCat.AMENITY, 0),
+            "绿地吸收污染，抬升周边地价与幸福度。", ServiceCat.AMENITY, 0),
         ServiceDef("plaza", "广场", 1400, 28, 5, 8, true, 2, 2,
-            "市民广场，显著提升满意度与地价。", ServiceCat.AMENITY, 500),
+            "中心广场，显著提升幸福度与地价。", ServiceCat.AMENITY, 500),
         // ---- 电力（容量决定能否撑住全城） ----
         ServiceDef("wind_farm", "风电场", 500, 18, 6, 0, false, 1, 1,
             "清洁风电。只产能，靠道路预埋电缆/地下电缆送到建筑，容量 18。", ServiceCat.POWER, 0, 0, 18, 0, needsRoad = false),
@@ -258,7 +258,7 @@ object Config {
             ServiceCat.GARBAGE, 900, 4, 20, 0, 420, 0, 8),
         // ---- 医疗 ----
         ServiceDef("clinic", "诊所", 640, 28, 7, 5, false, 1, 1,
-            "基础医疗，覆盖区健康与满意度提升。", ServiceCat.HEALTH, 25),
+            "基础医疗，覆盖区健康与幸福度提升。", ServiceCat.HEALTH, 25),
         ServiceDef("hospital", "医院", 2800, 72, 8, 6, true, 2, 2,
             "大型医疗，覆盖更广。", ServiceCat.HEALTH, 700),
         // ---- 教育（驱动产业升级） ----
@@ -271,8 +271,8 @@ object Config {
         // ---- 安全 ----
         ServiceDef("fire_station", "消防站", 600, 24, 7, 0, false, 1, 1,
             "扑灭火灾，无覆盖则建筑会烧毁。", ServiceCat.SAFETY, 50),
-        ServiceDef("police", "警察局", 700, 28, 8, 3, false, 1, 1,
-            "降低犯罪，提升安全感与地价。", ServiceCat.SAFETY, 80),
+        ServiceDef("police", "治安所", 700, 28, 8, 3, false, 1, 1,
+            "降低治安，提升安全感与地价。", ServiceCat.SAFETY, 80),
         // ---- 公交 ----
         ServiceDef("bus_stop", "公交站", 220, 10, 6, 4, false, 1, 1,
             "缓解拥堵，缩短通勤。", ServiceCat.TRANSIT, 150),
@@ -283,21 +283,21 @@ object Config {
         ServiceDef("harbor", "港口", 5600, 72, 8, 6, true, 2, 2,
             "滨水货运码头，工业出口加成。", ServiceCat.TRANSIT, 1500),
         ServiceDef("airport", "机场", 16000, 180, 12, 10, true, 3, 3,
-            "航空枢纽，旅游收入与满意度。", ServiceCat.TRANSIT, 4000),
-        // ---- 排污 / 殡葬 / 监狱 ----
+            "航空枢纽，旅游收入与幸福度。", ServiceCat.TRANSIT, 4000),
+        // ---- 排污 / 殡葬 / 管教所 ----
         ServiceDef("sewage", "污水处理厂", 2400, 58, 8, 0, false, 2, 2,
             "须建在水边，与污水管共用管网，处理全城污水。", ServiceCat.WATER, 60, 2, 0, 0, 0, 0, 6, true, needsRoad = false),
         ServiceDef("cemetery", "墓地", 400, 4, 6, -1, false, 2, 2,
             "安葬 80。阴气按距离衰减，可放城郊。", ServiceCat.DEATH, 80, 0, 0, 0, 0, 80, 3),
         ServiceDef("crematorium", "火葬场", 900, 12, 8, 0, false, 1, 1,
             "火化 200，无堆积。烟尘按距离衰减。", ServiceCat.DEATH, 300, 0, 0, 0, 0, 200, 4),
-        ServiceDef("prison", "监狱", 3600, 48, 8, 0, false, 2, 2,
+        ServiceDef("prison", "管教所", 3600, 48, 8, 0, false, 2, 2,
             "关押罪犯。容量满则犯人被释放。", ServiceCat.SAFETY, 400),
         // ---- 独特建筑 ----
         ServiceDef("stock_exchange", "证券交易所", 8800, 64, 10, 8, true, 3, 3,
-            "全城商业税收 +12%，地价上升。", ServiceCat.LANDMARK, 1000),
+            "全城商业经营收入 +12%，地价上升。", ServiceCat.LANDMARK, 1000),
         ServiceDef("tv_tower", "电视塔", 7200, 52, 12, 10, true, 2, 2,
-            "地标观光，满意度与旅游收入上升。", ServiceCat.LANDMARK, 1500, needsRoad = false),
+            "地标观光，幸福度与旅游收入上升。", ServiceCat.LANDMARK, 1500, needsRoad = false),
         ServiceDef("stadium", "体育场", 8600, 78, 10, 8, true, 3, 3,
             "赛事吸引游客，周末消费加成。", ServiceCat.LANDMARK, 2000)
     )
@@ -312,7 +312,7 @@ object Config {
         const val happinessMax = 100.0
     }
 
-    /** 沙盒 GM：临时测试用，资金拉满、人口锁定、满意度不掉 */
+    /** 沙盒 GM：临时测试用，资金拉满、人口锁定、幸福度不掉 */
     object SANDBOX {
         const val FUNDS = 999999.0
         const val pop = 5000
@@ -331,7 +331,7 @@ object Config {
     }
 
     // -----------------------------------------------------------------------
-    // 财政
+    // 账面
     // -----------------------------------------------------------------------
     object ECONOMY {
         const val taxPerPopPerDay = 0.010
@@ -346,20 +346,20 @@ object Config {
     }
 
     // -----------------------------------------------------------------------
-    // 税收（RCI 三税率；10% 为基准，上下限 5~15）
+    // 经营收入（RCI 三收费率；10% 为基准，上下限 5~15）
     // -----------------------------------------------------------------------
     object TAX {
         const val min = 5
         const val max = 15
         const val default = 10
-        const val happyPerPoint = 1.2   // 税率每超基准 1 点，满意度目标 -1.2
+        const val happyPerPoint = 1.2   // 收费率每超基准 1 点，幸福度目标 -1.2
     }
 
     // -----------------------------------------------------------------------
     // 覆盖系统的负面惩罚
     // -----------------------------------------------------------------------
     object COVERAGE {
-        const val powerHappyPenalty = 15.0   // 完全缺电时满意度惩罚
+        const val powerHappyPenalty = 15.0   // 完全缺电时幸福度惩罚
         const val waterHappyPenalty = 15.0
         const val garbageHappyPenalty = 10.0
         const val powerIncomeFloor = 0.4     // 缺电时商业/工业收入下限比例
@@ -367,7 +367,7 @@ object Config {
     }
 
     // -----------------------------------------------------------------------
-    // 市政贷款
+    // 园区贷款
     // -----------------------------------------------------------------------
     object LOAN {
         const val manualAmount = 500.0
@@ -402,13 +402,13 @@ object Config {
         AchievementDef("bld300", "高楼林立", "建成 300 栋建筑", 2500, "buildings", 300.0),
         AchievementDef("funds10000", "家底殷实", "资金达到 10000 万", 1000, "funds", 10000.0),
         AchievementDef("funds30000", "富可敌国", "资金达到 30000 万", 2000, "funds", 30000.0),
-        AchievementDef("happy70", "和谐宜居", "满意度达到 70", 600, "happiness", 70.0),
-        AchievementDef("happy80", "人间乐土", "满意度达到 80", 1200, "happiness", 80.0),
-        AchievementDef("happy85", "安居乐业", "满意度达到 85", 1000, "happiness", 85.0),
-        AchievementDef("happy95", "人间天堂", "满意度达到 95", 2500, "happiness", 95.0),
+        AchievementDef("happy70", "和谐宜居", "幸福度达到 70", 600, "happiness", 70.0),
+        AchievementDef("happy80", "人间乐土", "幸福度达到 80", 1200, "happiness", 80.0),
+        AchievementDef("happy85", "安居乐业", "幸福度达到 85", 1000, "happiness", 85.0),
+        AchievementDef("happy95", "人间天堂", "幸福度达到 95", 2500, "happiness", 95.0),
         AchievementDef("exam1", "持证上岗", "通过 1 次营造测评", 400, "exam", 1.0),
         AchievementDef("exam3", "考核能手", "累计通过 3 次营造测评", 900, "exam", 3.0),
-        AchievementDef("mail8", "有求必应", "处理 8 封市民来信", 700, "mail", 8.0),
+        AchievementDef("mail8", "有求必应", "处理 8 封居民反馈", 700, "mail", 8.0),
         AchievementDef("school60", "书香城区", "升学率达到 60%", 800, "school", 60.0),
         AchievementDef("school80", "学风鼎盛", "升学率达到 80%", 1600, "school", 80.0),
         AchievementDef("road80", "路网成型", "道路达到 80 格", 600, "roads", 80.0),
@@ -417,7 +417,7 @@ object Config {
 
     // -----------------------------------------------------------------------
     // 随机事件（由城市状态触发，不是无脑随机）
-    //   cond: power(缺电) / water(缺水) / health(缺医疗) / happy(满意度低)
+    //   cond: power(缺电) / water(缺水) / health(缺医疗) / happy(幸福度低)
     //         boom(商业需求高) / random(常态随机)
     // -----------------------------------------------------------------------
     data class EventDef(
@@ -441,7 +441,7 @@ object Config {
     )
 
     // -----------------------------------------------------------------------
-    // 市政任务（限时目标，完成刷新）
+    // 开发任务（限时目标，完成刷新）
     // -----------------------------------------------------------------------
     data class QuestDef(val type: String, val name: String, val reward: Int, val target: Double)
 
@@ -452,8 +452,8 @@ object Config {
         QuestDef("buildings", "建成建筑", 600, 40.0),
         QuestDef("buildings", "建成建筑", 1200, 100.0),
         QuestDef("funds", "资金达到", 600, 12000.0),
-        QuestDef("happy", "满意度达到", 800, 70.0),
-        QuestDef("happy", "满意度达到", 1500, 88.0),
+        QuestDef("happy", "幸福度达到", 800, 70.0),
+        QuestDef("happy", "幸福度达到", 1500, 88.0),
         QuestDef("edu", "教育达到", 700, 55.0),
         QuestDef("edu", "教育达到", 1200, 75.0),
         QuestDef("jobs", "岗位达到", 900, 600.0),
@@ -498,13 +498,13 @@ object Config {
     fun specOf(id: String): SpecDef? = if (id.isEmpty()) null else SPECS.firstOrNull { it.id == id }
 
     // -----------------------------------------------------------------------
-    // 政策（对照《详细拆解文档》：启用后必须持续改数值，不能只弹一次新闻）
+    // 方案（对照《详细拆解文档》：启用后必须持续改数值，不能只弹一次新闻）
     // -----------------------------------------------------------------------
     data class PolicyEffect(
-        val happy: Int = 0,                 // 生效期内每日叠加到满意度目标
-        val taxMul: Double = 1.0,           // 税收倍率
+        val happy: Int = 0,                 // 生效期内每日叠加到幸福度目标
+        val taxMul: Double = 1.0,           // 经营收入倍率
         val incomeMul: Double = 1.0,        // 产业收入倍率
-        val cost: Int = 0,                  // 一次性财政支出
+        val cost: Int = 0,                  // 一次性账面支出
         val pollutionMul: Double = 1.0,     // 污染倍率
         val demandR: Double = 1.0,          // 住宅需求倍率
         val demandC: Double = 1.0,
@@ -527,21 +527,21 @@ object Config {
     )
 
     val POLICIES: List<PolicyDef> = listOf(
-        PolicyDef("cut_tax", "减负降税", "30 日：税率收入 -25%，满意度目标 +12，住宅需求 +15%",
+        PolicyDef("cut_tax", "减负降税", "30 日：收费率收入 -25%，幸福度目标 +12，住宅需求 +15%",
             PolicyEffect(happy = 12, taxMul = 0.75, demandR = 1.15), 30, 45),
-        PolicyDef("raise_tax", "增收节支", "30 日：税收 +30%，满意度 -10，三项需求 -12%",
+        PolicyDef("raise_tax", "增收节支", "30 日：经营收入 +30%，幸福度 -10，三项需求 -12%",
             PolicyEffect(happy = -10, taxMul = 1.30, demandR = 0.88, demandC = 0.88, demandI = 0.88), 30, 45),
-        PolicyDef("greening", "绿化行动", "30 日：污染 -40%，满意度 +8。一次性支出 200 万",
+        PolicyDef("greening", "绿化行动", "30 日：污染 -40%，幸福度 +8。一次性支出 200 万",
             PolicyEffect(happy = 8, cost = 200, pollutionMul = 0.60), 30, 40),
         PolicyDef("bizboost", "营商激励", "45 日：商/工收入 +25%，商业需求 +20%",
             PolicyEffect(incomeMul = 1.25, demandC = 1.20, demandI = 1.10), 45, 70),
-        PolicyDef("welfare", "民生改善", "30 日：满意度 +15。一次性支出 400 万",
+        PolicyDef("welfare", "民生改善", "30 日：幸福度 +15。一次性支出 400 万",
             PolicyEffect(happy = 15, cost = 400), 30, 50),
         PolicyDef("smoke_alarm", "烟雾检测", "60 日：火灾风险 -70%。一次性支出 180 万",
             PolicyEffect(cost = 180, fireMul = 0.30), 60, 50),
-        PolicyDef("free_transit", "免费公交", "40 日：拥堵 -35%，满意度 +6，维护费 +18%",
+        PolicyDef("free_transit", "免费公交", "40 日：拥堵 -35%，幸福度 +6，维护费 +18%",
             PolicyEffect(happy = 6, trafficMul = 0.65, upkeepMul = 1.18), 40, 55),
-        PolicyDef("power_save", "电力节约", "40 日：用电 -15%，满意度 -4",
+        PolicyDef("power_save", "电力节约", "40 日：用电 -15%，幸福度 -4",
             PolicyEffect(happy = -4, powerUseMul = 0.85), 40, 40),
         PolicyDef("ev_boost", "电动车鼓励", "45 日：污染 -20%，拥堵 -10%，维护费 +12%",
             PolicyEffect(pollutionMul = 0.80, trafficMul = 0.90, upkeepMul = 1.12), 45, 50),
@@ -549,7 +549,7 @@ object Config {
             PolicyEffect(demandR = 1.25, upgradeMul = 1.80, trafficMul = 1.20), 40, 60),
         PolicyDef("industry_plan", "工业空间规划", "40 日：工业产出 +20%，工业需求 +15%，污染 +25%",
             PolicyEffect(incomeMul = 1.12, demandI = 1.15, pollutionMul = 1.25), 40, 55),
-        PolicyDef("night_econ", "夜间经济", "30 日：商业收入 +18%，满意度 -5",
+        PolicyDef("night_econ", "夜间经济", "30 日：商业收入 +18%，幸福度 -5",
             PolicyEffect(happy = -5, incomeMul = 1.18, demandC = 1.15), 30, 45)
     )
 
@@ -567,7 +567,7 @@ object Config {
         CityLevelDef(6, "大都会", 10000, 25000)
     )
 
-    // 虚构市政职级（全城建设成就，无现实机构）
+    // 架空开发商等级（纯游戏内成就，与现实机构无关）
     data class RankDef(
         val level: Int,
         val name: String,
@@ -579,25 +579,25 @@ object Config {
     )
 
     val RANKS: List<RankDef> = listOf(
-        RankDef(1, "见习营造", 0, 0, "起步：公园、电站、水塔、诊所、小学"),
+        RankDef(1, "初级开发", 0, 0, "起步：公园、电站、水塔、诊所、小学"),
         RankDef(
-            2, "街区营造", 80, 52, "解锁广场/中学/公交站 · 贷款额度提升 · 到账 180 万",
+            2, "片区开发", 80, 52, "解锁广场/中学/公交站 · 贷款额度提升 · 到账 180 万",
             grant = 180, unlockIds = listOf("plaza", "middle_school", "bus_stop", "incinerator")
         ),
         RankDef(
-            3, "城区营造", 300, 58, "解锁医院/大学/地铁站 · 独特建筑预告 · 到账 420 万",
+            3, "城区开发", 300, 58, "解锁医院/大学/地铁站 · 独特建筑预告 · 到账 420 万",
             grant = 420, unlockIds = listOf("hospital", "university", "metro", "solar_plant")
         ),
         RankDef(
-            4, "都会营造", 800, 62, "解锁火车站/港口/证交所 · 维护费 -6% · 到账 900 万",
+            4, "都市开发", 800, 62, "解锁火车站/港口/证交所 · 维护费 -6% · 到账 900 万",
             grant = 900, unlockIds = listOf("rail_station", "harbor", "stock_exchange", "prison")
         ),
         RankDef(
-            5, "总营造师", 2000, 68, "解锁机场/电视塔 · 贸易收入 +8% · 到账 1800 万",
+            5, "首席开发", 2000, 68, "解锁机场/电视塔 · 贸易收入 +8% · 到账 1800 万",
             grant = 1800, unlockIds = listOf("airport", "tv_tower", "nuclear_plant")
         ),
         RankDef(
-            6, "荣誉营造", 5000, 75, "解锁体育场 · 满意度目标 +4 · 到账 3600 万",
+            6, "传奇开发", 5000, 75, "解锁体育场 · 幸福度目标 +4 · 到账 3600 万",
             grant = 3600, unlockIds = listOf("stadium")
         )
     )
