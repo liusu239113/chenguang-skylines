@@ -996,7 +996,7 @@ object GameData {
             pushNews(
                 "城市晋级 " + level.name + "！",
                 String.format(
-                    "人口达到 %d，晨光市升级为%s，获得 %d万 拨款。",
+                    "人口达到 %d，云川城升为%s，获得 %d万 拨款。",
                     s.population.toInt(), level.name, level.reward
                 ),
                 "头条"
@@ -1290,12 +1290,12 @@ object GameData {
         }
         val s = current ?: return false to null
         val cost = 2
-        if (!sandbox && s.funds < cost) return false to "资金不足（电缆 2 万/格）"
+        if (!sandbox && s.funds < cost) return false to "资金不足（灵线 2 万/格）"
         noteTile(x, y)
         Networks.setCable(x, y, true, fromX, fromY)
         if (!sandbox) {
             s.funds -= cost
-            post("spend", "build", "电缆", cost.toDouble())
+            post("spend", "build", "灵线", cost.toDouble())
         }
         Networks.recount()
         return true to null

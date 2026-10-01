@@ -612,19 +612,20 @@ object Config {
     // -----------------------------------------------------------------------
     object COLORS {
         // UI 基底（报纸风）
-        val uiBackdrop = RGBA(223, 216, 199, 255)
-        val panelWhite = RGBA(248, 244, 232, 248)
+        // 古风 UI：宣纸底 + 朱漆点缀 + 墨色文字
+        val uiBackdrop = RGBA(214, 202, 178, 255)      // 旧纸底
+        val panelWhite = RGBA(243, 234, 214, 250)      // 宣纸面板
         val panelShadow = RGBA(96, 86, 66, 70)
-        val textDark = RGBA(44, 40, 34, 255)
-        val textMid = RGBA(110, 102, 88, 255)
-        val textFaint = RGBA(152, 144, 128, 255)
-        val accentGreen = RGBA(74, 112, 76, 255)
-        val accentRed = RGBA(172, 56, 50, 255)
-        val accentGold = RGBA(176, 140, 62, 255)
-        val accentBlue = RGBA(68, 100, 158, 255)
-        val accentSoftBg = RGBA(244, 224, 210, 255)
-        val border2 = RGBA(220, 212, 194, 255)
-        val chipBg = RGBA(250, 246, 236, 255)
+        val textDark = RGBA(38, 32, 26, 255)           // 墨色
+        val textMid = RGBA(96, 82, 64, 255)            // 褐墨
+        val textFaint = RGBA(140, 126, 104, 255)
+        val accentGreen = RGBA(78, 106, 72, 255)       // 竹青
+        val accentRed = RGBA(160, 48, 42, 255)         // 朱漆
+        val accentGold = RGBA(184, 142, 56, 255)       // 鎏金
+        val accentBlue = RGBA(62, 88, 128, 255)        // 靛青
+        val accentSoftBg = RGBA(238, 220, 196, 255)    // 米黄
+        val border2 = RGBA(198, 182, 154, 255)         // 木框
+        val chipBg = RGBA(246, 238, 220, 255)          // 纸签
         val veil = RGBA(46, 40, 32, 130)
 
         // 地形
@@ -637,10 +638,11 @@ object Config {
         val hill = RGBA(176, 186, 156, 255)
 
         // 道路
-        val roadDirt = RGBA(186, 168, 132, 255)
-        val roadLocal = RGBA(118, 122, 128, 255)
-        val roadAvenue = RGBA(92, 96, 104, 255)
-        val roadHighway = RGBA(72, 76, 84, 255)
+        // 古风路面：土路 / 青石板巷 / 打磨石板大街 / 夯土官道
+        val roadDirt = RGBA(190, 172, 138, 255)      // 土路
+        val roadLocal = RGBA(176, 172, 162, 255)     // 青石板巷
+        val roadAvenue = RGBA(160, 156, 148, 255)    // 石板大街
+        val roadHighway = RGBA(146, 138, 124, 255)   // 夯土官道
 
         // 分区
         val zoneResidential = RGBA(233, 217, 166, 255)

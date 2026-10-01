@@ -221,7 +221,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        (s?.cityName ?: "晨光市") + " · " + (s?.mayorName ?: "未署名") + " · " + GameData.rankDef().name,
+                        (s?.cityName ?: "云川城") + " · " + (s?.mayorName ?: "未署名") + " · " + GameData.rankDef().name,
                         fontSize = 13.sp, fontWeight = FontWeight.Bold,
                         color = C.textDark.toColor(), fontFamily = LocalGameFont.current,
                         modifier = Modifier
@@ -645,7 +645,7 @@ fun MapScreenContent(mapView: MapRenderView) {
                                 UIHelper.InfoRow(
                                     "接入状态",
                                     if (wired) "已接入管网（产能已并网）"
-                                    else "未接线：用【规划 → " + (if (cfg.powerCap > 0) "电缆" else "水管") + "】铺一格挨着它才算接通"
+                                    else "未接线：用【规划 → " + (if (cfg.powerCap > 0) "灵线" else "水渠") + "】铺一格挨着它才算接通"
                                 )
                             }
                             if (cfg.garbageCap > 0) UIHelper.InfoRow("收运能力", cfg.garbageCap.toString() + " 栋")
@@ -773,9 +773,9 @@ fun MapScreenContent(mapView: MapRenderView) {
             val items = listOf(
                 Triple("road", "道路", null as String?),
                 Triple("zone", "民坊", "residential"),
-                Triple("zone", "商业", "commercial"),
-                Triple("zone", "工业", "industrial"),
-                Triple("zone", "办公", "office"),
+                Triple("zone", "市肆", "commercial"),
+                Triple("zone", "工坊", "industrial"),
+                Triple("zone", "官署", "office"),
                 Triple("bulldoze", "推平", null),
                 Triple("service", "服务", null),
                 Triple("plan", "规划", null)
@@ -1190,8 +1190,8 @@ private fun PlanDrawer(mapView: MapRenderView) {
                 "tree" -> "点空地点树"
                 "raise" -> "点空地抬升地形"
                 "lower" -> "点空地降低地形"
-                "pipe" -> "沿一条线拖动铺水管，首尾相接才算连通"
-                "cable" -> "沿一条线拖动铺电缆，首尾相接才算连通"
+                "pipe" -> "沿一条线拖动铺水渠，首尾相接才算连通"
+                "cable" -> "沿一条线拖动铺灵线，首尾相接才算连通"
                 else -> "可以在地图上操作了"
             }
         )
@@ -1209,14 +1209,14 @@ private fun PlanDrawer(mapView: MapRenderView) {
             color = C.textDark.toColor(), fontFamily = LocalGameFont.current
         )
         Text(
-            "电水靠「道路预埋管线 + 地下电缆/水管」送到建筑；电厂水楼只产能，可放远郊。地道隧/石轨在【道路】里，要先建地道站/驿站。",
+            "电水靠「街巷预埋管线 + 地下灵线/水渠」送到屋舍；风车坊水楼只产能，可放远郊。地道/石轨在【道路】里，要先建地道口/驿站。",
             fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            UIHelper.PickChip("水管", "2万/格", AppState.mode == "pipe", width = 86.dp) {
+            UIHelper.PickChip("水渠", "2万/格", AppState.mode == "pipe", width = 86.dp) {
                 pickAndClose("pipe")
             }
-            UIHelper.PickChip("电缆", "2万/格", AppState.mode == "cable", width = 86.dp) {
+            UIHelper.PickChip("灵线", "2万/格", AppState.mode == "cable", width = 86.dp) {
                 pickAndClose("cable")
             }
             UIHelper.PickChip("种树", "1万/格", AppState.mode == "tree", width = 86.dp) {
@@ -1489,7 +1489,7 @@ private fun HelpPanel() {
             HelpRow("路", "开局十字是【两车道】，和建造菜单里同一种。泥土路无标线；两车道一条中虚线；四车道中央双黄、两侧白虚线，车分内外道并排。外环高速全天有过路车；接进城后才会进游客。")
             HelpRow("铁", "先在【服务】建驿站，再在【道路】里选石轨去地图上画。地道同理，先建地道站。飞舟坞建好会有飞舟。")
             HelpRow("区", "【民坊/市肆/工坊/官署】在街巷旁点格子进草稿，点「确认划界」才扣费。设施会清掉底下坊界，不会被后长出来的屋舍盖掉。蒙学点在占地内任意一格即可。【官署】要书院以上学历才进得去，进项比市肆高。【推平】拆屋会连底下坊界一起清掉。")
-            HelpRow("电", "电厂只负责产能，可放远郊。电力靠「道路预埋电缆 + 地下电缆」送到建筑：临路的楼自动通电，偏远地块要在【规划】里拖电缆，首尾相接才算连通。")
+            HelpRow("电", "电厂只负责产能，可放远郊。电力靠「道路预埋灵线 + 地下灵线」送到建筑：临路的楼自动通电，偏远地块要在【规划】里拖灵线，首尾相接才算连通。")
             HelpRow("水", "水塔/水车坊/污水处理厂必须建在水边（取水/排水），只负责产能，靠「道路预埋水管 + 地下水管」送到建筑；污水和供水共用一条管道网。")
             HelpRow("规", "【规划】里选水渠/灵线/车马/种树/抬升，以及产业专精。管线要沿着一条线拖，首尾对齐才连得上，两根并排的竖管不会互通。专精刷在已划的坊界上，格子立刻变色。全城政令在左上【策】。")
             HelpRow("污", "秽物场、焚秽窑、炭窑坊、火化场、作坊会给周边民居带来噪音和秽气，按距离衰减。贴太近百姓会上书并拉低民心，放远郊或隔开就好。")
@@ -1543,7 +1543,7 @@ private fun overlayLabel(cat: String): String = when (cat) {
     "rail" -> "石轨"
     "spec" -> "产业专精"
     "pipe" -> "水管"
-    "cable" -> "电缆"
+    "cable" -> "灵线"
     "sewer" -> "污水"
     "underground" -> "地下总览"
     else -> cat
@@ -1555,10 +1555,10 @@ private fun overlayHint(cat: String): String = when (cat) {
     "rail" -> "只显示石轨网络"
     "spec" -> "已刷专精的分区会叠色"
     "pipe" -> "蓝=水管 · 淡蓝=道路自带预埋管 · 走线要首尾相接"
-    "cable" -> "黄=电缆 · 淡黄=道路自带预埋缆 · 走线要首尾相接"
+    "cable" -> "黄=灵线 · 淡黄=道路自带预埋缆 · 走线要首尾相接"
     "sewer" -> "绿=污水管 · 净水渠要接进同一张水网"
     "metro" -> "紫=地道隧道 · 只显示地下，地表看不见"
-    "underground" -> "蓝水管 · 黄电缆 · 绿污水 · 紫地道（地表压暗）"
+    "underground" -> "蓝水管 · 黄灵线 · 绿污水 · 紫地道（地表压暗）"
     else -> "绿=已覆盖 · 红=未覆盖 · 圈=该座设施半径，圈内哪坨归哪座一看就明"
 }
 
@@ -2053,7 +2053,7 @@ private fun DataPanel() {
                 CovBar("治安", cov.safety)
                 CovBar("殡葬", cov.death)
                 Text(
-                    "覆盖按设施半径对齐，不是电缆。点下方按钮可单独看每一类圈到了哪一坨建筑。",
+                    "覆盖按设施半径对齐，不是灵线。点下方按钮可单独看每一类圈到了哪一坨建筑。",
                     fontSize = 10.sp, color = C.textMid.toColor(), fontFamily = LocalGameFont.current
                 )
             }
@@ -2187,7 +2187,7 @@ private fun DataPanel() {
                 }
             }
 
-            // 地下管网图层：压暗地表，专门看水管/电缆/污水/地道怎么走的
+            // 地下管网图层：压暗地表，专门看水管/灵线/污水/地道怎么走的
             Text(
                 "地下管网图层", fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 color = C.textMid.toColor(), fontFamily = LocalGameFont.current

@@ -464,7 +464,7 @@ class MapRenderView @JvmOverloads constructor(
             "bulldoze" -> "推平"
             "service" -> "建造"
             "pipe" -> "铺水管"
-            "cable" -> "铺电缆"
+            "cable" -> "铺灵线"
             "tree" -> "种树"
             "spec" -> "产业专精"
             "raise" -> "垫高"
@@ -954,7 +954,7 @@ class MapRenderView @JvmOverloads constructor(
     }
 
     /**
-     * 地下管网图层滤镜：压暗地表，把水管/电缆/污水/地道画成发光线，
+     * 地下管网图层滤镜：压暗地表，把水管/灵线/污水/地道画成发光线，
      * 让玩家一眼看清线路怎么走的（正在铺的那一种最亮，其余变暗作参考）。
      */
     private fun drawUndergroundLayer(canvas: Canvas, w: World, x0: Int, x1: Int, y0: Int, y1: Int) {
@@ -2654,25 +2654,54 @@ class MapRenderView @JvmOverloads constructor(
             rx = sx - W / 2f; ry = sy - L / 2f; rw = W; rh = L
         }
         val rad = max(1.4f, cell * 0.06f)
+        // 落地影
         fillRoundRect(canvas, rx + 1.8f, ry + 2.6f, rw, rh, rad, RGBA(28, 34, 30, 55))
-        val rubber = RGBA(36, 36, 40)
-        val wheel = max(2.2f, cell * 0.08f)
-        if (horiz) {
-            fillRoundRect(canvas, rx + rw * 0.12f, ry + rh - wheel * 0.35f, wheel, wheel * 0.72f, 1.2f, rubber)
-            fillRoundRect(canvas, rx + rw * 0.70f, ry + rh - wheel * 0.35f, wheel, wheel * 0.72f, 1.2f, rubber)
-            fillRoundRect(canvas, rx + rw * 0.12f, ry - wheel * 0.25f, wheel, wheel * 0.72f, 1.2f, rubber)
-            fillRoundRect(canvas, rx + rw * 0.70f, ry - wheel * 0.25f, wheel, wheel * 0.72f, 1.2f, rubber)
-        } else {
-            fillRoundRect(canvas, rx - wheel * 0.25f, ry + rh * 0.12f, wheel * 0.72f, wheel, 1.2f, rubber)
-            fillRoundRect(canvas, rx - wheel * 0.25f, ry + rh * 0.70f, wheel * 0.72f, wheel, 1.2f, rubber)
-            fillRoundRect(canvas, rx + rw - wheel * 0.35f, ry + rh * 0.12f, wheel * 0.72f, wheel, 1.2f, rubber)
-            fillRoundRect(canvas, rx + rw - wheel * 0.35f, ry + rh * 0.70f, wheel * 0.72f, wheel, 1.2f, rubber)
+        // 木轮（辐条轮）
+        val wood = Config.BUILD.wallWood.shade(0.72)
+        val wheel = max(2.2f, cell * 0.09f)
+        val spoke = max(0.6f, cell * 0.014f)
+        strokeColor(wood, 220, spoke)
+        fun spokeWheel(wx: Float, wy: Float) {
+            fillCircle(canvas, wx, wy, wheel * 0.5f, wood.shade(0.90))
+            canvas.drawCircle(wx, wy, wheel * 0.5f, paint)
+            canvas.drawLine(wx - wheel * 0.5f, wy, wx + wheel * 0.5f, wy, paint)
+            canvas.drawLine(wx, wy - wheel * 0.5f, wx, wy + wheel * 0.5f, paint)
         }
-        fillRoundRect(canvas, rx, ry - lift * 0.15f, rw, rh, rad, color.shade(0.62))
-        fillRoundRect(canvas, rx, ry - lift, rw, rh * 0.78f, rad, color)
-        fillRoundRect(canvas, rx + rw * 0.08f, ry - lift - cell * 0.04f, rw * 0.84f, rh * 0.42f, rad, color.shade(1.08))
-        strokeColor(color.shade(0.42), 90, max(0.5f, cell * 0.018f))
-        canvas.drawLine(rx + rw * 0.18f, ry - lift + rh * 0.18f, rx + rw * 0.82f, ry - lift + rh * 0.18f, paint)
+        if (horiz) {
+            spokeWheel(rx + rw * 0.20f, ry + rh * 0.52f)
+            spokeWheel(rx + rw * 0.76f, ry + rh * 0.52f)
+        } else {
+            spokeWheel(rx + rw * 0.52f, ry + rh * 0.20f)
+            spokeWheel(rx + rw * 0.52f, ry + rh * 0.76f)
+        }
+        // 车厢（木板底）
+        fillRoundRect(canvas, rx, ry - lift * 0.15f, rw, rh, rad, wood.shade(0.70))
+        // 布篷车厢（圆拱顶）
+        val canopy = color.shade(1.05)
+        fillRoundRect(canvas, rx, ry - lift, rw, rh * 0.80f, rh * 0.42f, color)
+        fillRoundRect(canvas, rx + rw * 0.06f, ry - lift - cell * 0.035f, rw * 0.88f, rh * 0.46f, rh * 0.30f, canopy)
+        // 篷布褶线
+        strokeColor(color.shade(0.62), 150, max(0.5f, cell * 0.016f))
+        if (horiz) {
+            for (k in 1..3) {
+                val lx = rx + rw * (k / 4f)
+                canvas.drawLine(lx, ry - lift + rh * 0.06f, lx, ry - lift + rh * 0.74f, paint)
+            }
+        } else {
+            for (k in 1..3) {
+                val ly = ry - lift + rh * (k / 4f)
+                canvas.drawLine(rx + rw * 0.10f, ly, rx + rw * 0.90f, ly, paint)
+            }
+        }
+        // 车辕（前头伸出的木杆）
+        strokeColor(wood, 230, max(0.9f, cell * 0.022f))
+        if (horiz) {
+            val nose = if (dir == 0) 1f else -1f
+            canvas.drawLine(sx + nose * rw * 0.5f, sy - lift + rh * 0.4f, sx + nose * rw * 0.92f, sy - lift + rh * 0.4f, paint)
+        } else {
+            val nose = if (dir == 1) 1f else -1f
+            canvas.drawLine(sx - lift * 0f + rw * 0.5f, sy + nose * rh * 0.5f, rw * 0.5f + sx, sy + nose * rh * 0.92f, paint)
+        }
         if (selected) {
             strokeRoundRect(canvas, rx - 1.5f, ry - lift - 1.5f, rw + 3f, rh + 3f, rad, RGBA(220, 80, 50), 255, 1.6f)
         }
@@ -2887,32 +2916,55 @@ class MapRenderView @JvmOverloads constructor(
         if (!flip) canvas.drawLine(trx, fy, trx, fy - H, paint)
         else canvas.drawLine(tlx, fy, tlx, fy - H, paint)
 
-        // 前墙楼层线 + 窗户
-        if (H >= cell * 0.22f && cell >= 8) {
-            val floors = max(1, floor(H / (cell * 0.22f)).toInt())
-            val fw = brx - blx
-            val cols = max(1, floor(fw / (cell * 0.18f)).toInt())
-            val lit = nightLevel > 0.3f
-            for (fi in 1 until floors) {
-                val ly = by - H * (fi / floors.toFloat())
-                strokeColor(base.shade(0.58), 150, max(0.45f, cell * 0.012f))
-                canvas.drawLine(blx + 1f, ly, brx - 1f, ly, paint)
+        // ---- 中式木构立面：石台基 + 木柱 + 腰枋 + 棂窗 ----
+        val fw = brx - blx
+        val lit = nightLevel > 0.3f
+        val floors = max(1, floor(H / (cell * 0.22f)).toInt())
+        // 1) 石台基（墙脚）
+        val baseH = max(1.2f, H * 0.09f)
+        fillRect(canvas, blx, by - baseH, fw, baseH, RGBA(158, 152, 140))
+        strokeColor(RGBA(120, 114, 104), 170, max(0.5f, cell * 0.014f))
+        canvas.drawLine(blx, by - baseH, brx, by - baseH, paint)
+        // 2) 木柱（等距竖线）
+        if (cell >= 8 && fw > cell * 0.18f) {
+            val bays = max(2, floor(fw / (cell * 0.24f)).toInt())
+            val postW = max(0.9f, cell * 0.032f)
+            val postCol = Config.BUILD.wallWood.shade(0.88)
+            for (bi in 0..bays) {
+                val px = blx + fw * (bi.toFloat() / bays) - postW * 0.5f
+                fillRect(canvas, px, by - H, postW, H - baseH, postCol)
             }
-            if (cell >= 10 && cols > 0) {
-                val ww = min(cell * 0.08f, fw / (cols + 1) * 0.55f)
-                val wh = min(cell * 0.10f, H / (floors + 1) * 0.55f)
-                for (wi in 0 until cols) {
-                    for (wj in 0 until floors) {
-                        val wx = blx + fw * ((wi + 0.5f) / cols) - ww * 0.5f
-                        val wy = by - H * ((wj + 0.62f) / floors) - wh * 0.5f
-                        val on = !lit || ((wi * 7 + wj * 13) % 5 != 0)
-                        fillRect(
-                            canvas, wx, wy, ww, wh,
-                            if (lit && on) RGBA(255, 214, 118, 230)
-                            else if (lit) RGBA(48, 56, 70, 200)
-                            else base.shade(0.42)
-                        )
-                    }
+        }
+        // 3) 腰枋（每层一道木枋）
+        for (fi in 1 until floors) {
+            val ly = by - H * (fi / floors.toFloat())
+            fillRect(canvas, blx, ly - max(0.6f, cell * 0.018f), fw, max(1.2f, cell * 0.036f), Config.BUILD.wallWood.shade(0.80))
+        }
+        // 4) 棂窗（格纹窗，夜晚透光）
+        if (cell >= 10) {
+            val cols = max(1, floor(fw / (cell * 0.20f)).toInt())
+            val ww = min(cell * 0.09f, fw / (cols + 1) * 0.60f)
+            val wh = min(cell * 0.11f, H / (floors + 1) * 0.58f)
+            for (wi in 0 until cols) {
+                for (wj in 0 until floors) {
+                    val wx = blx + fw * ((wi + 0.5f) / cols) - ww * 0.5f
+                    val wy = by - H * ((wj + 0.60f) / floors) - wh * 0.5f
+                    if (wy < by - H + baseH) continue
+                    val on = !lit || ((wi * 7 + wj * 13) % 5 != 0)
+                    fillRect(canvas, wx, wy, ww, wh, Config.BUILD.wallWood.shade(0.72))
+                    val iw = ww * 0.76f
+                    val ih = wh * 0.72f
+                    val ix = wx + (ww - iw) * 0.5f
+                    val iy = wy + (wh - ih) * 0.5f
+                    fillRect(
+                        canvas, ix, iy, iw, ih,
+                        if (lit && on) RGBA(255, 214, 118, 235)
+                        else if (lit) RGBA(48, 56, 70, 205)
+                        else RGBA(226, 214, 186, 220)
+                    )
+                    strokeColor(Config.BUILD.wallWood.shade(0.62), 200, max(0.45f, cell * 0.012f))
+                    canvas.drawLine(ix + iw * 0.5f, iy, ix + iw * 0.5f, iy + ih, paint)
+                    canvas.drawLine(ix, iy + ih * 0.5f, ix + iw, iy + ih * 0.5f, paint)
                 }
             }
         }

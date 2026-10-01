@@ -6,7 +6,7 @@ import org.json.JSONObject
 import kotlin.math.max
 
 /**
- * 地下管网。旧档可能仍带水管/电缆/坊界字段，读档保留但不玩坊界政令。
+ * 地下管网。旧档可能仍带水管/灵线/坊界字段，读档保留但不玩坊界政令。
  */
 class District(
     val id: Int,
@@ -92,8 +92,8 @@ object Networks {
 
     fun canCable(x: Int, y: Int): Pair<Boolean, String?> {
         val t = World.tile(x, y) ?: return false to "越界"
-        if (t.terrain == "water") return false to "水域不能铺电缆（先垫地或绕开）"
-        if (t.terrain == "hill") return false to "山地不能铺电缆（先推平或绕开）"
+        if (t.terrain == "water") return false to "水域不能铺灵线（先垫地或绕开）"
+        if (t.terrain == "hill") return false to "山地不能铺灵线（先推平或绕开）"
         return true to null
     }
 
@@ -211,8 +211,8 @@ object Networks {
     }
 
     // -----------------------------------------------------------------------
-    // 管网连通性：电厂/水楼只负责产能，靠「道路预埋管线 + 地下电缆/水管」输送到建筑。
-    // 道路天生带电带水；地下电缆/水管用于把偏远厂站接进管网。
+    // 管网连通性：电厂/水楼只负责产能，靠「道路预埋管线 + 地下灵线/水管」输送到建筑。
+    // 道路天生带电带水；地下灵线/水管用于把偏远厂站接进管网。
     // -----------------------------------------------------------------------
     private val powerTiles = HashSet<Int>()
     private val waterTiles = HashSet<Int>()
@@ -258,7 +258,7 @@ object Networks {
      * 该格在 bit 方向是否开口。
      * 道路自带预埋管线，四向全通；自己铺的管缆按 mask 判定：
      * mask=0（单点/旧档）视为四向全开；否则只有记录的开口方向可通行，
-     * 因此两根并排的竖电缆不会互相串通，必须首尾对齐才连得上。
+     * 因此两根并排的竖灵线不会互相串通，必须首尾对齐才连得上。
      */
     private fun openAt(x: Int, y: Int, bit: Int, power: Boolean): Boolean {
         val t = World.tile(x, y) ?: return false
@@ -311,7 +311,7 @@ object Networks {
             val isPower = cfg.powerCap > 0
             val isWater = cfg.waterCap > 0
             if (!isPower && !isWater) continue
-            // 厂站必须靠玩家自己铺的电缆/水管接进管网：光挨着马路不算接通，
+            // 厂站必须靠玩家自己铺的灵线/水管接进管网：光挨着马路不算接通，
             // 免得"还没拉线就全城来电"。接进来之后借着马路把水电送到全城。
             for (dy in -1..e.b.h) {
                 for (dx in -1..e.b.w) {
@@ -341,7 +341,7 @@ object Networks {
         return false
     }
 
-    /** 建筑是否接入电网：自身或四邻有已连通的道路/电缆 */
+    /** 建筑是否接入电网：自身或四邻有已连通的道路/灵线 */
     fun isPowered(x: Int, y: Int): Boolean {
         ensureGrid()
         return linked(x, y, powerTiles)
@@ -415,7 +415,7 @@ object Networks {
         return ok
     }
 
-    /** 某座厂站是否已经接线（自己铺的电缆/水管挨着它，或管网已经铺到它脚下） */
+    /** 某座厂站是否已经接线（自己铺的灵线/水管挨着它，或管网已经铺到它脚下） */
     fun plantWired(ax: Int, ay: Int, power: Boolean, bw: Int = 1, bh: Int = 1): Boolean {
         ensureGrid()
         val w = World.current ?: return false
@@ -433,7 +433,7 @@ object Networks {
     }
 
     /**
-     * 真正接进管网的产能合计：厂站周围没有自己铺的电缆/水管就等于没接线，
+     * 真正接进管网的产能合计：厂站周围没有自己铺的灵线/水管就等于没接线，
      * 这台机组不算产能（会直接体现为电力/供水不足）。
      */
     fun connectedCapacity(power: Boolean): Int {

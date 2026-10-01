@@ -24,7 +24,7 @@ class Tile {
     var underRoad: String? = null     // 立交桥下穿的地面道路（四面互通，底盘照常通行）
     var building: Building? = null
     var pipe: Boolean = false         // 地下水管
-    var cable: Boolean = false        // 地下电缆
+    var cable: Boolean = false        // 地下灵线
     // 管线开口方向位掩码：N=1 E=2 S=4 W=8；0=未指定（单点/旧档，按四向全开处理）
     var pipeMask: Int = 0
     var cableMask: Int = 0
@@ -1314,7 +1314,7 @@ class World {
         }
 
         fun isCoveredBy(x: Int, y: Int, category: String): Boolean {
-            // 电力/供水：接入「道路预埋管线 + 地下电缆/水管」即通，不再看厂站半径
+            // 电力/供水：接入「道路预埋管线 + 地下灵线/水管」即通，不再看厂站半径
             if (category == Config.ServiceCat.POWER) return Networks.isPowered(x, y)
             if (category == Config.ServiceCat.WATER) return Networks.isWatered(x, y)
             // 垃圾/殡葬：有产能即全城可服务（靠车辆沿路收运），不再看半径

@@ -53,7 +53,7 @@ object SaveManager {
             val j = JSONObject(f.readText())
             SlotMeta(
                 true,
-                j.optString("cityName", "晨光市"),
+                j.optString("cityName", "云川城"),
                 j.optInt("population", 0),
                 j.optDouble("funds", 0.0),
                 j.optString("dateLabel", ""),

@@ -218,7 +218,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                 value = name,
                 onValueChange = { if (it.length <= 8) name = it },
                 placeholder = {
-                    Text("晨光市", fontFamily = LocalGameFont.current, fontSize = 14.sp)
+                    Text("云川城", fontFamily = LocalGameFont.current, fontSize = 14.sp)
                 },
                 singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(
@@ -440,7 +440,7 @@ private fun NewGameScreen(mapView: MapRenderView) {
                     .background(C.accentGreen.toColor(), RoundedCornerShape(24.dp))
                     .clickable {
                         Sfx.play("sfx_click")
-                        val cityName = if (name.isBlank()) "晨光市" else name.trim()
+                        val cityName = if (name.isBlank()) "云川城" else name.trim()
                         val mayorName = if (mayor.isBlank()) "未署名" else mayor.trim()
                         val seed = if (seedText.isBlank()) Random.nextInt(1, 100000) else seedText.toIntOrNull() ?: Random.nextInt(1, 100000)
                         startGame(mapView, cityName, mayorName, seed, difficulty, slot, sandbox)
